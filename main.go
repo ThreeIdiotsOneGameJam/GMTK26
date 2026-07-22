@@ -6,6 +6,7 @@ import (
 	"github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/world"
 )
 
@@ -43,12 +44,16 @@ var mainScreen = ui.Screen{
 			TextSize:     48,
 			Padding:      8,
 			OutlineWidth: 4,
-			Colors: ui.ButtonColors{
-				Outline:         rl.Gray,
-				Background:      rl.LightGray,
-				BackgroundHover: math.ColorAdd(rl.LightGray, 25),
-				BackgroundClick: math.ColorAdd(rl.LightGray, 40),
-				Foreground:      rl.DarkGray,
+			ForegroundColors: util.ColorSet{
+				Default: &rl.DarkGray,
+			},
+			BackgroundColors: util.ColorSet{
+				Default: &rl.LightGray,
+				Hover:   math.ColorAdd(rl.LightGray, 25),
+				Click:   math.ColorAdd(rl.LightGray, 40),
+			},
+			OutlineColors: util.ColorSet{
+				Default: &rl.Gray,
 			},
 			Click: func() {
 				fmt.Println("clicked")

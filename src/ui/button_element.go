@@ -5,6 +5,7 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
 type ButtonElement struct {
@@ -15,27 +16,15 @@ type ButtonElement struct {
 	Text                  string
 	TextSize              int32
 	Padding, OutlineWidth int32
-	Colors                ButtonColors
+	ForegroundColors      util.ColorSet
+	BackgroundColors      util.ColorSet
+	OutlineColors         util.ColorSet
 	Click                 func()
 
 	x, y, cx, cy, w, h, textWidth int32
 
 	hovered, hoveredPrevious bool
 	clicked, clickedPrevious bool
-}
-
-type ButtonColors struct {
-	Outline      color.RGBA
-	OutlineHover *color.RGBA
-	OutlineClick *color.RGBA
-
-	Background      color.RGBA
-	BackgroundHover *color.RGBA
-	BackgroundClick *color.RGBA
-
-	Foreground      color.RGBA
-	ForegroundHover *color.RGBA
-	ForegroundClick *color.RGBA
 }
 
 func (b *ButtonElement) update(delta float32) {
@@ -57,24 +46,20 @@ func (b *ButtonElement) draw() {
 	btnWidthOuter, btnHeightOuter := b.w+b.OutlineWidth*2, b.h+b.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := b.x-b.OutlineWidth, b.y-b.OutlineWidth
 
-	oCol := &b.Colors.Outline
-	bgCol := &b.Colors.Background
-	fgCol := &b.Colors.Foreground
+	oCol := fallbackColor(b.OutlineColors.Default, &color.RGBA{})
+	bgCol := fallbackColor(b.BackgroundColors.Default, &color.RGBA{})
+	fgCol := fallbackColor(b.ForegroundColors.Default, &color.RGBA{})
 
 	if b.hovered {
-		rl.SetMouseCursor(rl.MouseCursorPointingHand)
+		oCol = fallbackColor(b.OutlineColors.Hover, oCol)
+		bgCol = fallbackColor(b.BackgroundColors.Hover, bgCol)
+		fgCol = fallbackColor(b.ForegroundColors.Hover, fgCol)
+	}
 
-		oCol = fallbackColor(b.Colors.OutlineHover, oCol)
-		bgCol = fallbackColor(b.Colors.BackgroundHover, bgCol)
-		fgCol = fallbackColor(b.Colors.ForegroundHover, fgCol)
-
-		if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
-			oCol = fallbackColor(b.Colors.OutlineClick, oCol)
-			bgCol = fallbackColor(b.Colors.BackgroundClick, bgCol)
-			fgCol = fallbackColor(b.Colors.ForegroundClick, fgCol)
-		}
-	} else {
-		rl.SetMouseCursor(rl.MouseCursorDefault)
+	if b.clicked {
+		oCol = fallbackColor(b.OutlineColors.Click, oCol)
+		bgCol = fallbackColor(b.BackgroundColors.Click, bgCol)
+		fgCol = fallbackColor(b.ForegroundColors.Click, fgCol)
 	}
 
 	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, *oCol)
