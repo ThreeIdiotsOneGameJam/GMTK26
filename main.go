@@ -18,6 +18,7 @@ func tick() {
 }
 
 var mainScreen = ui.Screen{
+	BackgroundColor: rl.RayWhite,
 	Elements: []ui.Element{
 		&ui.TextElement{
 			Pos: func(renderWidth, renderHeight int32) math.Vec2i {
@@ -57,8 +58,6 @@ var mainScreen = ui.Screen{
 
 func frame() {
 	rl.BeginDrawing()
-
-	rl.ClearBackground(rl.RayWhite)
 
 	mainScreen.Update(0)
 	mainScreen.Draw()

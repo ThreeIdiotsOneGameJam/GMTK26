@@ -1,7 +1,14 @@
 package ui
 
+import (
+	"image/color"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
 type Screen struct {
-	Elements []Element
+	BackgroundColor color.RGBA
+	Elements        []Element
 }
 
 func (s *Screen) Update(delta float32) {
@@ -11,6 +18,8 @@ func (s *Screen) Update(delta float32) {
 }
 
 func (s *Screen) Draw() {
+	rl.ClearBackground(s.BackgroundColor)
+
 	for _, el := range s.Elements {
 		el.draw()
 	}
