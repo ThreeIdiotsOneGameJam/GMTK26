@@ -12,11 +12,14 @@ type World struct {
 	Grid    [][]Tile
 	Camera  rl.Camera2D
 	HexSize v.Vec2
+	HasInit bool
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
 
 func (w *World) Init() {
+	w.HasInit = true
+
 	if w.Camera.Zoom == 0.0 {
 		w.Camera.Zoom = 1.0
 	}
@@ -27,14 +30,14 @@ func (w *World) Init() {
 	w.Grid = make([][]Tile, 32)
 
 	for x := range len(w.Grid) {
-		w.Grid[x] = make([]Tile, 12)
+		w.Grid[x] = make([]Tile, 24)
 		for y := range len(w.Grid[x]) {
 			v := rand.Float32()
-			if v > 0.8 {
+			if v > 0.6 {
 				w.Grid[x][y] = &VoidTile{}
-			} else if v > 0.6 {
-				w.Grid[x][y] = &WaterTile{}
 			} else if v > 0.4 {
+				w.Grid[x][y] = &WaterTile{}
+			} else if v > 0.2 {
 				w.Grid[x][y] = &GrassTile{}
 			} else {
 				w.Grid[x][y] = &UnkownTile{}
@@ -88,28 +91,18 @@ func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
 	ox := w / 2.0
 	oy := hp
 
-	rl.DrawTriangle(
-		rl.Vector2{X: x - ox + wp, Y: y - oy},
-		rl.Vector2{X: x - ox, Y: y - oy + hp},
-		rl.Vector2{X: x - ox + wp, Y: y - oy + h},
-		color,
-	)
-	rl.DrawTriangle(
-		rl.Vector2{X: x - ox + wp, Y: y - oy},
-		rl.Vector2{X: x - ox + wp, Y: y - oy + h},
-		rl.Vector2{X: x - ox + wp*3, Y: y - oy + h},
-		color,
-	)
-	rl.DrawTriangle(
-		rl.Vector2{X: x - ox + wp*3, Y: y - oy},
-		rl.Vector2{X: x - ox + wp, Y: y - oy},
-		rl.Vector2{X: x - ox + wp*3, Y: y - oy + h},
-		color,
-	)
-	rl.DrawTriangle(
-		rl.Vector2{X: x - ox + wp*3, Y: y - oy},
-		rl.Vector2{X: x - ox + wp*3, Y: y - oy + h},
-		rl.Vector2{X: x - ox + w, Y: y - oy + hp},
-		color,
-	)
+	a := rl.Vector2{X: x - ox + wp, Y: y - oy}
+	b := rl.Vector2{X: x - ox, Y: y - oy + hp}
+	c := rl.Vector2{X: x - ox + wp, Y: y - oy + h}
+	d := rl.Vector2{X: x - ox + wp*3, Y: y - oy + h}
+	e := rl.Vector2{X: x - ox + w, Y: y - oy + hp}
+	f := rl.Vector2{X: x - ox + wp*3, Y: y - oy}
+	center := rl.Vector2{X: x, Y: y}
+
+	rl.DrawTriangle(a, b, center, color)
+	rl.DrawTriangle(b, c, center, color)
+	rl.DrawTriangle(c, d, center, color)
+	rl.DrawTriangle(d, e, center, color)
+	rl.DrawTriangle(e, f, center, color)
+	rl.DrawTriangle(f, a, center, color)
 }
