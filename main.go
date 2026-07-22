@@ -8,6 +8,7 @@ import (
 	"github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
@@ -87,9 +88,10 @@ func frame() {
 
 	rl.BeginDrawing()
 
-	rl.SetMouseCursor(rl.MouseCursorDefault)
 	mainScreen.Update(deltaTime.Nanoseconds())
 	mainScreen.Draw()
+	global.MouseCursorState = rl.MouseCursorDefault
+	rl.SetMouseCursor(global.MouseCursorState)
 
 	rl.EndDrawing()
 

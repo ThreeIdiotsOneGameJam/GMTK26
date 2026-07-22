@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
@@ -42,7 +43,7 @@ func (b *ButtonElement) update(deltaNano int64) {
 		mouseY < b.y+b.h
 
 	if b.hovered {
-		rl.SetMouseCursor(rl.MouseCursorPointingHand)
+		global.MouseCursorState = rl.MouseCursorPointingHand
 	}
 
 	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
