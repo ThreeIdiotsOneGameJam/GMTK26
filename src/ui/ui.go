@@ -1,6 +1,6 @@
 package ui
 
 type Element interface {
-	Update(delta float32)
-	Draw()
+	update(delta float32)
+	draw()
 }
