@@ -1,0 +1,8 @@
+[build]
+cmd = "GOOS=js GOARCH=wasm go build -o ./Raylib-Go-Wasm/index/main.wasm ."
+bin = ""
+include_ext = ["go"]
+exclude_dir = ["vendor"]
+delay = 100
+[log]
+time = false

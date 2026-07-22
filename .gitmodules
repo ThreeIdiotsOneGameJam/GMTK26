@@ -1,0 +1,3 @@
+[submodule "Raylib-Go-Wasm"]
+	path = Raylib-Go-Wasm
+	url = https://github.com/BrownNPC/Raylib-Go-Wasm
