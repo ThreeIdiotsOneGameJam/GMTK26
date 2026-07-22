@@ -6,6 +6,7 @@ import (
 	"github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/world"
 )
 
 func update() {
@@ -60,6 +61,8 @@ func frame() {
 
 	rl.ClearBackground(rl.RayWhite)
 
+	world.Draw()
+
 	mainScreen.Update(0)
 	mainScreen.Draw()
 
@@ -72,6 +75,8 @@ func main() {
 	rl.SetConfigFlags(rl.FlagVsyncHint | rl.FlagWindowResizable)
 	rl.InitWindow(1200, 675, "Game")
 	defer rl.CloseWindow()
+
+	world.Init()
 
 	mainLoop()
 }
