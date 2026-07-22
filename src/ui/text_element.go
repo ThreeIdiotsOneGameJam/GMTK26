@@ -16,7 +16,7 @@ type TextElement struct {
 	x, y, w int32
 }
 
-func (e *TextElement) update(delta float32) {
+func (e *TextElement) update(deltaNano int64) {
 	e.w = rl.MeasureText(e.Text, e.TextSize)
 
 	pos := e.Pos(int32(rl.GetRenderWidth()), int32(rl.GetRenderHeight()))

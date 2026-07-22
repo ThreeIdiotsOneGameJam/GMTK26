@@ -11,9 +11,9 @@ type Screen struct {
 	Elements        []Element
 }
 
-func (s *Screen) Update(delta float32) {
+func (s *Screen) Update(deltaNano int64) {
 	for _, el := range s.Elements {
-		el.update(delta)
+		el.update(deltaNano)
 	}
 }
 

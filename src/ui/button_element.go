@@ -27,7 +27,7 @@ type ButtonElement struct {
 	clicked, clickedPrevious bool
 }
 
-func (b *ButtonElement) update(delta float32) {
+func (b *ButtonElement) update(deltaNano int64) {
 	b.textWidth = rl.MeasureText(b.Text, b.TextSize)
 
 	pos := b.Pos(int32(rl.GetRenderWidth()), int32(rl.GetRenderHeight()))
