@@ -5,6 +5,15 @@ import (
 )
 
 func update() {
+	tick()
+	frame()
+}
+
+func tick() {
+
+}
+
+func frame() {
 	rl.BeginDrawing()
 
 	rl.ClearBackground(rl.RayWhite)
@@ -58,10 +67,6 @@ func update() {
 var updateFunc = update
 
 func main() {
-	run()
-}
-
-func run() {
 	rl.SetConfigFlags(rl.FlagVsyncHint | rl.FlagWindowResizable)
 	rl.InitWindow(1200, 675, "Game")
 	defer rl.CloseWindow()
