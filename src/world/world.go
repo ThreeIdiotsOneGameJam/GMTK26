@@ -11,7 +11,7 @@ import (
 type World struct {
 	Grid    [][]Tile
 	Camera  rl.Camera2D
-	HexSize float32
+	HexSize v.Vec2
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -20,8 +20,8 @@ func (w *World) Init() {
 	if w.Camera.Zoom == 0.0 {
 		w.Camera.Zoom = 1.0
 	}
-	if w.HexSize == 0.0 {
-		w.HexSize = 48.0
+	if w.HexSize == (v.Vec2{}) {
+		w.HexSize = v.Vec2{X: 48.0, Y: 36.0}
 	}
 
 	w.Grid = make([][]Tile, 32)
@@ -53,11 +53,15 @@ func (w World) Draw() {
 	rlMouse := rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
 	mp := v.Vec2{X: rlMouse.X, Y: rlMouse.Y}
 
-	width := w.HexSize * 2.0
-	height := w.HexSize * sqrt3
+	width := w.HexSize.X * 2.0
+	height := w.HexSize.Y * sqrt3
 
 	for x := range len(w.Grid) {
 		for y, tile := range w.Grid[x] {
+			switch tile.(type) {
+			case *VoidTile:
+				continue
+			}
 
 			hex := w.PixelToHex(mp)
 
@@ -76,9 +80,9 @@ func (w World) Draw() {
 	rl.EndMode2D()
 }
 
-func DrawHexagon(x float32, y float32, r float32, color rl.Color) {
-	w := r * 2.0
-	h := r * sqrt3
+func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
+	w := size.X * 2.0
+	h := size.Y * sqrt3
 	wp := w / 4.0
 	hp := h / 2.0
 	ox := w / 2.0

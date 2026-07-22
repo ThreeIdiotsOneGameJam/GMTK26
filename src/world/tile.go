@@ -14,7 +14,7 @@ type Tile interface {
 type VoidTile struct{}
 
 func (t *VoidTile) Color() color.RGBA {
-	return color.RGBA{R: 5, G: 0, B: 5, A: 255}
+	return color.RGBA{R: 0, G: 0, B: 0, A: 0}
 }
 func (t *VoidTile) Tick()                {}
 func (t *VoidTile) Update(delta float32) {}
