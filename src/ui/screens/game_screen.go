@@ -7,5 +7,7 @@ import (
 
 var GameScreen = ui.Screen{
 	BackgroundColor: rl.RayWhite,
-	Elements:        []ui.Element{},
+	Elements:        []ui.Element{
+		&ui.WorldElement{},
+	},
 }
