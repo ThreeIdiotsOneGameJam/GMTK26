@@ -7,7 +7,6 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/math"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
-	"github.com/threeidiotsonegamejam/gmtk26/src/world"
 )
 
 func update() {
@@ -69,8 +68,6 @@ func frame() {
 	mainScreen.Update(0)
 	mainScreen.Draw()
 
-	world.Draw()
-
 	rl.EndDrawing()
 }
 
@@ -80,8 +77,6 @@ func main() {
 	rl.SetConfigFlags(rl.FlagVsyncHint | rl.FlagWindowResizable)
 	rl.InitWindow(1200, 675, "Game")
 	defer rl.CloseWindow()
-
-	world.Init()
 
 	mainLoop()
 }
