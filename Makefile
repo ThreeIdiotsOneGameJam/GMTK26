@@ -9,7 +9,12 @@ web_replace_on:
 web_replace_off:
 	sed -i 's|^replace github.com/gen2brain/raylib-go/raylib|//replace github.com/gen2brain/raylib-go/raylib|' $(GOMOD)
 
-.PHONY: run_desktop build_desktop run_web build_web server clean web_replace_on web_replace_off
+.PHONY: run_desktop build_desktop build_windows run_web build_web server clean web_replace_on web_replace_off
+
+## Windows (cross-compile) ##
+# Requires: mingw-w64 cross-compiler (e.g. x86_64-w64-mingw32-gcc)
+build_windows: web_replace_off
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H=windowsgui" -o ./bin/game.exe .
 
 ## Desktop (native) ##
 build_desktop: web_replace_off
