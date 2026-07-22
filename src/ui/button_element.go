@@ -40,6 +40,37 @@ func (b *ButtonElement) update(delta float32) {
 		mouseX < b.x+b.w &&
 		mouseY > b.y &&
 		mouseY < b.y+b.h
+
+	if b.hovered {
+		rl.SetMouseCursor(rl.MouseCursorPointingHand)
+	}
+
+	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
+		if b.clickedPrevious {
+			b.clicked = true
+		} else {
+			b.clicked = b.hovered
+
+			// play clickdown sound
+		}
+	} else {
+		b.clicked = false
+
+		// needs release while hovered
+		if b.clickedPrevious && b.hovered {
+			b.Click()
+			//play clickup sound
+		}
+
+		// release anywhere
+		//if b.clickedPrevious {
+		//	b.Click()
+		//  // play clickup sound
+		//}
+	}
+
+	// needs to be at the end of the update function
+	b.hoveredPrevious, b.clickedPrevious = b.hovered, b.clicked
 }
 
 func (b *ButtonElement) draw() {

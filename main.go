@@ -65,6 +65,7 @@ var mainScreen = ui.Screen{
 func frame() {
 	rl.BeginDrawing()
 
+	rl.SetMouseCursor(rl.MouseCursorDefault)
 	mainScreen.Update(0)
 	mainScreen.Draw()
 
