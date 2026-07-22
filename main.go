@@ -60,10 +60,10 @@ var mainScreen = ui.Screen{
 func frame() {
 	rl.BeginDrawing()
 
-	world.Draw()
-
 	mainScreen.Update(0)
 	mainScreen.Draw()
+
+	world.Draw()
 
 	rl.EndDrawing()
 }
