@@ -3,7 +3,7 @@ package world
 import (
 	"math"
 
-	v "github.com/threeidiotsonegamejam/gmtk26/src/math"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
 type Hex v.Vec2i

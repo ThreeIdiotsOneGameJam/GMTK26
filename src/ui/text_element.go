@@ -4,25 +4,54 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/math"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
+func Text() *TextElement {
+	el := &TextElement{}
+	el.BaseElement = NewBaseElement(el)
+
+	return el.WithSizeDynamic(func(el *TextElement) vec.Vec2i {
+		return vec.Vec2i{
+			X: rl.MeasureText(el.Text(), el.TextSize),
+			Y: el.TextSize,
+		}
+	})
+}
+
+func (el *TextElement) WithText(text string) *TextElement {
+	el.Text = func() string {
+		return text
+	}
+	return el
+}
+
+func (el *TextElement) WithTextDynamic(textProvider func() string) *TextElement {
+	el.Text = textProvider
+	return el
+}
+
+func (el *TextElement) WithTextSize(textSize int32) *TextElement {
+	el.TextSize = textSize
+	return el
+}
+
+func (el *TextElement) WithTextColor(textColor color.RGBA) *TextElement {
+	el.TextColor = textColor
+	return el
+}
+
 type TextElement struct {
-	Pos       func(renderWidth, renderHeight int32) math.Vec2i
-	Text      string
+	BaseElement[*TextElement]
+	Text      func() string
 	TextSize  int32
 	TextColor color.RGBA
-
-	x, y, w int32
 }
 
-func (e *TextElement) update(deltaNano int64) {
-	e.w = rl.MeasureText(e.Text, e.TextSize)
-
-	pos := e.Pos(int32(rl.GetRenderWidth()), int32(rl.GetRenderHeight()))
-	e.x, e.y = pos.X-e.w/2, pos.Y-e.TextSize/2
+func (el *TextElement) update(deltaNano int64) {
 }
 
-func (e *TextElement) draw() {
-	rl.DrawText(e.Text, e.x, e.y, e.TextSize, e.TextColor)
+func (el *TextElement) draw() {
+	pos := el.AbsolutePos()
+	rl.DrawText(el.Text(), pos.X, pos.Y, el.TextSize, el.TextColor)
 }

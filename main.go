@@ -40,19 +40,22 @@ func frame() {
 		fps = float64(time.Second) / float64(deltaTime)
 	}
 
-	util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
-	util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
-
 	rl.BeginDrawing()
+
+	rl.ClearBackground(rl.RayWhite)
 
 	global.MouseCursorState = rl.MouseCursorDefault
 
-	screens.GetActiveScreen().Update(deltaTime.Nanoseconds())
-	screens.GetActiveScreen().Draw()
+	screen := screens.GetActiveScreen()
+	screen.Update(deltaTime.Nanoseconds())
+	screen.Draw()
 
-	rl.SetMouseCursor(global.MouseCursorState)
+	util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
+	util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
 
 	rl.EndDrawing()
+
+	rl.SetMouseCursor(global.MouseCursorState)
 
 	frameCount++
 

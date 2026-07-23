@@ -1,7 +1,6 @@
 package screens
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 )
 
@@ -13,22 +12,23 @@ const (
 	SettingsScreenID
 )
 
-var screenMap map[ScreenID]*ui.Screen
-var activeScreen *ui.Screen
+var screenMap map[ScreenID]*ui.ScreenElement
+var activeScreen *ui.ScreenElement
 
 func init() {
-	screenMap = map[ScreenID]*ui.Screen{
-		MainScreenID:     &MainScreen,
-		GameScreenID:     &GameScreen,
-		SettingsScreenID: &SettingsScreen,
+	screenMap = map[ScreenID]*ui.ScreenElement{
+		MainScreenID:     MainScreen,
+		GameScreenID:     GameScreen,
+		SettingsScreenID: SettingsScreen,
 	}
-	activeScreen = &MainScreen
+	activeScreen = MainScreen
 }
 
-func GetActiveScreen() *ui.Screen {
+func GetActiveScreen() *ui.ScreenElement {
 	return activeScreen
 }
 
+// FIXME: ideally this should schedule the screen change for the next frame instead of doing it immediately but its not a big deal rn
 func SetActiveScreen(screenID ScreenID) {
 	screen, ok := screenMap[screenID]
 	if !ok {
@@ -36,7 +36,4 @@ func SetActiveScreen(screenID ScreenID) {
 	}
 
 	activeScreen = screen
-
-	// FIXME: i dont think this can run if drawing has not begun so thats something to look out for
-	rl.ClearBackground(screen.BackgroundColor)
 }

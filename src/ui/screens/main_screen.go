@@ -2,76 +2,74 @@ package screens
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/math"
-	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 )
 
-var MainScreen = ui.Screen{
-	BackgroundColor: rl.RayWhite,
-	Elements: []ui.Element{
-		&ui.TextElement{
-			Pos: func(renderWidth, renderHeight int32) math.Vec2i {
-				return math.Vec2i{
-					X: renderWidth / 2,
-					Y: renderHeight / 4,
+var MainScreen = ui.Screen().
+	AddChild(
+		ui.Text().
+			WithText("Game").
+			WithTextSize(96).
+			WithTextColor(rl.Black).
+			WithAnchors(anchor.Center, anchor.Top).
+			WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
+				return vec.Vec2i{
+					X: 0,
+					Y: el.Parent.Size().Y / 4,
 				}
-			},
-			Text:      "Game",
-			TextSize:  96,
-			TextColor: rl.Black,
-		},
-		&ui.ButtonElement{
-			Pos: func(renderWidth, renderHeight int32) math.Vec2i {
-				return math.Vec2i{
-					X: renderWidth / 2,
-					Y: renderHeight / 2,
-				}
-			},
-			Text:         "Play",
-			TextSize:     48,
-			Padding:      8,
-			OutlineWidth: 4,
-			ForegroundColors: util.ColorSet{
+			}),
+	).
+	AddChild(
+		ui.Button().
+			WithText("Play").
+			WithTextSize(48).
+			WithPadding(8).
+			WithOutlineWidth(4).
+			WithForegroundColors(util.ColorSet{
 				Default: &rl.DarkGray,
-			},
-			BackgroundColors: util.ColorSet{
+			}).
+			WithBackgroundColors(util.ColorSet{
 				Default: &rl.LightGray,
-				Hover:   math.ColorAdd(rl.LightGray, 25),
-				Click:   math.ColorAdd(rl.LightGray, 40),
-			},
-			OutlineColors: util.ColorSet{
+				Hover:   mathutil.ColorAdd(rl.LightGray, 25),
+				Click:   mathutil.ColorAdd(rl.LightGray, 40),
+			}).
+			WithOutlineColors(util.ColorSet{
 				Default: &rl.Gray,
-			},
-			Click: func() {
+			}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{}).
+			WithClick(func() {
 				SetActiveScreen(GameScreenID)
-			},
-		},
-		&ui.ButtonElement{
-			Pos: func(renderWidth, renderHeight int32) math.Vec2i {
-				return math.Vec2i{
-					X: renderWidth / 2,
-					Y: renderHeight/2 + 80,
-				}
-			},
-			Text:         "Settings",
-			TextSize:     48,
-			Padding:      8,
-			OutlineWidth: 4,
-			ForegroundColors: util.ColorSet{
+			}),
+	).
+	AddChild(
+		ui.Button().
+			WithText("Settings").
+			WithTextSize(48).
+			WithPadding(8).
+			WithOutlineWidth(4).
+			WithForegroundColors(util.ColorSet{
 				Default: &rl.DarkGray,
-			},
-			BackgroundColors: util.ColorSet{
+			}).
+			WithBackgroundColors(util.ColorSet{
 				Default: &rl.LightGray,
-				Hover:   math.ColorAdd(rl.LightGray, 25),
-				Click:   math.ColorAdd(rl.LightGray, 40),
-			},
-			OutlineColors: util.ColorSet{
+				Hover:   mathutil.ColorAdd(rl.LightGray, 25),
+				Click:   mathutil.ColorAdd(rl.LightGray, 40),
+			}).
+			WithOutlineColors(util.ColorSet{
 				Default: &rl.Gray,
-			},
-			Click: func() {
+			}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{
+				X: 0,
+				Y: 80,
+			}).
+			WithClick(func() {
 				SetActiveScreen(SettingsScreenID)
-			},
-		},
-	},
-}
+			}),
+	)

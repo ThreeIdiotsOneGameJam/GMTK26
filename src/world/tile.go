@@ -3,7 +3,7 @@ package world
 import (
 	"image/color"
 
-	v "github.com/threeidiotsonegamejam/gmtk26/src/math"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
 type TileData struct {

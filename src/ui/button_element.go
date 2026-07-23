@@ -5,15 +5,67 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
-	"github.com/threeidiotsonegamejam/gmtk26/src/math"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
+// Pos and Size do not account for the outline, which is rendered outside this
+
+func Button() *ButtonElement {
+	el := &ButtonElement{}
+	el.BaseElement = NewBaseElement(el)
+
+	return el.WithSizeDynamic(func(el *ButtonElement) vec.Vec2i {
+		return vec.Vec2i{
+			X: rl.MeasureText(el.Text, el.TextSize) + el.Padding*2,
+			Y: el.TextSize + el.Padding*2,
+		}
+	})
+}
+
+func (el *ButtonElement) WithText(text string) *ButtonElement {
+	el.Text = text
+	return el
+}
+
+func (el *ButtonElement) WithTextSize(textSize int32) *ButtonElement {
+	el.TextSize = textSize
+	return el
+}
+
+func (el *ButtonElement) WithPadding(padding int32) *ButtonElement {
+	el.Padding = padding
+	return el
+}
+
+func (el *ButtonElement) WithOutlineWidth(outlineWidth int32) *ButtonElement {
+	el.OutlineWidth = outlineWidth
+	return el
+}
+
+func (el *ButtonElement) WithForegroundColors(foregroundColors util.ColorSet) *ButtonElement {
+	el.ForegroundColors = foregroundColors
+	return el
+}
+
+func (el *ButtonElement) WithBackgroundColors(backgroundColors util.ColorSet) *ButtonElement {
+	el.BackgroundColors = backgroundColors
+	return el
+}
+
+func (el *ButtonElement) WithOutlineColors(outlineColors util.ColorSet) *ButtonElement {
+	el.OutlineColors = outlineColors
+	return el
+}
+
+func (el *ButtonElement) WithClick(click func()) *ButtonElement {
+	el.Click = click
+	return el
+}
+
 type ButtonElement struct {
-	// Pos and Size do not account for the outline, which is rendered outside this
-	// If Size is 0 it will be calculated from TextSize
-	Pos                   func(renderWidth, renderHeight int32) math.Vec2i
-	Size                  math.Vec2i
+	BaseElement[*ButtonElement]
 	Text                  string
 	TextSize              int32
 	Padding, OutlineWidth int32
@@ -28,38 +80,38 @@ type ButtonElement struct {
 	clicked, clickedPrevious bool
 }
 
-func (b *ButtonElement) update(deltaNano int64) {
-	b.textWidth = rl.MeasureText(b.Text, b.TextSize)
+func (el *ButtonElement) update(deltaNano int64) {
+	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
 
-	pos := b.Pos(int32(rl.GetRenderWidth()), int32(rl.GetRenderHeight()))
-	b.x, b.y, b.cx, b.cy = pos.X-b.w/2, pos.Y-b.h/2, pos.X, pos.Y
+	el.w, el.h = mathutil.Maxi(el.textWidth+el.Padding*2, el.Size().X), mathutil.Maxi(el.TextSize+el.Padding*2, el.Size().Y)
 
-	b.w, b.h = math.Maxi(b.textWidth+b.Padding*2, b.Size.X), math.Maxi(b.TextSize+b.Padding*2, b.Size.Y)
+	pos := el.AbsolutePos()
+	el.x, el.y, el.cx, el.cy = pos.X, pos.Y, pos.X+el.w/2, pos.Y+el.h/2
 
 	mouseX, mouseY := rl.GetMouseX(), rl.GetMouseY()
-	b.hovered = mouseX > b.x &&
-		mouseX < b.x+b.w &&
-		mouseY > b.y &&
-		mouseY < b.y+b.h
+	el.hovered = mouseX > el.x &&
+		mouseX < el.x+el.w &&
+		mouseY > el.y &&
+		mouseY < el.y+el.h
 
-	if b.hovered {
+	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorPointingHand
 	}
 
 	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
-		if b.clickedPrevious {
-			b.clicked = true
+		if el.clickedPrevious {
+			el.clicked = true
 		} else {
-			b.clicked = b.hovered
+			el.clicked = el.hovered
 
 			// play clickdown sound
 		}
 	} else {
-		b.clicked = false
+		el.clicked = false
 
 		// needs release while hovered
-		if b.clickedPrevious && b.hovered {
-			b.Click()
+		if el.clickedPrevious && el.hovered {
+			el.Click()
 			//play clickup sound
 		}
 
@@ -71,34 +123,34 @@ func (b *ButtonElement) update(deltaNano int64) {
 	}
 
 	// needs to be at the end of the update function
-	b.hoveredPrevious, b.clickedPrevious = b.hovered, b.clicked
+	el.hoveredPrevious, el.clickedPrevious = el.hovered, el.clicked
 }
 
-func (b *ButtonElement) draw() {
-	btnWidthOuter, btnHeightOuter := b.w+b.OutlineWidth*2, b.h+b.OutlineWidth*2
-	btnStartXOuter, btnStartYOuter := b.x-b.OutlineWidth, b.y-b.OutlineWidth
+func (el *ButtonElement) draw() {
+	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
+	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := fallbackColor(b.OutlineColors.Default, &color.RGBA{})
-	bgCol := fallbackColor(b.BackgroundColors.Default, &color.RGBA{})
-	fgCol := fallbackColor(b.ForegroundColors.Default, &color.RGBA{})
+	oCol := fallbackColor(el.OutlineColors.Default, &color.RGBA{})
+	bgCol := fallbackColor(el.BackgroundColors.Default, &color.RGBA{})
+	fgCol := fallbackColor(el.ForegroundColors.Default, &color.RGBA{})
 
-	if b.hovered {
-		oCol = fallbackColor(b.OutlineColors.Hover, oCol)
-		bgCol = fallbackColor(b.BackgroundColors.Hover, bgCol)
-		fgCol = fallbackColor(b.ForegroundColors.Hover, fgCol)
+	if el.hovered {
+		oCol = fallbackColor(el.OutlineColors.Hover, oCol)
+		bgCol = fallbackColor(el.BackgroundColors.Hover, bgCol)
+		fgCol = fallbackColor(el.ForegroundColors.Hover, fgCol)
 	}
 
-	if b.clicked {
-		oCol = fallbackColor(b.OutlineColors.Click, oCol)
-		bgCol = fallbackColor(b.BackgroundColors.Click, bgCol)
-		fgCol = fallbackColor(b.ForegroundColors.Click, fgCol)
+	if el.clicked {
+		oCol = fallbackColor(el.OutlineColors.Click, oCol)
+		bgCol = fallbackColor(el.BackgroundColors.Click, bgCol)
+		fgCol = fallbackColor(el.ForegroundColors.Click, fgCol)
 	}
 
 	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, *oCol)
 
-	rl.DrawRectangle(b.x, b.y, b.w, b.h, *bgCol)
+	rl.DrawRectangle(el.x, el.y, el.w, el.h, *bgCol)
 
-	rl.DrawText(b.Text, b.cx-b.textWidth/2, b.cy-b.TextSize/2, b.TextSize, *fgCol)
+	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, *fgCol)
 }
 
 func fallbackColor(override, fallback *color.RGBA) *color.RGBA {

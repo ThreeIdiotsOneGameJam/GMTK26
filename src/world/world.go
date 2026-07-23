@@ -5,7 +5,8 @@ import (
 	"math/rand"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	v "github.com/threeidiotsonegamejam/gmtk26/src/math"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
 type World struct {
@@ -109,7 +110,7 @@ func (w World) Draw() {
 
 			tileColor := tileData.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
-				tileColor = *v.ColorAdd(tileColor, 20)
+				tileColor = *mathutil.ColorAdd(tileColor, 20)
 			}
 
 			yOffset := float32(height/2.0) * float32(x%2)

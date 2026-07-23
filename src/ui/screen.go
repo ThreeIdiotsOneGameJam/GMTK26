@@ -4,27 +4,48 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
-type Screen struct {
+func renderSize(_ *ScreenElement) vec.Vec2i {
+	return vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())}
+}
+
+func Screen() *ScreenElement {
+	el := &ScreenElement{
+		BackgroundColor: rl.RayWhite,
+	}
+	el.BaseElement = NewBaseElement(el)
+
+	// default screen size is full screen
+	return el.WithSizeDynamic(renderSize)
+}
+
+func (el *ScreenElement) WithBackgroundColor(backgroundColor color.RGBA) *ScreenElement {
+	el.BackgroundColor = backgroundColor
+	return el
+}
+
+type ScreenElement struct {
+	BaseElement[*ScreenElement]
 	BackgroundColor color.RGBA
-	Elements        []Element
 }
 
-func (s *Screen) Update(deltaNano int64) {
-	for _, el := range s.Elements {
-		el.update(deltaNano)
+func (el *ScreenElement) Update(deltaNano int64) {
+	for _, child := range el.Children {
+		child.updateTree(deltaNano)
 	}
 }
 
-func (s *Screen) Draw() {
-	rl.ClearBackground(s.BackgroundColor)
+func (el *ScreenElement) Draw() {
+	el.Clear()
 
-	for _, el := range s.Elements {
-		el.draw()
+	for _, child := range el.Children {
+		child.drawTree()
 	}
 }
 
-func (s *Screen) AddElement(el Element) {
-	s.Elements = append(s.Elements, el)
+func (el *ScreenElement) Clear() {
+	pos, size := el.AbsolutePos(), el.Size()
+	rl.DrawRectangle(pos.X, pos.Y, size.X, size.Y, el.BackgroundColor)
 }
