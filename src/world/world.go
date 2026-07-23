@@ -10,17 +10,19 @@ import (
 )
 
 type World struct {
-	Generator  Generator
-	Grid       [][]Cell
-	TileToGrid map[string][]v.Vec2i
-	GridSize   v.Vec2i
-	Camera     rl.Camera2D
-	HexSize    v.Vec2
-	HasInit    bool
-	BGShader   rl.Shader
-	BGTimeLoc  int32
-	VoidShader rl.Shader
-	PanStart   v.Vec2
+	Generator     Generator
+	Grid          [][]Cell
+	TileToGrid    map[string][]v.Vec2i
+	GridSize      v.Vec2i
+	Camera        rl.Camera2D
+	HexSize       v.Vec2
+	HasInit       bool
+	BGShader      rl.Shader
+	BGTimeLoc     int32
+	VoidShader    rl.Shader
+	PanStart      v.Vec2
+	Viewport      rl.RenderTexture2D
+	MousePosition v.Vec2
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -58,9 +60,16 @@ func (w *World) Init() {
 	w.BGShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
 	w.BGTimeLoc = rl.GetLocationUniform(w.BGShader.ID, "time")
 	w.VoidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
+
+	w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
 
 func (w *World) Update(delta float32) {
+	if w.Viewport.Texture.Width != global.ViewportSize.X {
+		rl.UnloadRenderTexture(w.Viewport)
+		w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
+	}
+
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		w.PanStart = mousePos
@@ -88,6 +97,36 @@ func (w *World) Update(delta float32) {
 }
 
 func (w World) Draw() {
+	screenW := float32(rl.GetScreenWidth())
+	screenH := float32(rl.GetScreenHeight())
+
+	viewW := float32(w.Viewport.Texture.Width)
+	viewH := float32(w.Viewport.Texture.Height)
+
+	srcRect := rl.Rectangle{
+		X:      0.0,
+		Y:      0.0,
+		Width:  viewW,
+		Height: -viewH,
+	}
+	ratio := float32(int32(math.Min(
+		float64(screenW/viewW),
+		float64(screenH/viewH),
+	))) + 1
+	dstRect := rl.Rectangle{
+		X:      (screenW - viewW*ratio) / 2.0,
+		Y:      (screenH - viewH*ratio) / 2.0,
+		Width:  viewW * ratio,
+		Height: viewH * ratio,
+	}
+	mouse := global.MousePosition
+	w.MousePosition = v.Vec2{
+		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
+		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
+	}
+
+	rl.BeginTextureMode(w.Viewport)
+
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
 	if rl.IsShaderValid(w.BGShader) {
 		rl.SetShaderValue(w.BGShader, w.BGTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
@@ -181,6 +220,9 @@ func (w World) Draw() {
 	}
 
 	rl.EndMode2D()
+	rl.EndTextureMode()
+
+	rl.DrawTexturePro(w.Viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)
 }
 
 type Neighbors struct {
