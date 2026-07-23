@@ -41,11 +41,11 @@ func (w *World) Init() {
 
 	for x := range w.GridSize.X {
 		w.Grid[x] = make([]Tile, w.GridSize.Y)
-		for y := range len(w.Grid[x]) {
+		for y := range w.GridSize.Y {
 			r := rand.Float32()
-			var tile Tile = &VoidTile{}
-			if r > 0.8 {
-				tile = &WaterTile{}
+			var tile Tile = &WaterTile{}
+			if x == 0 || x == w.GridSize.X-1 || y == 0 || y == w.GridSize.Y-1 || r > 0.95 {
+				tile = &VoidTile{}
 			} else if r > 0.6 {
 				tile = &GrassTile{}
 			} else if r > 0.4 {
@@ -68,8 +68,21 @@ func (w *World) Init() {
 	w.VoidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
 }
 
-func (w World) Update(delta float32) {
+func (w *World) Update(delta float32) {
+	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
+		mouseDelta := rl.GetMouseDelta()
+		w.Camera.Target = w.Camera.Target.Add(mouseDelta.Multiply(rl.NewVector2(-2.0, -2.0)))
+	}
+	w.Camera.Offset.X = float32(rl.GetRenderWidth()) / 2.0
+	w.Camera.Offset.Y = float32(rl.GetRenderHeight()) / 2.0
 
+	w.Camera.Zoom += rl.GetMouseWheelMove()
+
+	if w.Camera.Zoom > 8.0 {
+		w.Camera.Zoom = 8.0
+	} else if w.Camera.Zoom < 0.4 {
+		w.Camera.Zoom = 0.4
+	}
 }
 
 func (w World) Draw() {
@@ -148,6 +161,11 @@ func (w World) Draw() {
 			yOffset := float32(height/2.0) * float32(tilePos.X%2)
 			worldPos := v.Vec2{X: float32(tilePos.X) * width / 4.0 * 3.0, Y: float32(tilePos.Y)*height + yOffset}
 			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
+				if i == 0 {
+					w.GetTile(tilePos).Draw(w, worldPos, tilePos, DrawStateBegin)
+				} else if i == len(tiles)-1 {
+					w.GetTile(tilePos).Draw(w, worldPos, tilePos, DrawStateEnd)
+				}
 				continue
 			}
 			tile := w.GetTile(tilePos)

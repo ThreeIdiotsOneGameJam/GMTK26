@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/threeidiotsonegamejam/gmtk26/src/world"
+import (
+	"time"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/world"
+)
 
 func World() *WorldElement {
 	el := &WorldElement{}
@@ -18,7 +22,7 @@ func (w *WorldElement) update(deltaNano int64) {
 	if !w.World.HasInit {
 		w.World.Init()
 	}
-	w.World.Draw()
+	w.World.Update(float32(deltaNano / int64(time.Nanosecond)))
 }
 
 func (w *WorldElement) draw() {
