@@ -3,8 +3,8 @@ package world
 import (
 	"image/color"
 
-	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
 type TileDrawState int32

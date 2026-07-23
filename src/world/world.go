@@ -111,6 +111,11 @@ func (w World) Draw() {
 
 	rl.BeginMode2D(w.Camera)
 
+	topLeft := rl.GetScreenToWorld2D(rl.Vector2{}, w.Camera)
+	topLeft = topLeft.Subtract(rl.Vector2{X: w.HexSize.X * 2.0, Y: w.HexSize.Y * 2.0})
+	bottomRight := rl.GetScreenToWorld2D(rl.Vector2{X: float32(rl.GetRenderWidth()), Y: float32(rl.GetRenderHeight())}, w.Camera)
+	bottomRight = bottomRight.Add(rl.Vector2{X: w.HexSize.X * 2.0, Y: w.HexSize.Y * 2.0})
+
 	rlMouse := rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
 	mp := v.Vec2{X: rlMouse.X, Y: rlMouse.Y}
 
@@ -120,6 +125,11 @@ func (w World) Draw() {
 	rl.Begin(rl.Triangles)
 	for x := range len(w.Grid) {
 		for y, tile := range w.Grid[x] {
+			yOffset := float32(height/2.0) * float32(x%2)
+			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
+			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
+				continue
+			}
 			tileData := tile.Data()
 
 			hex := w.PixelToHex(mp)
@@ -129,17 +139,18 @@ func (w World) Draw() {
 				tileColor = *mathutil.ColorAdd(tileColor, 20)
 			}
 
-			yOffset := float32(height/2.0) * float32(x%2)
-			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
 			DrawHexagonBuffered(worldPos.X, worldPos.Y, w.HexSize, tileColor)
 		}
 	}
 	rl.End()
 	for _, tiles := range w.TileToGrid {
 		for i, tilePos := range tiles {
-			tile := w.GetTile(tilePos)
 			yOffset := float32(height/2.0) * float32(tilePos.X%2)
 			worldPos := v.Vec2{X: float32(tilePos.X) * width / 4.0 * 3.0, Y: float32(tilePos.Y)*height + yOffset}
+			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
+				continue
+			}
+			tile := w.GetTile(tilePos)
 
 			drawState := DrawStateNormal
 			if i == 0 {
