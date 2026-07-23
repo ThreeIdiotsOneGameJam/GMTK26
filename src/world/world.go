@@ -83,6 +83,8 @@ func (w *World) Update(delta float32) {
 	} else if w.Camera.Zoom < 0.08 {
 		w.Camera.Zoom = 0.08
 	}
+
+	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Round().ToRL()
 }
 
 func (w World) Draw() {

@@ -77,10 +77,10 @@ func frame() {
 		Width:  viewW,
 		Height: -viewH,
 	}
-	ratio := float32(math.Min(
+	ratio := float32(int32(math.Min(
 		float64(screenW/viewW),
 		float64(screenH/viewH),
-	))
+	))) + 1
 	dstRect := rl.Rectangle{
 		X:      (screenW - viewW*ratio) / 2.0,
 		Y:      (screenH - viewH*ratio) / 2.0,
