@@ -13,8 +13,26 @@ import (
 // Pos and Size do not account for the outline, which is rendered outside this
 
 func Button() *ButtonElement {
-	el := &ButtonElement{}
+	el := &ButtonElement{
+		Text:          "Button",
+		TextSize:      48,
+		Padding:       8,
+		OutlineWidth:  4,
+		ForegroundColors: util.ColorSet{
+			Default: &rl.DarkGray,
+		},
+		BackgroundColors: util.ColorSet{
+			Default: &rl.LightGray,
+			Hover:   mathutil.ColorAdd(rl.LightGray, 25),
+			Click:   mathutil.ColorAdd(rl.LightGray, 40),
+		},
+		OutlineColors: util.ColorSet{
+			Default: &rl.Gray,
+		},
+	}
 	el.BaseElement = NewBaseElement(el)
+
+	el.WithRelativePos(vec.Vec2i{})
 
 	return el.WithSizeDynamic(func(el *ButtonElement) vec.Vec2i {
 		return vec.Vec2i{
@@ -98,6 +116,8 @@ func (el *ButtonElement) update(deltaNano int64) {
 		global.MouseCursorState = rl.MouseCursorPointingHand
 	}
 
+	// Click state machine: track clicked across frames (clickedPrevious -> clicked)
+	// so the button stays pressed while mouse is held, and fires Click() on release.
 	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
 		if el.clickedPrevious {
 			el.clicked = true
@@ -109,8 +129,8 @@ func (el *ButtonElement) update(deltaNano int64) {
 	} else {
 		el.clicked = false
 
-		// needs release while hovered
-		if el.clickedPrevious && el.hovered {
+		// Fire Click only if mouse was pressed on this button and released while still hovering
+		if el.clickedPrevious && el.hovered && el.Click != nil {
 			el.Click()
 			//play clickup sound
 		}
