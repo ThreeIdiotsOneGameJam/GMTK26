@@ -10,7 +10,7 @@ import (
 )
 
 type World struct {
-	Grid       [][]Tile
+	Grid       [][]Cell
 	TileToGrid map[string][]v.Vec2i
 	GridSize   v.Vec2i
 	Camera     rl.Camera2D
@@ -37,11 +37,11 @@ func (w *World) Init() {
 		w.GridSize = v.Vec2i{X: 100, Y: 70}
 	}
 
-	w.Grid = make([][]Tile, w.GridSize.X)
+	w.Grid = make([][]Cell, w.GridSize.X)
 	w.TileToGrid = make(map[string][]v.Vec2i)
 
 	for x := range w.GridSize.X {
-		w.Grid[x] = make([]Tile, w.GridSize.Y)
+		w.Grid[x] = make([]Cell, w.GridSize.Y)
 		for y := range w.GridSize.Y {
 			r := rand.Float32()
 			var tile Tile = &WaterTile{}
@@ -53,7 +53,7 @@ func (w *World) Init() {
 				tile = &UnkownTile{}
 			}
 
-			w.Grid[x][y] = tile
+			w.Grid[x][y] = Cell{Tile: tile}
 			tileData := tile.Data()
 			if w.TileToGrid[tileData.Type] == nil {
 				w.TileToGrid[tileData.Type] = make([]v.Vec2i, 0)
@@ -146,13 +146,13 @@ func (w World) Draw() {
 
 	rl.Begin(rl.Triangles)
 	for x := range len(w.Grid) {
-		for y, tile := range w.Grid[x] {
+		for y, cell := range w.Grid[x] {
 			yOffset := float32(height/2.0) * float32(x%2)
 			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
 			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
 				continue
 			}
-			tileData := tile.Data()
+			tileData := cell.Tile.Data()
 
 			hex := w.PixelToHex(mp)
 
@@ -171,13 +171,13 @@ func (w World) Draw() {
 			worldPos := v.Vec2{X: float32(tilePos.X) * width / 4.0 * 3.0, Y: float32(tilePos.Y)*height + yOffset}
 			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
 				if i == 0 {
-					w.GetTile(tilePos).Draw(w, worldPos, tilePos, DrawStateBegin)
+					w.GetCell(tilePos).Tile.Draw(w, worldPos, tilePos, DrawStateBegin)
 				} else if i == len(tiles)-1 {
-					w.GetTile(tilePos).Draw(w, worldPos, tilePos, DrawStateEnd)
+					w.GetCell(tilePos).Tile.Draw(w, worldPos, tilePos, DrawStateEnd)
 				}
 				continue
 			}
-			tile := w.GetTile(tilePos)
+			tile := w.GetCell(tilePos).Tile
 
 			drawState := DrawStateNormal
 			if i == 0 {
@@ -193,40 +193,40 @@ func (w World) Draw() {
 }
 
 type Neighbors struct {
-	NW Tile
-	N  Tile
-	NE Tile
-	SE Tile
-	S  Tile
-	SW Tile
+	NW *Cell
+	N  *Cell
+	NE *Cell
+	SE *Cell
+	S  *Cell
+	SW *Cell
 }
 
 func (w World) GetNeighbors(pos v.Vec2i) Neighbors {
 	if pos.X%2 == 0 {
 		return Neighbors{
-			NW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: -1})),
-			N:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
-			NE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: -1})),
-			SW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
-			S:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
-			SE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
+			NW: w.GetCell(pos.Add(v.Vec2i{X: -1, Y: -1})),
+			N:  w.GetCell(pos.Add(v.Vec2i{X: 0, Y: -1})),
+			NE: w.GetCell(pos.Add(v.Vec2i{X: 1, Y: -1})),
+			SW: w.GetCell(pos.Add(v.Vec2i{X: -1, Y: 0})),
+			S:  w.GetCell(pos.Add(v.Vec2i{X: 0, Y: 1})),
+			SE: w.GetCell(pos.Add(v.Vec2i{X: 1, Y: 0})),
 		}
 	}
 	return Neighbors{
-		NW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
-		N:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
-		NE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
-		SW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 1})),
-		S:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
-		SE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 1})),
+		NW: w.GetCell(pos.Add(v.Vec2i{X: -1, Y: 0})),
+		N:  w.GetCell(pos.Add(v.Vec2i{X: 0, Y: -1})),
+		NE: w.GetCell(pos.Add(v.Vec2i{X: 1, Y: 0})),
+		SW: w.GetCell(pos.Add(v.Vec2i{X: -1, Y: 1})),
+		S:  w.GetCell(pos.Add(v.Vec2i{X: 0, Y: 1})),
+		SE: w.GetCell(pos.Add(v.Vec2i{X: 1, Y: 1})),
 	}
 }
 
-func (w World) GetTile(pos v.Vec2i) Tile {
+func (w World) GetCell(pos v.Vec2i) *Cell {
 	if pos.X < 0 || pos.X >= w.GridSize.X || pos.Y < 0 || pos.Y >= w.GridSize.Y {
 		return nil
 	}
-	return w.Grid[pos.X][pos.Y]
+	return &w.Grid[pos.X][pos.Y]
 }
 
 func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {

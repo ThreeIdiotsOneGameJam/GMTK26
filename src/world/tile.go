@@ -60,14 +60,14 @@ func (t *VoidTile) Draw(world World, pos v.Vec2, tile v.Vec2i, state TileDrawSta
 	f := v.Vec2{X: x - ox + wp*3, Y: y - oy}
 	center := v.Vec2{X: x, Y: y}
 
-	data := world.GetTile(tile).Data()
+	data := world.GetCell(tile).Tile.Data()
 	neighbors := world.GetNeighbors(tile)
 
-	isEdge := func(t Tile) bool {
+	isEdge := func(t *Cell) bool {
 		if t == nil {
 			return false
 		}
-		return t.Data().Type != data.Type
+		return t.Tile.Data().Type != data.Type
 	}
 	drawSection := func(v1, v2 v.Vec2, b1, b2 bool, edge bool) {
 		if (b1 || b2) && !edge {
