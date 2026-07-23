@@ -98,8 +98,8 @@ func (w *World) Update(delta float32) {
 
 	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{X: 10.0, Y: 10.0})).ToRL()
 
-	w.Camera.Offset.X = float32(rl.GetRenderWidth()) / 2.0
-	w.Camera.Offset.Y = float32(rl.GetRenderHeight()) / 2.0
+	w.Camera.Offset.X = float32(global.ViewportSize.X) / 2.0
+	w.Camera.Offset.Y = float32(global.ViewportSize.Y) / 2.0
 
 	w.Camera.Zoom += rl.GetMouseWheelMove() * 0.5
 
@@ -113,8 +113,8 @@ func (w *World) Update(delta float32) {
 }
 
 func (w *World) Draw() {
-	screenW := float32(rl.GetScreenWidth())
-	screenH := float32(rl.GetScreenHeight())
+	screenW := float32(rl.GetRenderWidth())
+	screenH := float32(rl.GetRenderHeight())
 
 	viewW := float32(w.Viewport.Texture.Width)
 	viewH := float32(w.Viewport.Texture.Height)

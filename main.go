@@ -58,7 +58,6 @@ func frame() {
 	rl.EndDrawing()
 
 	global.MousePosition = vec.Vec2FromRL(rl.GetMousePosition())
-	global.ViewportSize = vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())}
 
 	rl.SetMouseCursor(global.MouseCursorState)
 

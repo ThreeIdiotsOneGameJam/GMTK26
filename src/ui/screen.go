@@ -4,12 +4,11 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
 
 func renderSize(_ *ScreenElement) vec.Vec2i {
-	return global.ViewportSize
+	return vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())}
 }
 
 func Screen() *ScreenElement {
