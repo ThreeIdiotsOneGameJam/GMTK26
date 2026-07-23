@@ -137,10 +137,33 @@ func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
 	f := rl.Vector2{X: x - ox + wp*3, Y: y - oy}
 	center := rl.Vector2{X: x, Y: y}
 
-	rl.DrawTriangle(a, b, center, color)
-	rl.DrawTriangle(b, c, center, color)
-	rl.DrawTriangle(c, d, center, color)
-	rl.DrawTriangle(d, e, center, color)
-	rl.DrawTriangle(e, f, center, color)
-	rl.DrawTriangle(f, a, center, color)
+	rl.Begin(rl.Triangles)
+	rl.Color4ub(color.R, color.G, color.B, color.A)
+	rl.Normal3f(0.0, 0.0, 1.0)
+
+	rl.Vertex2f(a.X, a.Y)
+	rl.Vertex2f(b.X, b.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.Vertex2f(b.X, b.Y)
+	rl.Vertex2f(c.X, c.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.Vertex2f(c.X, c.Y)
+	rl.Vertex2f(d.X, d.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.Vertex2f(d.X, d.Y)
+	rl.Vertex2f(e.X, e.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.Vertex2f(e.X, e.Y)
+	rl.Vertex2f(f.X, f.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.Vertex2f(f.X, f.Y)
+	rl.Vertex2f(a.X, a.Y)
+	rl.Vertex2f(center.X, center.Y)
+
+	rl.End()
 }
