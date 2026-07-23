@@ -111,6 +111,27 @@ func (v Vec2) Lerp(o Vec2, t float32) Vec2 {
 	}
 }
 
+func (v Vec2) DistanceSqr(o Vec2) float32 {
+	return v.Sub(o).MagnitudeSqr()
+}
+
+func (v Vec2) Distance(o Vec2) float32 {
+	return v.Sub(o).Magnitude()
+}
+
+func (v Vec2) MagnitudeSqr() float32 {
+	return v.X * v.X + v.Y * v.Y
+}
+
+func (v Vec2) Magnitude() float32 {
+	return float32(math.Sqrt(float64(v.MagnitudeSqr())))
+}
+
+func (v Vec2) Normalize() Vec2 {
+	mag := v.Magnitude()
+	return Vec2{X: v.X / mag, Y: v.Y / mag}
+}
+
 // Trunc rounds each component toward zero.
 func (v Vec2) Trunc() Vec2 {
 	return Vec2{
