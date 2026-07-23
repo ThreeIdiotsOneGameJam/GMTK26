@@ -19,6 +19,7 @@ type World struct {
 	BGShader   rl.Shader
 	BGTimeLoc  int32
 	VoidShader rl.Shader
+	PanStart   rl.Vector2
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -69,10 +70,18 @@ func (w *World) Init() {
 }
 
 func (w *World) Update(delta float32) {
-	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-		mouseDelta := rl.GetMouseDelta()
-		w.Camera.Target = w.Camera.Target.Add(mouseDelta.Multiply(rl.NewVector2(-2.0, -2.0)))
+	mousePos := rl.GetMousePosition()
+	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
+		w.PanStart = rl.GetScreenToWorld2D(mousePos, w.Camera)
 	}
+
+	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
+		mouseWorld := rl.GetScreenToWorld2D(mousePos, w.Camera)
+
+		mouseDelta := w.PanStart.Subtract(mouseWorld)
+		w.Camera.Target = w.Camera.Target.Add(mouseDelta)
+	}
+
 	w.Camera.Offset.X = float32(rl.GetRenderWidth()) / 2.0
 	w.Camera.Offset.Y = float32(rl.GetRenderHeight()) / 2.0
 
