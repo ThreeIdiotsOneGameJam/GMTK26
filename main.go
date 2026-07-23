@@ -1,7 +1,7 @@
 package main
 
 import (
-	"math"
+	// "math"
 	"strconv"
 	"time"
 
@@ -43,7 +43,8 @@ func frame() {
 		fps = float64(time.Second) / float64(deltaTime)
 	}
 
-	rl.BeginTextureMode(viewport)
+	rl.BeginDrawing()
+	// rl.BeginTextureMode(viewport)
 
 	rl.ClearBackground(rl.RayWhite)
 
@@ -56,45 +57,48 @@ func frame() {
 	util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
 	util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
 
-	rl.EndTextureMode()
-
-	rl.BeginDrawing()
-	rl.ClearBackground(rl.Black)
-	if viewport.Texture.Width != global.ViewportSize.X {
-		rl.UnloadRenderTexture(viewport)
-		viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
-	}
-
-	screenW := float32(rl.GetScreenWidth())
-	screenH := float32(rl.GetScreenHeight())
-
-	viewW := float32(viewport.Texture.Width)
-	viewH := float32(viewport.Texture.Height)
-
-	srcRect := rl.Rectangle{
-		X:      0.0,
-		Y:      0.0,
-		Width:  viewW,
-		Height: -viewH,
-	}
-	ratio := float32(int32(math.Min(
-		float64(screenW/viewW),
-		float64(screenH/viewH),
-	))) + 1
-	dstRect := rl.Rectangle{
-		X:      (screenW - viewW*ratio) / 2.0,
-		Y:      (screenH - viewH*ratio) / 2.0,
-		Width:  viewW * ratio,
-		Height: viewH * ratio,
-	}
-	rl.DrawTexturePro(viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)
+	// rl.EndTextureMode()
 	rl.EndDrawing()
 
-	mouse := rl.GetMousePosition()
-	global.MousePosition = vec.Vec2{
-		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
-		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
-	}
+	// rl.BeginDrawing()
+	// rl.ClearBackground(rl.Black)
+	// if viewport.Texture.Width != global.ViewportSize.X {
+	// 	rl.UnloadRenderTexture(viewport)
+	// 	viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
+	// }
+	//
+	// screenW := float32(rl.GetScreenWidth())
+	// screenH := float32(rl.GetScreenHeight())
+	//
+	// viewW := float32(viewport.Texture.Width)
+	// viewH := float32(viewport.Texture.Height)
+	//
+	// srcRect := rl.Rectangle{
+	// 	X:      0.0,
+	// 	Y:      0.0,
+	// 	Width:  viewW,
+	// 	Height: -viewH,
+	// }
+	// ratio := float32(int32(math.Min(
+	// 	float64(screenW/viewW),
+	// 	float64(screenH/viewH),
+	// ))) + 1
+	// dstRect := rl.Rectangle{
+	// 	X:      (screenW - viewW*ratio) / 2.0,
+	// 	Y:      (screenH - viewH*ratio) / 2.0,
+	// 	Width:  viewW * ratio,
+	// 	Height: viewH * ratio,
+	// }
+	// rl.DrawTexturePro(viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)
+	// rl.EndDrawing()
+
+	// mouse := rl.GetMousePosition()
+	// global.MousePosition = vec.Vec2{
+	// 	X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
+	// 	Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
+	// }
+	global.MousePosition = vec.Vec2FromRL(rl.GetMousePosition())
+	global.ViewportSize = vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())}
 
 	rl.SetMouseCursor(global.MouseCursorState)
 
