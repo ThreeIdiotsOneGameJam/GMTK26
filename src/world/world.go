@@ -70,22 +70,38 @@ func (w *World) Update(delta float32) {
 		w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 	}
 
-	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		w.PanStart = mousePos
 	}
 
 	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-		mouseWorld := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
-
-		mouseDelta := w.PanStart.Sub(mouseWorld)
+		mouseDelta := w.PanStart.Sub(mousePos)
 		w.Camera.Target = w.Camera.Target.Add(mouseDelta.ToRL())
 	}
+
+	moveDir := v.Vec2{}
+	if rl.IsKeyDown(rl.KeyW) {
+		moveDir.Y -= 1.0
+	}
+	if rl.IsKeyDown(rl.KeyA) {
+		moveDir.X -= 1.0
+	}
+
+	if rl.IsKeyDown(rl.KeyS) {
+		moveDir.Y += 1.0
+	}
+
+	if rl.IsKeyDown(rl.KeyD) {
+		moveDir.X += 1.0
+	}
+
+	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{X: 10.0, Y: 10.0})).ToRL()
 
 	w.Camera.Offset.X = float32(rl.GetRenderWidth()) / 2.0
 	w.Camera.Offset.Y = float32(rl.GetRenderHeight()) / 2.0
 
-	w.Camera.Zoom += rl.GetMouseWheelMove()
+	w.Camera.Zoom += rl.GetMouseWheelMove() * 0.5
 
 	if w.Camera.Zoom > 5.0 {
 		w.Camera.Zoom = 5.0
@@ -96,7 +112,7 @@ func (w *World) Update(delta float32) {
 	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Round().ToRL()
 }
 
-func (w World) Draw() {
+func (w *World) Draw() {
 	screenW := float32(rl.GetScreenWidth())
 	screenH := float32(rl.GetScreenHeight())
 
@@ -127,7 +143,7 @@ func (w World) Draw() {
 
 	rl.BeginTextureMode(w.Viewport)
 
-	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
 	if rl.IsShaderValid(w.BGShader) {
 		rl.SetShaderValue(w.BGShader, w.BGTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
 		rl.BeginShaderMode(w.BGShader)
