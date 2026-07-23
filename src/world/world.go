@@ -9,10 +9,12 @@ import (
 )
 
 type World struct {
-	Grid    [][]Tile
-	Camera  rl.Camera2D
-	HexSize v.Vec2
-	HasInit bool
+	Grid      [][]Tile
+	Camera    rl.Camera2D
+	HexSize   v.Vec2
+	HasInit   bool
+	BGShader  rl.Shader
+	BGTimeLoc int32
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -44,6 +46,10 @@ func (w *World) Init() {
 			}
 		}
 	}
+
+	// FIXME: DEATH THIS IS DEATH!!! WELL, AT LEAST UNTIL WE ADD SOMETHING TO UNLOAD IT...
+	w.BGShader = rl.LoadShader("assets/shaders/bg.vert", "assets/shaders/bg.frag")
+	w.BGTimeLoc = rl.GetLocationUniform(w.BGShader.ID, "time")
 }
 
 func (w World) Update(delta float32) {
@@ -51,6 +57,38 @@ func (w World) Update(delta float32) {
 }
 
 func (w World) Draw() {
+	if rl.IsShaderValid(w.BGShader) {
+		rl.SetShaderValue(w.BGShader, w.BGTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+		rl.BeginShaderMode(w.BGShader)
+		rl.Begin(rl.Triangles)
+
+		width, height := float32(rl.GetRenderWidth()), float32(rl.GetRenderHeight())
+
+		rl.Color4ub(255, 255, 0, 255)
+		rl.Normal3f(0.0, 0.0, 1.0)
+
+		rl.TexCoord2f(0.0, 0.0)
+		rl.Vertex2f(0, 0)
+
+		rl.TexCoord2f(width, height)
+		rl.Vertex2f(width, height)
+
+		rl.TexCoord2f(width, 0.0)
+		rl.Vertex2f(width, 0)
+
+		rl.TexCoord2f(0.0, height)
+		rl.Vertex2f(0, height)
+
+		rl.TexCoord2f(width, height)
+		rl.Vertex2f(width, height)
+
+		rl.TexCoord2f(0.0, 0.0)
+		rl.Vertex2f(0, 0)
+
+		rl.End()
+		rl.EndShaderMode()
+	}
+
 	rl.BeginMode2D(w.Camera)
 
 	rlMouse := rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
