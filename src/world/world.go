@@ -9,13 +9,15 @@ import (
 )
 
 type World struct {
-	Grid      [][]Tile
-	GridSize  v.Vec2i
-	Camera    rl.Camera2D
-	HexSize   v.Vec2
-	HasInit   bool
-	BGShader  rl.Shader
-	BGTimeLoc int32
+	Grid       [][]Tile
+	TileToGrid map[string][]v.Vec2i
+	GridSize   v.Vec2i
+	Camera     rl.Camera2D
+	HexSize    v.Vec2
+	HasInit    bool
+	BGShader   rl.Shader
+	BGTimeLoc  int32
+	VoidShader rl.Shader
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -34,26 +36,35 @@ func (w *World) Init() {
 	}
 
 	w.Grid = make([][]Tile, w.GridSize.X)
+	w.TileToGrid = make(map[string][]v.Vec2i)
 
 	for x := range w.GridSize.X {
 		w.Grid[x] = make([]Tile, w.GridSize.Y)
 		for y := range len(w.Grid[x]) {
-			v := rand.Float32()
-			if v > 0.6 {
-				w.Grid[x][y] = &VoidTile{}
-			} else if v > 0.4 {
-				w.Grid[x][y] = &WaterTile{}
-			} else if v > 0.2 {
-				w.Grid[x][y] = &GrassTile{}
-			} else {
-				w.Grid[x][y] = &UnkownTile{}
+			r := rand.Float32()
+			var tile Tile = &VoidTile{}
+			if r > 0.8 {
+				tile = &WaterTile{}
+			} else if r > 0.6 {
+				tile = &GrassTile{}
+			} else if r > 0.4 {
+				tile = &UnkownTile{}
 			}
+
+			w.Grid[x][y] = tile
+			tileData := tile.Data()
+			if w.TileToGrid[tileData.Type] == nil {
+				w.TileToGrid[tileData.Type] = make([]v.Vec2i, 0)
+			}
+
+			w.TileToGrid[tileData.Type] = append(w.TileToGrid[tileData.Type], v.Vec2i{X: int32(x), Y: int32(y)})
 		}
 	}
 
 	// FIXME: DEATH THIS IS DEATH!!! WELL, AT LEAST UNTIL WE ADD SOMETHING TO UNLOAD IT...
-	w.BGShader = rl.LoadShader("assets/shaders/bg.vert", "assets/shaders/bg.frag")
+	w.BGShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
 	w.BGTimeLoc = rl.GetLocationUniform(w.BGShader.ID, "time")
+	w.VoidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
 }
 
 func (w World) Update(delta float32) {
@@ -92,6 +103,10 @@ func (w World) Draw() {
 		rl.End()
 		rl.EndShaderMode()
 	}
+	if rl.IsShaderValid(w.VoidShader) {
+		timeLoc := rl.GetLocationUniform(w.VoidShader.ID, "time")
+		rl.SetShaderValue(w.VoidShader, timeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+	}
 
 	rl.BeginMode2D(w.Camera)
 
@@ -101,6 +116,7 @@ func (w World) Draw() {
 	width := w.HexSize.X * 2.0
 	height := w.HexSize.Y * sqrt3
 
+	rl.Begin(rl.Triangles)
 	for x := range len(w.Grid) {
 		for y, tile := range w.Grid[x] {
 			tileData := tile.Data()
@@ -114,23 +130,56 @@ func (w World) Draw() {
 
 			yOffset := float32(height/2.0) * float32(x%2)
 			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
-			DrawHexagon(worldPos.X, worldPos.Y, w.HexSize, tileColor)
+			DrawHexagonBuffered(worldPos.X, worldPos.Y, w.HexSize, tileColor)
+		}
+	}
+	rl.End()
+	for _, tiles := range w.TileToGrid {
+		for i, tilePos := range tiles {
+			tile := w.GetTile(tilePos)
+			yOffset := float32(height/2.0) * float32(tilePos.X%2)
+			worldPos := v.Vec2{X: float32(tilePos.X) * width / 4.0 * 3.0, Y: float32(tilePos.Y)*height + yOffset}
 
-			tile.Draw(w, worldPos)
+			drawState := DrawStateNormal
+			if i == 0 {
+				drawState = DrawStateBegin
+			} else if i == len(tiles)-1 {
+				drawState = DrawStateEnd
+			}
+			tile.Draw(w, worldPos, tilePos, drawState)
 		}
 	}
 
 	rl.EndMode2D()
 }
 
-func (w World) GetNeighbors(pos v.Vec2i) [6]Tile {
-	return [6]Tile{
-		w.GetTile(pos.Add(v.Vec2i{X: -1, Y: -1})),
-		w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
-		w.GetTile(pos.Add(v.Vec2i{X: 1, Y: -1})),
-		w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
-		w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
-		w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
+type Neighbors struct {
+	NW Tile
+	N  Tile
+	NE Tile
+	SE Tile
+	S  Tile
+	SW Tile
+}
+
+func (w World) GetNeighbors(pos v.Vec2i) Neighbors {
+	if pos.X%2 == 0 {
+		return Neighbors{
+			NW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: -1})),
+			N:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
+			NE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: -1})),
+			SW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
+			S:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
+			SE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
+		}
+	}
+	return Neighbors{
+		NW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
+		N:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
+		NE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
+		SW: w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 1})),
+		S:  w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
+		SE: w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 1})),
 	}
 }
 
@@ -142,6 +191,12 @@ func (w World) GetTile(pos v.Vec2i) Tile {
 }
 
 func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
+	rl.Begin(rl.Triangles)
+	DrawHexagonBuffered(x, y, size, color)
+	rl.End()
+}
+
+func DrawHexagonBuffered(x float32, y float32, size v.Vec2, color rl.Color) {
 	w := size.X * 2.0
 	h := size.Y * sqrt3
 	wp := w / 4.0
@@ -157,7 +212,6 @@ func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
 	f := rl.Vector2{X: x - ox + wp*3, Y: y - oy}
 	center := rl.Vector2{X: x, Y: y}
 
-	rl.Begin(rl.Triangles)
 	rl.Color4ub(color.R, color.G, color.B, color.A)
 
 	rl.Vertex2f(a.X, a.Y)
@@ -183,6 +237,4 @@ func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
 	rl.Vertex2f(f.X, f.Y)
 	rl.Vertex2f(a.X, a.Y)
 	rl.Vertex2f(center.X, center.Y)
-
-	rl.End()
 }

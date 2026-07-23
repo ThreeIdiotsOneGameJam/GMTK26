@@ -57,6 +57,12 @@ func (v Vec2) Mul(o Vec2) Vec2 {
 func (v Vec2) Div(o Vec2) Vec2 {
 	return Vec2{X: v.X / o.X, Y: v.Y / o.Y}
 }
+func (v Vec2) Lerp(o Vec2, t float32) Vec2 {
+	return Vec2{
+		X: v.X*(1.0-t) + o.X*t,
+		Y: v.Y*(1.0-t) + o.Y*t,
+	}
+}
 func (v Vec2) Floor() Vec2 {
 	return Vec2{
 		X: float32(int32(v.X)),
