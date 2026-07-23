@@ -120,7 +120,7 @@ func (v Vec2) Distance(o Vec2) float32 {
 }
 
 func (v Vec2) MagnitudeSqr() float32 {
-	return v.X * v.X + v.Y * v.Y
+	return v.X*v.X + v.Y*v.Y
 }
 
 func (v Vec2) Magnitude() float32 {
@@ -129,6 +129,9 @@ func (v Vec2) Magnitude() float32 {
 
 func (v Vec2) Normalize() Vec2 {
 	mag := v.Magnitude()
+	if mag == 0.0 {
+		return Vec2{}
+	}
 	return Vec2{X: v.X / mag, Y: v.Y / mag}
 }
 

@@ -42,6 +42,25 @@ func (t *VoidTile) Draw(world World, pos v.Vec2, tile v.Vec2i, state TileDrawSta
 		rl.BeginShaderMode(world.VoidShader)
 		rl.Begin(rl.Triangles)
 	}
+	if state == DrawStateEnd {
+		defer rl.End()
+		defer rl.EndShaderMode()
+	}
+
+	data := world.GetCell(tile).Tile.Data()
+	neighbors := world.GetNeighbors(tile)
+
+	isEdge := func(t *Cell) bool {
+		if t == nil {
+			return false
+		}
+		return t.Tile.Data().Type != data.Type
+	}
+
+	if !isEdge(neighbors.N) && !isEdge(neighbors.NE) && !isEdge(neighbors.NW) && !isEdge(neighbors.S) && !isEdge(neighbors.SE) && !isEdge(neighbors.SW) {
+		return
+	}
+
 	x := pos.X
 	y := pos.Y
 	size := world.HexSize
@@ -60,15 +79,6 @@ func (t *VoidTile) Draw(world World, pos v.Vec2, tile v.Vec2i, state TileDrawSta
 	f := v.Vec2{X: x - ox + wp*3, Y: y - oy}
 	center := v.Vec2{X: x, Y: y}
 
-	data := world.GetCell(tile).Tile.Data()
-	neighbors := world.GetNeighbors(tile)
-
-	isEdge := func(t *Cell) bool {
-		if t == nil {
-			return false
-		}
-		return t.Tile.Data().Type != data.Type
-	}
 	drawSection := func(v1, v2 v.Vec2, b1, b2 bool, edge bool) {
 		if (b1 || b2) && !edge {
 			mid := v1.Lerp(v2, 0.5)
@@ -125,11 +135,6 @@ func (t *VoidTile) Draw(world World, pos v.Vec2, tile v.Vec2i, state TileDrawSta
 	drawSection(d, e, isEdge(neighbors.S), isEdge(neighbors.NE), isEdge(neighbors.SE))
 	drawSection(e, f, isEdge(neighbors.SE), isEdge(neighbors.N), isEdge(neighbors.NE))
 	drawSection(f, a, isEdge(neighbors.NE), isEdge(neighbors.NW), isEdge(neighbors.N))
-
-	if state == DrawStateEnd {
-		rl.End()
-		rl.EndShaderMode()
-	}
 }
 
 type UnkownTile struct{}

@@ -2,7 +2,6 @@ package world
 
 import (
 	"math"
-	"math/rand"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
@@ -11,6 +10,7 @@ import (
 )
 
 type World struct {
+	Generator  Generator
 	Grid       [][]Cell
 	TileToGrid map[string][]v.Vec2i
 	GridSize   v.Vec2i
@@ -32,30 +32,20 @@ func (w *World) Init() {
 		w.Camera.Zoom = 1.0
 	}
 	if w.HexSize == (v.Vec2{}) {
-		w.HexSize = v.Vec2{X: 48.0, Y: 36.0}
+		w.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
 	if w.GridSize == (v.Vec2i{}) {
 		w.GridSize = v.Vec2i{X: 100, Y: 70}
 	}
 
-	w.Grid = make([][]Cell, w.GridSize.X)
+	w.Grid = w.Generator.Generate(w.GridSize)
+
 	w.TileToGrid = make(map[string][]v.Vec2i)
 
 	for x := range w.GridSize.X {
-		w.Grid[x] = make([]Cell, w.GridSize.Y)
 		for y := range w.GridSize.Y {
-			r := rand.Float32()
-			var tile Tile = &WaterTile{}
-			if x == 0 || x == w.GridSize.X-1 || y == 0 || y == w.GridSize.Y-1 || r > 0.95 {
-				tile = &VoidTile{}
-			} else if r > 0.6 {
-				tile = &GrassTile{}
-			} else if r > 0.4 {
-				tile = &UnkownTile{}
-			}
-
-			w.Grid[x][y] = Cell{Tile: tile}
-			tileData := tile.Data()
+			cell := w.Grid[x][y]
+			tileData := cell.Tile.Data()
 			if w.TileToGrid[tileData.Type] == nil {
 				w.TileToGrid[tileData.Type] = make([]v.Vec2i, 0)
 			}
@@ -88,10 +78,10 @@ func (w *World) Update(delta float32) {
 
 	w.Camera.Zoom += rl.GetMouseWheelMove()
 
-	if w.Camera.Zoom > 8.0 {
-		w.Camera.Zoom = 8.0
-	} else if w.Camera.Zoom < 0.4 {
-		w.Camera.Zoom = 0.4
+	if w.Camera.Zoom > 5.0 {
+		w.Camera.Zoom = 5.0
+	} else if w.Camera.Zoom < 0.08 {
+		w.Camera.Zoom = 0.08
 	}
 }
 
