@@ -3,6 +3,8 @@ package vec
 import (
 	"fmt"
 	"math"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 type Vec2i struct {
@@ -184,6 +186,14 @@ func (v Vec2) CeilToInt() Vec2i {
 		X: int32(math.Ceil(float64(v.X))),
 		Y: int32(math.Ceil(float64(v.Y))),
 	}
+}
+
+func (v Vec2) ToRL() rl.Vector2 {
+	return rl.Vector2{X: v.X, Y: v.Y}
+}
+
+func Vec2FromRL(v rl.Vector2) Vec2 {
+	return Vec2{X: v.X, Y: v.Y}
 }
 
 func (v Vec2) String() string {

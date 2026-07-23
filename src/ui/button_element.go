@@ -14,10 +14,10 @@ import (
 
 func Button() *ButtonElement {
 	el := &ButtonElement{
-		Text:          "Button",
-		TextSize:      48,
-		Padding:       8,
-		OutlineWidth:  4,
+		Text:         "Button",
+		TextSize:     48,
+		Padding:      8,
+		OutlineWidth: 4,
 		ForegroundColors: util.ColorSet{
 			Default: &rl.DarkGray,
 		},
@@ -104,7 +104,7 @@ func (el *ButtonElement) update(deltaNano int64) {
 	pos := el.AbsolutePos()
 	el.x, el.y, el.cx, el.cy = pos.X, pos.Y, pos.X+el.w/2, pos.Y+el.h/2
 
-	mouseX, mouseY := rl.GetMouseX(), rl.GetMouseY()
+	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
 	el.hovered = mouseX > el.x &&
 		mouseX < el.x+el.w &&
 		mouseY > el.y &&

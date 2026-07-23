@@ -5,6 +5,7 @@ import (
 	"math/rand"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
 	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 )
@@ -19,7 +20,7 @@ type World struct {
 	BGShader   rl.Shader
 	BGTimeLoc  int32
 	VoidShader rl.Shader
-	PanStart   rl.Vector2
+	PanStart   v.Vec2
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
@@ -70,16 +71,16 @@ func (w *World) Init() {
 }
 
 func (w *World) Update(delta float32) {
-	mousePos := rl.GetMousePosition()
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
-		w.PanStart = rl.GetScreenToWorld2D(mousePos, w.Camera)
+		w.PanStart = mousePos
 	}
 
 	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-		mouseWorld := rl.GetScreenToWorld2D(mousePos, w.Camera)
+		mouseWorld := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
 
-		mouseDelta := w.PanStart.Subtract(mouseWorld)
-		w.Camera.Target = w.Camera.Target.Add(mouseDelta)
+		mouseDelta := w.PanStart.Sub(mouseWorld)
+		w.Camera.Target = w.Camera.Target.Add(mouseDelta.ToRL())
 	}
 
 	w.Camera.Offset.X = float32(rl.GetRenderWidth()) / 2.0
@@ -95,6 +96,7 @@ func (w *World) Update(delta float32) {
 }
 
 func (w World) Draw() {
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(global.MousePosition), w.Camera))
 	if rl.IsShaderValid(w.BGShader) {
 		rl.SetShaderValue(w.BGShader, w.BGTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
 		rl.BeginShaderMode(w.BGShader)
@@ -138,9 +140,6 @@ func (w World) Draw() {
 	bottomRight := rl.GetScreenToWorld2D(rl.Vector2{X: float32(rl.GetRenderWidth()), Y: float32(rl.GetRenderHeight())}, w.Camera)
 	bottomRight = bottomRight.Add(rl.Vector2{X: w.HexSize.X * 2.0, Y: w.HexSize.Y * 2.0})
 
-	rlMouse := rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
-	mp := v.Vec2{X: rlMouse.X, Y: rlMouse.Y}
-
 	width := w.HexSize.X * 2.0
 	height := w.HexSize.Y * sqrt3
 
@@ -154,7 +153,7 @@ func (w World) Draw() {
 			}
 			tileData := cell.Tile.Data()
 
-			hex := w.PixelToHex(mp)
+			hex := w.PixelToHex(mousePos)
 
 			tileColor := tileData.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
