@@ -32,8 +32,6 @@ func Button() *ButtonElement {
 	}
 	el.BaseElement = NewBaseElement(el)
 
-	el.WithRelativePos(vec.Vec2i{})
-
 	return el.WithSizeDynamic(func(el *ButtonElement) vec.Vec2i {
 		return vec.Vec2i{
 			X: rl.MeasureText(el.Text, el.TextSize) + el.Padding*2,
