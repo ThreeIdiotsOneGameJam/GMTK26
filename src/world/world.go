@@ -10,6 +10,7 @@ import (
 
 type World struct {
 	Grid      [][]Tile
+	GridSize  v.Vec2i
 	Camera    rl.Camera2D
 	HexSize   v.Vec2
 	HasInit   bool
@@ -28,11 +29,14 @@ func (w *World) Init() {
 	if w.HexSize == (v.Vec2{}) {
 		w.HexSize = v.Vec2{X: 48.0, Y: 36.0}
 	}
+	if w.GridSize == (v.Vec2i{}) {
+		w.GridSize = v.Vec2i{X: 100, Y: 70}
+	}
 
-	w.Grid = make([][]Tile, 32)
+	w.Grid = make([][]Tile, w.GridSize.X)
 
-	for x := range len(w.Grid) {
-		w.Grid[x] = make([]Tile, 24)
+	for x := range w.GridSize.X {
+		w.Grid[x] = make([]Tile, w.GridSize.Y)
 		for y := range len(w.Grid[x]) {
 			v := rand.Float32()
 			if v > 0.6 {
@@ -99,26 +103,42 @@ func (w World) Draw() {
 
 	for x := range len(w.Grid) {
 		for y, tile := range w.Grid[x] {
-			switch tile.(type) {
-			case *VoidTile:
-				continue
-			}
+			tileData := tile.Data()
 
 			hex := w.PixelToHex(mp)
 
-			tileColor := tile.Color()
+			tileColor := tileData.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
-				tileColor = rl.ColorLerp(tileColor, rl.White, 0.2)
+				tileColor = *v.ColorAdd(tileColor, 20)
 			}
 
 			yOffset := float32(height/2.0) * float32(x%2)
-			DrawHexagon(float32(x)*width/4.0*3.0, float32(y)*height+yOffset, w.HexSize, tileColor)
+			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
+			DrawHexagon(worldPos.X, worldPos.Y, w.HexSize, tileColor)
 
-			tile.Draw()
+			tile.Draw(w, worldPos)
 		}
 	}
 
 	rl.EndMode2D()
+}
+
+func (w World) GetNeighbors(pos v.Vec2i) [6]Tile {
+	return [6]Tile{
+		w.GetTile(pos.Add(v.Vec2i{X: -1, Y: -1})),
+		w.GetTile(pos.Add(v.Vec2i{X: 0, Y: -1})),
+		w.GetTile(pos.Add(v.Vec2i{X: 1, Y: -1})),
+		w.GetTile(pos.Add(v.Vec2i{X: -1, Y: 0})),
+		w.GetTile(pos.Add(v.Vec2i{X: 1, Y: 0})),
+		w.GetTile(pos.Add(v.Vec2i{X: 0, Y: 1})),
+	}
+}
+
+func (w World) GetTile(pos v.Vec2i) Tile {
+	if pos.X < 0 || pos.X >= w.GridSize.X || pos.Y < 0 || pos.Y >= w.GridSize.Y {
+		return nil
+	}
+	return w.Grid[pos.X][pos.Y]
 }
 
 func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
@@ -139,7 +159,6 @@ func DrawHexagon(x float32, y float32, size v.Vec2, color rl.Color) {
 
 	rl.Begin(rl.Triangles)
 	rl.Color4ub(color.R, color.G, color.B, color.A)
-	rl.Normal3f(0.0, 0.0, 1.0)
 
 	rl.Vertex2f(a.X, a.Y)
 	rl.Vertex2f(b.X, b.Y)
