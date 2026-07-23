@@ -51,7 +51,7 @@ func (a Axial) ToHex() Hex {
 
 func (w World) PixelToHex(p v.Vec2) Hex {
 	q := (2.0 * p.X) / (3.0 * w.HexSize.X)
-	r := (-p.X) / (3.0 * w.HexSize.X) + p.Y / (sqrt3 * w.HexSize.Y)
+	r := (-p.X)/(3.0*w.HexSize.X) + p.Y/(sqrt3*w.HexSize.Y)
 
 	return Axial{X: q, Y: r}.ToHex()
 }
