@@ -16,23 +16,74 @@ type World struct {
 	TileToGrid    map[string][]v.Vec2i
 	GridSize      v.Vec2i
 	Camera        rl.Camera2D
+	ZoomAnchor    v.Vec2
+	TargetZoom    float32
 	HexSize       v.Vec2
 	HasInit       bool
 	BGShader      rl.Shader
 	BGTimeLoc     int32
 	VoidShader    rl.Shader
 	PanStart      v.Vec2
+	PanVelocity   v.Vec2
 	Viewport      rl.RenderTexture2D
 	MousePosition v.Vec2
 }
 
 var sqrt3 = float32(math.Sqrt(3.0))
 
+const (
+	// Number of nanoseconds in one second. Update receives delta in nanoseconds,
+	// while movement and smoothing calculations expect seconds.
+	nanosecondsPerSecond float32 = 1_000_000_000.0
+
+	// Base WASD camera movement speed in world units per second.
+	cameraMoveSpeed float32 = 1000.0
+
+	// Controls how strongly WASD movement changes with zoom.
+	// 0.0 = movement ignores zoom.
+	// 0.5 = movement is divided by sqrt(zoom).
+	// 1.0 = movement is divided directly by zoom.
+	cameraMoveZoomExponent float64 = 0.5
+
+	// Smallest and largest allowed camera zoom values.
+	cameraMinZoom float32 = 0.08
+	cameraMaxZoom float32 = 1.0
+
+	// Amount each mouse-wheel step changes the target zoom.
+	// Higher values make each wheel step zoom farther.
+	cameraZoomStep float32 = 0.18
+
+	// How quickly the actual zoom approaches the target zoom.
+	// Lower values feel softer; higher values feel more immediate.
+	cameraZoomSmoothness float32 = 12.0
+
+	// The momentum speed that slow and fast mouse drags are pulled toward.
+	// This represents approximate screen-space movement per second.
+	panMomentumMidSpeed float32 = 600.0
+
+	// Controls how much the original drag speed affects momentum.
+	// 0.0 = every drag produces the midpoint speed.
+	// 0.35 = strong compression while preserving some speed variation.
+	// 1.0 = momentum directly matches the original drag speed.
+	panSpeedCompressionExponent float64 = 0.4
+
+	// How much new drag velocity is mixed into the existing momentum.
+	// Higher values react faster to the latest mouse movement.
+	panVelocitySampleWeight float32 = 0.35
+
+	// How quickly momentum slows after releasing the mouse button.
+	// Lower values glide longer; higher values stop sooner.
+	panMomentumDamping float32 = 4.0
+)
+
 func (w *World) Init() {
 	w.HasInit = true
 
 	if w.Camera.Zoom == 0.0 {
-		w.Camera.Zoom = 1.0
+		w.Camera.Zoom = 0.75
+	}
+	if w.TargetZoom == 0.0 {
+		w.TargetZoom = w.Camera.Zoom
 	}
 	if w.HexSize == (v.Vec2{}) {
 		w.HexSize = v.Vec2{X: 48.0, Y: 48.0}
@@ -70,6 +121,8 @@ func (w *World) Generate() {
 }
 
 func (w *World) Update(delta float32) {
+	deltaSeconds := delta / nanosecondsPerSecond
+
 	screenW := float32(rl.GetRenderWidth())
 	screenH := float32(rl.GetRenderHeight())
 	viewH := float32(w.Viewport.Texture.Height)
@@ -88,6 +141,9 @@ func (w *World) Update(delta float32) {
 		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
 	}
 
+	w.Camera.Offset.X = float32(w.Viewport.Texture.Width) / 2.0
+	w.Camera.Offset.Y = float32(w.Viewport.Texture.Height) / 2.0
+
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
 
 	hex := w.PixelToHex(mousePos)
@@ -96,12 +152,71 @@ func (w *World) Update(delta float32) {
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
-		w.PanStart = mousePos
+		w.PanStart = w.MousePosition
+		w.PanVelocity = v.Vec2{}
 	}
 
 	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-		mouseDelta := w.PanStart.Sub(mousePos)
-		w.Camera.Target = w.Camera.Target.Add(mouseDelta.ToRL())
+		mouseDelta := w.MousePosition.Sub(w.PanStart)
+		panDelta := mouseDelta.Mul(v.Vec2{
+			X: -1.0 / w.Camera.Zoom,
+			Y: -1.0 / w.Camera.Zoom,
+		})
+
+		w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(panDelta).ToRL()
+
+		if deltaSeconds > 0.0 {
+			rawVelocity := panDelta.Mul(v.Vec2{
+				X: 1.0 / deltaSeconds,
+				Y: 1.0 / deltaSeconds,
+			})
+
+			rawSpeed := float32(math.Sqrt(float64(
+				rawVelocity.X*rawVelocity.X +
+					rawVelocity.Y*rawVelocity.Y,
+			)))
+
+			if rawSpeed > 0.0 {
+				// Convert the desired screen-space momentum speed to world-space
+				// speed so momentum feels similar at different zoom levels.
+				midSpeed := panMomentumMidSpeed / w.Camera.Zoom
+
+				// Compress very slow and very fast drags toward midSpeed while
+				// retaining some variation from the original drag speed.
+				compressedSpeed := midSpeed * float32(math.Pow(
+					float64(rawSpeed/midSpeed),
+					panSpeedCompressionExponent,
+				))
+
+				dragVelocity := rawVelocity.Mul(v.Vec2{
+					X: compressedSpeed / rawSpeed,
+					Y: compressedSpeed / rawSpeed,
+				})
+
+				previousVelocityWeight := 1.0 - panVelocitySampleWeight
+				w.PanVelocity = w.PanVelocity.Mul(v.Vec2{
+					X: previousVelocityWeight,
+					Y: previousVelocityWeight,
+				}).Add(dragVelocity.Mul(v.Vec2{
+					X: panVelocitySampleWeight,
+					Y: panVelocitySampleWeight,
+				}))
+			}
+		}
+
+		w.PanStart = w.MousePosition
+	} else {
+		w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(w.PanVelocity.Mul(v.Vec2{
+			X: deltaSeconds,
+			Y: deltaSeconds,
+		})).ToRL()
+
+		// Exponential damping makes momentum frame-rate independent.
+		panDecay := float32(math.Exp(float64(-panMomentumDamping * deltaSeconds)))
+		w.PanVelocity = w.PanVelocity.Mul(v.Vec2{
+			X: panDecay,
+			Y: panDecay,
+		})
 	}
 
 	moveDir := v.Vec2{}
@@ -120,20 +235,46 @@ func (w *World) Update(delta float32) {
 		moveDir.X += 1.0
 	}
 
-	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{X: 10.0, Y: 10.0})).ToRL()
-
-	w.Camera.Offset.X = float32(w.Viewport.Texture.Width) / 2.0
-	w.Camera.Offset.Y = float32(w.Viewport.Texture.Height) / 2.0
-
-	w.Camera.Zoom += rl.GetMouseWheelMove() * 0.5
-
-	if w.Camera.Zoom > 5.0 {
-		w.Camera.Zoom = 5.0
-	} else if w.Camera.Zoom < 0.08 {
-		w.Camera.Zoom = 0.08
+	if moveDir.X != 0.0 || moveDir.Y != 0.0 {
+		zoomMovementScale := float32(math.Pow(
+			float64(w.Camera.Zoom),
+			cameraMoveZoomExponent,
+		))
+		moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
+		w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
+			X: moveDistance,
+			Y: moveDistance,
+		})).ToRL()
 	}
 
-	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Round().ToRL()
+	wheel := rl.GetMouseWheelMove()
+	if wheel != 0.0 {
+		// Store the cursor position so the same world point remains underneath
+		// it while the camera smoothly approaches the new zoom.
+		w.ZoomAnchor = w.MousePosition
+		w.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
+	}
+
+	if w.TargetZoom > cameraMaxZoom {
+		w.TargetZoom = cameraMaxZoom
+	} else if w.TargetZoom < cameraMinZoom {
+		w.TargetZoom = cameraMinZoom
+	}
+
+	zoomBlend := 1.0 - float32(math.Exp(float64(-cameraZoomSmoothness*deltaSeconds)))
+	nextZoom := w.Camera.Zoom + (w.TargetZoom-w.Camera.Zoom)*zoomBlend
+
+	if nextZoom != w.Camera.Zoom {
+		// Find the world position under the cursor before zooming.
+		zoomBefore := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.ZoomAnchor), w.Camera))
+
+		w.Camera.Zoom = nextZoom
+
+		// Move the camera target by the difference after zooming, keeping the
+		// same world position locked beneath the cursor.
+		zoomAfter := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.ZoomAnchor), w.Camera))
+		w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(zoomBefore.Sub(zoomAfter)).ToRL()
+	}
 }
 
 func (w *World) Draw() {
