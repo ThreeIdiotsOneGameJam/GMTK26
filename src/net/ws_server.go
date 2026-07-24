@@ -6,6 +6,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/server"
 )
 
 var upgrader = websocket.Upgrader{
@@ -19,6 +22,11 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+
+	server.Lobby.AddConnection(&packets.Connection{
+		Player: game.Player{}, // TODO: make ws request need player info (or at least uuid - and then store just that in connection) immediately on connect
+		Conn:   conn,
+	})
 
 	for {
 		messageType, p, err := conn.ReadMessage()
