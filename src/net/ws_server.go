@@ -23,21 +23,26 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.Lobby.AddConnection(&packets.Connection{
+	connection := &packets.Connection{
 		Player: game.Player{}, // TODO: make ws request need player info (or at least uuid - and then store just that in connection) immediately on connect
 		Conn:   conn,
-	})
+	}
+	server.Lobby.AddConnection(connection)
 
 	for {
-		messageType, p, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-			return
+
+		packet, err := packets.Deserialize(message)
+		if err != nil {
+			log.Printf("failed to deserialize packet: %v", err)
+			continue
 		}
+
+		packet.Handle(connection)
 	}
 }
 

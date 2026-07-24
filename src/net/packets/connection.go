@@ -10,4 +10,13 @@ type Connection struct {
 	Conn   *websocket.Conn
 }
 
-func (c *Connection) SendPacket(packet Packet) {}
+func (c *Connection) SendPacket(packet Packet) {
+	data, err := Serialize(packet)
+	if err != nil {
+		return
+	}
+	err = c.Conn.WriteMessage(websocket.TextMessage, data)
+	if err != nil {
+		return
+	}
+}
