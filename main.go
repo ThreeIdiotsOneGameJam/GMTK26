@@ -19,7 +19,8 @@ func update() {
 
 func tick() {
 	if rl.IsKeyPressed(rl.KeyEscape) {
-		screens.SetActiveScreen(screens.MainScreenID)
+		//screens.SetActiveScreen(screens.MainScreenID)
+		screens.ToggleEscScreen()
 	}
 
 	if rl.IsKeyPressed(rl.KeyF11) {

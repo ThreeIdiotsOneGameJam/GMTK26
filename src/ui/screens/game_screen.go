@@ -7,4 +7,6 @@ import (
 var GameScreen = ui.Screen().
 	AddChild(
 		ui.World(),
-	)
+	).
+	AddChild(
+		EscScreen)

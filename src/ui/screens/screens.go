@@ -15,6 +15,7 @@ const (
 	PlayScreenID
 	GameScreenID
 	SettingsScreenID
+	EscScreenID
 )
 
 const (
@@ -34,6 +35,7 @@ func init() {
 		PlayScreenID:     PlayScreen,
 		GameScreenID:     GameScreen,
 		SettingsScreenID: SettingsScreen,
+		EscScreenID:      EscScreen,
 	}
 	activeScreen = MainScreen
 	activeScreen.Enter()
@@ -68,7 +70,11 @@ func Update(deltaNano int64) {
 	}
 
 	if !IsTransitioning() {
-		activeScreen.Update(deltaNano)
+		if activeScreen == GameScreen && EscScreen.Visible() {
+			EscScreen.Update(deltaNano)
+		} else {
+			activeScreen.Update(deltaNano)
+		}
 	}
 
 	delta := time.Duration(deltaNano)
@@ -138,4 +144,8 @@ func moveTowards(current, target, amount float32) float32 {
 func smoothstep(value float32) float32 {
 	value = max(float32(0), min(value, float32(1)))
 	return value * value * (3 - 2*value)
+}
+
+func ToggleEscScreen() {
+	EscScreen.WithVisible(!EscScreen.Visible())
 }
