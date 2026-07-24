@@ -5,7 +5,6 @@ import (
 	"math"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -472,32 +471,6 @@ func (w *World) Draw() {
 				drawState = DrawStateEnd
 			}
 			tile.Draw(*w, tilePos, worldPos, drawState)
-		}
-	}
-	for x := range len(w.Grid) {
-		for y, cell := range w.Grid[x] {
-			yOffset := float32(height/2.0) * float32(x%2)
-			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
-			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
-				continue
-			}
-
-			color := rl.Black
-
-			switch cell.Resource {
-			case game.ResourceUnknown:
-				continue
-			case game.ResourceGold:
-				color = rl.Gold
-			case game.ResourceCoal:
-				color = rl.Black
-			case game.ResourceIron:
-				color = rl.ColorLerp(rl.Brown, rl.White, 0.6)
-			case game.ResourceWood:
-				color = rl.Brown
-			}
-
-			rl.DrawRectangle(int32(worldPos.X)-16, int32(worldPos.Y)-16, 32, 32, color)
 		}
 	}
 

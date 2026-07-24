@@ -5,7 +5,6 @@ import (
 	"math/rand"
 
 	"github.com/aquilax/go-perlin"
-	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -78,70 +77,45 @@ func SpreadResources(w *World, seed int64) {
 		rock[i], rock[j] = rock[j], rock[i]
 	})
 
-	for i := range 20 {
-		if i >= len(rock) {
-			break
-		}
+	if w.TileToGrid[IronTile.Type] == nil {
+		w.TileToGrid[IronTile.Type] = make([]vec.Vec2i, 0)
+	}
+	if w.TileToGrid[CoalTile.Type] == nil {
+		w.TileToGrid[CoalTile.Type] = make([]vec.Vec2i, 0)
+	}
+
+	if w.TileToGrid[GoldTile.Type] == nil {
+		w.TileToGrid[GoldTile.Type] = make([]vec.Vec2i, 0)
+	}
+
+	rockLast := len(rock) - 1
+	iron := len(rock) / 10
+	coal := len(rock) / 10
+	gold := len(rock) / 20
+	for i := range iron {
 		pos := rock[i]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceGold
+		w.Grid[pos.X][pos.Y].Tile = IronTile
+		w.TileToGrid[IronTile.Type] = append(w.TileToGrid[IronTile.Type], pos)
+		rock[i] = rock[rockLast]
+		rockLast--
 	}
-	for i := range 32 {
-		if i >= len(rock) {
-			break
-		}
-		pos := rock[i+20]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceCoal
+	for i := range coal {
+		pos := rock[i+iron]
+		w.Grid[pos.X][pos.Y].Tile = CoalTile
+		w.TileToGrid[CoalTile.Type] = append(w.TileToGrid[CoalTile.Type], pos)
+		rock[i+iron] = rock[rockLast]
+		rockLast--
 	}
-	for i := range 32 {
-		if i >= len(rock) {
-			break
-		}
-		pos := rock[i+20+32]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceIron
-	}
-
-	plains := make([]vec.Vec2i, len(w.TileToGrid[PlainsTile.Type]))
-	copy(plains, w.TileToGrid[PlainsTile.Type])
-
-	r.Shuffle(len(plains), func(i int, j int) {
-		plains[i], plains[j] = plains[j], plains[i]
-	})
-
-	for i := range 100 {
-		if i >= len(plains) {
-			break
-		}
-		pos := plains[i]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceWood
+	for i := range gold {
+		pos := rock[i+iron+coal]
+		w.Grid[pos.X][pos.Y].Tile = GoldTile
+		w.TileToGrid[GoldTile.Type] = append(w.TileToGrid[GoldTile.Type], pos)
+		rock[i+iron+coal] = rock[rockLast]
+		rockLast--
 	}
 
-	jungle := make([]vec.Vec2i, len(w.TileToGrid[JungleTile.Type]))
-	copy(jungle, w.TileToGrid[JungleTile.Type])
+	newRock := make([]vec.Vec2i, rockLast+1)
+	copy(newRock, rock[:rockLast+1])
 
-	r.Shuffle(len(jungle), func(i int, j int) {
-		jungle[i], jungle[j] = jungle[j], jungle[i]
-	})
-
-	for i := range 100 {
-		if i >= len(jungle) {
-			break
-		}
-		pos := jungle[i]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceWood
-	}
-
-	forest := make([]vec.Vec2i, len(w.TileToGrid[ForestTile.Type]))
-	copy(forest, w.TileToGrid[ForestTile.Type])
-
-	r.Shuffle(len(forest), func(i int, j int) {
-		forest[i], forest[j] = forest[j], forest[i]
-	})
-
-	for i := range 200 {
-		if i >= len(forest) {
-			break
-		}
-		pos := forest[i]
-		w.Grid[pos.X][pos.Y].Resource = game.ResourceWood
-	}
+	w.TileToGrid[RockTile.Type] = newRock
 }

@@ -67,6 +67,51 @@ var RockTile = Tile{
 	Color: color.RGBA{R: 150, G: 150, B: 150, A: 255},
 }
 
+var IronTile = Tile{
+	Type:  "iron",
+	Color: color.RGBA{R: 150, G: 150, B: 150, A: 255},
+	Draw: func(w World, hex vec.Vec2i, worldPos vec.Vec2, state TileDrawState) {
+		if state == DrawStateBegin {
+			rl.Begin(rl.Triangles)
+		}
+		if state == DrawStateEnd {
+			defer rl.End()
+		}
+		s := w.HexSize.Sub(vec.Vec2{X: 16.0, Y: 16.0})
+		DrawHexagonBuffered(worldPos.X, worldPos.Y, s, rl.ColorLerp(rl.Brown, rl.White, 0.5))
+	},
+}
+
+var CoalTile = Tile{
+	Type:  "coal",
+	Color: color.RGBA{R: 150, G: 150, B: 150, A: 255},
+	Draw: func(w World, hex vec.Vec2i, worldPos vec.Vec2, state TileDrawState) {
+		if state == DrawStateBegin {
+			rl.Begin(rl.Triangles)
+		}
+		if state == DrawStateEnd {
+			defer rl.End()
+		}
+		s := w.HexSize.Sub(vec.Vec2{X: 16.0, Y: 16.0})
+		DrawHexagonBuffered(worldPos.X, worldPos.Y, s, rl.Black)
+	},
+}
+
+var GoldTile = Tile{
+	Type:  "gold",
+	Color: color.RGBA{R: 150, G: 150, B: 150, A: 255},
+	Draw: func(w World, hex vec.Vec2i, worldPos vec.Vec2, state TileDrawState) {
+		if state == DrawStateBegin {
+			rl.Begin(rl.Triangles)
+		}
+		if state == DrawStateEnd {
+			defer rl.End()
+		}
+		s := w.HexSize.Sub(vec.Vec2{X: 16.0, Y: 16.0})
+		DrawHexagonBuffered(worldPos.X, worldPos.Y, s, rl.Gold)
+	},
+}
+
 func DrawEdge(t Tile, w World, tile vec.Vec2i, pos vec.Vec2, state TileDrawState, col color.RGBA) {
 	if state == DrawStateBegin {
 		rl.BeginShaderMode(w.VoidShader)
