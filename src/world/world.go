@@ -42,6 +42,17 @@ func (w *World) Init() {
 	}
 	w.Camera.Target = w.GridSize.Vec2().Mul(w.HexSize).Sub(global.ViewportSize.Vec2()).ToRL()
 
+	w.Generate()
+
+	// FIXME: DEATH THIS IS DEATH!!! WELL, AT LEAST UNTIL WE ADD SOMETHING TO UNLOAD IT...
+	w.BGShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
+	w.BGTimeLoc = rl.GetLocationUniform(w.BGShader.ID, "time")
+	w.VoidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
+
+	w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
+}
+
+func (w *World) Generate() {
 	w.Grid = w.Generator.Generate(w.GridSize)
 
 	w.TileToGrid = make(map[string][]v.Vec2i)
@@ -57,13 +68,6 @@ func (w *World) Init() {
 			w.TileToGrid[tileData.Type] = append(w.TileToGrid[tileData.Type], v.Vec2i{X: int32(x), Y: int32(y)})
 		}
 	}
-
-	// FIXME: DEATH THIS IS DEATH!!! WELL, AT LEAST UNTIL WE ADD SOMETHING TO UNLOAD IT...
-	w.BGShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
-	w.BGTimeLoc = rl.GetLocationUniform(w.BGShader.ID, "time")
-	w.VoidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
-
-	w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
 
 func (w *World) Update(delta float32) {

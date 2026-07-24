@@ -173,3 +173,17 @@ func (t *GrassTile) Data() TileData {
 func (t *GrassTile) Tick()                                                            {}
 func (t *GrassTile) Update(w World, delta float32, pos v.Vec2)                        {}
 func (t *GrassTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
+
+type ColorTile struct {
+	Color color.RGBA
+}
+
+func (t *ColorTile) Data() TileData {
+	return TileData{
+		Type:  "color",
+		Color: t.Color,
+	}
+}
+func (t *ColorTile) Tick()                                                            {}
+func (t *ColorTile) Update(w World, delta float32, pos v.Vec2)                        {}
+func (t *ColorTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
