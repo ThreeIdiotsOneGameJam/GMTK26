@@ -1,6 +1,7 @@
 package world
 
 import (
+	"fmt"
 	"math"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -66,7 +67,31 @@ func (w *World) Init() {
 }
 
 func (w *World) Update(delta float32) {
+	screenW := float32(rl.GetRenderWidth())
+	screenH := float32(rl.GetRenderHeight())
+	viewH := float32(w.Viewport.Texture.Height)
+	ratio := screenH / viewH
+	viewW := float32(int32(screenW/ratio) + 1)
+	srcRect := rl.Rectangle{X: 0, Y: 0, Width: viewW, Height: -viewH}
+	dstRect := rl.Rectangle{
+		X:      (screenW - viewW*ratio) / 2.0,
+		Y:      (screenH - viewH*ratio) / 2.0,
+		Width:  viewW * ratio,
+		Height: viewH * ratio,
+	}
+	mouse := global.MousePosition
+	w.MousePosition = v.Vec2{
+		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
+		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
+	}
+
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
+
+	hex := w.PixelToHex(mousePos)
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
+	}
+
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		w.PanStart = mousePos
 	}
@@ -132,12 +157,6 @@ func (w *World) Draw() {
 		Width:  viewW * ratio,
 		Height: viewH * ratio,
 	}
-	mouse := global.MousePosition
-	w.MousePosition = v.Vec2{
-		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
-		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
-	}
-
 	rl.BeginTextureMode(w.Viewport)
 
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
