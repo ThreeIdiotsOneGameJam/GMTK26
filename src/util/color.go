@@ -113,3 +113,18 @@ func ColorOpacity(c color.RGBA, opacity float32) color.RGBA {
 	c.A = uint8(float32(c.A) * opacity)
 	return c
 }
+
+type RGB [3]uint8
+
+func (c RGB) toRGBA() color.RGBA {
+	return color.RGBA{
+		R: c[0],
+		G: c[1],
+		B: c[2],
+		A: 255,
+	}
+}
+
+func RGBAToRGB(c color.RGBA) RGB {
+	return RGB{c.R, c.G, c.B}
+}

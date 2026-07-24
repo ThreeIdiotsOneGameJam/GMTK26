@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	// "math"
 	"strconv"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
@@ -80,6 +82,11 @@ func frame() {
 var updateFunc = update
 
 func main() {
+	err := game.LoadOrCreatePlayerData()
+	if err != nil {
+		fmt.Println("failed to load or create player data, using ephemeral values")
+	}
+
 	var configFlags uint32 = rl.FlagWindowResizable
 
 	if fpsTarget == 0 {

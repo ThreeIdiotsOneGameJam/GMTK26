@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/gen2brain/raylib-go/raylib v0.60.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 )
 
