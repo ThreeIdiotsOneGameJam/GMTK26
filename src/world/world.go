@@ -36,6 +36,14 @@ const (
 	// while movement and smoothing calculations expect seconds.
 	nanosecondsPerSecond float32 = 1_000_000_000.0
 
+	// How far the camera may show beyond the world edge, measured in screen
+	// pixels. Set to 0.0 to prevent showing anything outside the world.
+	cameraBoundsPadding float32 = 200.0
+
+	// Stops momentum on an axis when the camera reaches that axis's boundary.
+	// Disable this if you prefer momentum to continue pushing against the edge.
+	stopMomentumAtBounds = false
+
 	// Base WASD camera movement speed in world units per second.
 	cameraMoveSpeed float32 = 1000.0
 
@@ -116,6 +124,64 @@ func (w *World) Generate() {
 			}
 
 			w.TileToGrid[tile.Type] = append(w.TileToGrid[tile.Type], v.Vec2i{X: int32(x), Y: int32(y)})
+		}
+	}
+}
+
+func (w *World) ClampCameraToWorld() {
+	hexWidth := w.HexSize.X * 2.0
+	hexHeight := w.HexSize.Y * sqrt3
+
+	// These bounds include the full size of the outermost hexagons.
+	worldMinX := -w.HexSize.X
+	worldMaxX := float32(w.GridSize.X-1)*hexWidth/4.0*3.0 + w.HexSize.X
+	worldMinY := -hexHeight / 2.0
+	worldMaxY := float32(w.GridSize.Y) * hexHeight
+
+	// Convert the screen-space padding into world-space padding so it looks
+	// approximately the same at every zoom level.
+	worldPadding := cameraBoundsPadding / w.Camera.Zoom
+
+	worldMinX -= worldPadding
+	worldMaxX += worldPadding
+	worldMinY -= worldPadding
+	worldMaxY += worldPadding
+
+	// Camera.Target is positioned at Camera.Offset. Since the offset is the
+	// center of the viewport, these are the visible world-space half sizes.
+	viewHalfWidth := float32(w.Viewport.Texture.Width) / (2.0 * w.Camera.Zoom)
+	viewHalfHeight := float32(w.Viewport.Texture.Height) / (2.0 * w.Camera.Zoom)
+
+	minTargetX := worldMinX + viewHalfWidth
+	maxTargetX := worldMaxX - viewHalfWidth
+	minTargetY := worldMinY + viewHalfHeight
+	maxTargetY := worldMaxY - viewHalfHeight
+
+	target := v.Vec2FromRL(w.Camera.Target)
+	previousTarget := target
+
+	// When zoomed out far enough that the viewport is larger than the world,
+	// there is no valid clamp range. Center the camera on that axis instead.
+	if minTargetX > maxTargetX {
+		target.X = (worldMinX + worldMaxX) / 2.0
+	} else {
+		target.X = max(minTargetX, min(target.X, maxTargetX))
+	}
+
+	if minTargetY > maxTargetY {
+		target.Y = (worldMinY + worldMaxY) / 2.0
+	} else {
+		target.Y = max(minTargetY, min(target.Y, maxTargetY))
+	}
+
+	w.Camera.Target = target.ToRL()
+
+	if stopMomentumAtBounds {
+		if target.X != previousTarget.X {
+			w.PanVelocity.X = 0.0
+		}
+		if target.Y != previousTarget.Y {
+			w.PanVelocity.Y = 0.0
 		}
 	}
 }
@@ -275,6 +341,8 @@ func (w *World) Update(delta float32) {
 		zoomAfter := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.ZoomAnchor), w.Camera))
 		w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(zoomBefore.Sub(zoomAfter)).ToRL()
 	}
+
+	w.ClampCameraToWorld()
 }
 
 func (w *World) Draw() {
