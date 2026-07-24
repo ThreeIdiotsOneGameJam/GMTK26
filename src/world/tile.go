@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -38,6 +39,65 @@ func (t *VoidTile) Data() TileData {
 func (t *VoidTile) Tick()                                     {}
 func (t *VoidTile) Update(w World, delta float32, pos v.Vec2) {}
 func (t *VoidTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {
+	drawEdge(world, pos, tile, state, color.RGBA{R: 0, G: 0, B: 0, A: 100})
+}
+
+type UnkownTile struct{}
+
+func (t *UnkownTile) Data() TileData {
+	return TileData{
+		Type:  "unkown",
+		Color: color.RGBA{R: 211, G: 191, B: 139, A: 255},
+	}
+}
+func (t *UnkownTile) Tick()                                                            {}
+func (t *UnkownTile) Update(w World, delta float32, pos v.Vec2)                        {}
+func (t *UnkownTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
+
+// These tiles are temporary
+type WaterTile struct{}
+
+func (t *WaterTile) Data() TileData {
+	return TileData{
+		Type:  "water",
+		Color: color.RGBA{R: 50, G: 70, B: 200, A: 255},
+	}
+}
+func (t *WaterTile) Tick()                                     {}
+func (t *WaterTile) Update(w World, delta float32, pos v.Vec2) {}
+func (t *WaterTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {
+	col := t.Data().Color
+	col = *util.ColorSub(col, 50)
+	drawEdge(world, pos, tile, state, col)
+}
+
+type GrassTile struct{}
+
+func (t *GrassTile) Data() TileData {
+	return TileData{
+		Type:  "grass",
+		Color: color.RGBA{R: 63, G: 200, B: 140, A: 255},
+	}
+}
+func (t *GrassTile) Tick()                                                            {}
+func (t *GrassTile) Update(w World, delta float32, pos v.Vec2)                        {}
+func (t *GrassTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
+
+type ColorTile struct {
+	Color color.RGBA
+}
+
+func (t *ColorTile) Data() TileData {
+	return TileData{
+		Type:  "color",
+		Color: t.Color,
+	}
+}
+func (t *ColorTile) Tick()                                                            {}
+func (t *ColorTile) Update(w World, delta float32, pos v.Vec2)                        {}
+func (t *ColorTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
+
+func drawEdge(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState, col color.RGBA) {
 	if state == DrawStateBegin {
 		rl.BeginShaderMode(world.VoidShader)
 		rl.Begin(rl.Triangles)
@@ -83,52 +143,54 @@ func (t *VoidTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawSt
 		if (b1 || b2) && !edge {
 			mid := v1.Lerp(v2, 0.5)
 			if b1 {
-				rl.Color4ub(255, 0, 0, 255)
+				rl.Normal3f(1.0, 0.0, 0.0)
 			} else {
-				rl.Color4ub(0, 0, 0, 0)
+				rl.Normal3f(0.0, 0.0, 0.0)
 			}
 			rl.Vertex2f(v1.X, v1.Y)
 
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 			rl.Vertex2f(mid.X, mid.Y)
 
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 			rl.Vertex2f(center.X, center.Y)
 
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 			rl.Vertex2f(mid.X, mid.Y)
 
 			if b2 {
-				rl.Color4ub(255, 0, 0, 255)
+				rl.Normal3f(1.0, 0.0, 0.0)
 			} else {
-				rl.Color4ub(0, 0, 0, 0)
+				rl.Normal3f(0.0, 0.0, 0.0)
 			}
 			rl.Vertex2f(v2.X, v2.Y)
 
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 			rl.Vertex2f(center.X, center.Y)
 
 			return
 		}
 
 		if edge {
-			rl.Color4ub(255, 0, 0, 255)
+			rl.Normal3f(1.0, 0.0, 0.0)
 		} else {
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 		}
 		rl.Vertex2f(v1.X, v1.Y)
 
 		if edge {
-			rl.Color4ub(255, 0, 0, 255)
+			rl.Normal3f(1.0, 0.0, 0.0)
 		} else {
-			rl.Color4ub(0, 0, 0, 0)
+			rl.Normal3f(0.0, 0.0, 0.0)
 		}
 		rl.Vertex2f(v2.X, v2.Y)
 
-		rl.Color4ub(0, 0, 0, 0)
+		rl.Normal3f(0.0, 0.0, 0.0)
 		rl.Vertex2f(center.X, center.Y)
 	}
 
+	rl.Color4ub(col.R, col.G, col.B, col.A)
+	rl.TexCoord2f(float32(pos.X), float32(pos.Y))
 	drawSection(a, b, isEdge(neighbors.N), isEdge(neighbors.SW), isEdge(neighbors.NW))
 	drawSection(b, c, isEdge(neighbors.NW), isEdge(neighbors.S), isEdge(neighbors.SW))
 	drawSection(c, d, isEdge(neighbors.SW), isEdge(neighbors.SE), isEdge(neighbors.S))
@@ -136,54 +198,3 @@ func (t *VoidTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawSt
 	drawSection(e, f, isEdge(neighbors.SE), isEdge(neighbors.N), isEdge(neighbors.NE))
 	drawSection(f, a, isEdge(neighbors.NE), isEdge(neighbors.NW), isEdge(neighbors.N))
 }
-
-type UnkownTile struct{}
-
-func (t *UnkownTile) Data() TileData {
-	return TileData{
-		Type:  "unkown",
-		Color: color.RGBA{R: 211, G: 191, B: 139, A: 255},
-	}
-}
-func (t *UnkownTile) Tick()                                                            {}
-func (t *UnkownTile) Update(w World, delta float32, pos v.Vec2)                        {}
-func (t *UnkownTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
-
-// These tiles are temporary
-type WaterTile struct{}
-
-func (t *WaterTile) Data() TileData {
-	return TileData{
-		Type:  "water",
-		Color: color.RGBA{R: 50, G: 70, B: 200, A: 255},
-	}
-}
-func (t *WaterTile) Tick()                                                            {}
-func (t *WaterTile) Update(w World, delta float32, pos v.Vec2)                        {}
-func (t *WaterTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
-
-type GrassTile struct{}
-
-func (t *GrassTile) Data() TileData {
-	return TileData{
-		Type:  "grass",
-		Color: color.RGBA{R: 63, G: 200, B: 140, A: 255},
-	}
-}
-func (t *GrassTile) Tick()                                                            {}
-func (t *GrassTile) Update(w World, delta float32, pos v.Vec2)                        {}
-func (t *GrassTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}
-
-type ColorTile struct {
-	Color color.RGBA
-}
-
-func (t *ColorTile) Data() TileData {
-	return TileData{
-		Type:  "color",
-		Color: t.Color,
-	}
-}
-func (t *ColorTile) Tick()                                                            {}
-func (t *ColorTile) Update(w World, delta float32, pos v.Vec2)                        {}
-func (t *ColorTile) Draw(world *World, pos v.Vec2, tile v.Vec2i, state TileDrawState) {}

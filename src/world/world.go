@@ -224,7 +224,13 @@ func (w *World) Draw() {
 
 			tileColor := tileData.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
-				tileColor = *util.ColorAdd(tileColor, 20)
+				tileColor = *util.ColorAdd(tileColor, 30)
+			}
+			if x%2 == 1 {
+				tileColor = *util.ColorSub(tileColor, 12)
+			}
+			if y%2 == 1 {
+				tileColor = *util.ColorSub(tileColor, 6)
 			}
 
 			DrawHexagonBuffered(worldPos.X, worldPos.Y, w.HexSize, tileColor)
