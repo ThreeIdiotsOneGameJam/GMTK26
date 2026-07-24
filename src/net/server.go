@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
 
 var upgrader = websocket.Upgrader{
@@ -44,9 +43,3 @@ func StartWebSocketServer(ip string, port uint16) {
 		log.Fatal(err)
 	}
 }
-
-type Connection struct {
-	Conn *websocket.Conn
-}
-
-func (c *Connection) SendPacket(packet packets.Packet) {}
