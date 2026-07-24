@@ -1,5 +1,7 @@
 package game
 
+//go:generate stringer -type=ResourceType -trimprefix=Resource
+
 type ResourceType uint8
 
 const (
