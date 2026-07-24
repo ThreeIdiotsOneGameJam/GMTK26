@@ -9,7 +9,7 @@ web_replace_on:
 web_replace_off:
 	sed -i 's|^replace github.com/gen2brain/raylib-go/raylib|//replace github.com/gen2brain/raylib-go/raylib|' $(GOMOD)
 
-.PHONY: run_desktop build_desktop build_windows run_web build_web server clean web_replace_on web_replace_off
+.PHONY: run_desktop build_desktop build_windows run_web build_web server run_server build_server clean web_replace_on web_replace_off
 
 ## Windows (cross-compile) ##
 # Requires: mingw-w64 cross-compiler (e.g. x86_64-w64-mingw32-gcc)
@@ -38,6 +38,13 @@ server:
 # Build the wasm and run the local server on http://localhost:8080
 run_web: build_web server
 	$(SERVER_BIN)
+
+## WebSocket game server ##
+build_server:
+	go build -o ./bin/game-server ./cmd/server
+
+run_server: build_server
+	./bin/game-server
 
 clean:
 	rm -rf ./bin $(SERVER_BIN) $(WEB_DIR)/main.wasm $(WEB_DIR)/wasm_exec.js
