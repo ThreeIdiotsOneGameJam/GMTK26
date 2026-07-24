@@ -2,7 +2,10 @@ module github.com/threeidiotsonegamejam/gmtk26
 
 go 1.26.5
 
-require github.com/gen2brain/raylib-go/raylib v0.60.0
+require (
+	github.com/gen2brain/raylib-go/raylib v0.60.0
+	github.com/gorilla/websocket v1.5.3
+)
 
 require (
 	github.com/ebitengine/purego v0.10.0 // indirect
