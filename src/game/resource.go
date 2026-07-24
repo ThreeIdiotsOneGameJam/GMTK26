@@ -11,3 +11,5 @@ const (
 	ResourceSteel
 	ResourceGold
 )
+
+type Resources map[ResourceType]uint32
