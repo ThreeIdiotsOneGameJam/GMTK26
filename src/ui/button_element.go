@@ -1,13 +1,10 @@
 package ui
 
 import (
-	"image/color"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 // Pos and Size do not account for the outline, which is rendered outside this
@@ -23,8 +20,8 @@ func Button() *ButtonElement {
 		},
 		BackgroundColors: util.ColorSet{
 			Default: &rl.LightGray,
-			Hover:   mathutil.ColorAdd(rl.LightGray, 25),
-			Click:   mathutil.ColorAdd(rl.LightGray, 40),
+			Hover:   util.ColorAdd(rl.LightGray, 25),
+			Click:   util.ColorAdd(rl.LightGray, 40),
 		},
 		OutlineColors: util.ColorSet{
 			Default: &rl.Gray,
@@ -99,7 +96,7 @@ type ButtonElement struct {
 func (el *ButtonElement) update(deltaNano int64) {
 	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
 
-	el.w, el.h = mathutil.Maxi(el.textWidth+el.Padding*2, el.Size().X), mathutil.Maxi(el.TextSize+el.Padding*2, el.Size().Y)
+	el.w, el.h = max(el.textWidth+el.Padding*2, el.Size().X), max(el.TextSize+el.Padding*2, el.Size().Y)
 
 	pos := el.AbsolutePos()
 	el.x, el.y, el.cx, el.cy = pos.X, pos.Y, pos.X+el.w/2, pos.Y+el.h/2
@@ -148,20 +145,20 @@ func (el *ButtonElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := fallbackColor(el.OutlineColors.Default, &color.RGBA{})
-	bgCol := fallbackColor(el.BackgroundColors.Default, &color.RGBA{})
-	fgCol := fallbackColor(el.ForegroundColors.Default, &color.RGBA{})
+	oCol := el.OutlineColors.Color(util.DefaultState)
+	bgCol := el.BackgroundColors.Color(util.DefaultState)
+	fgCol := el.ForegroundColors.Color(util.DefaultState)
 
 	if el.hovered {
-		oCol = fallbackColor(el.OutlineColors.Hover, oCol)
-		bgCol = fallbackColor(el.BackgroundColors.Hover, bgCol)
-		fgCol = fallbackColor(el.ForegroundColors.Hover, fgCol)
+		oCol = el.OutlineColors.Color(util.HoverState)
+		bgCol = el.BackgroundColors.Color(util.HoverState)
+		fgCol = el.ForegroundColors.Color(util.HoverState)
 	}
 
 	if el.clicked {
-		oCol = fallbackColor(el.OutlineColors.Click, oCol)
-		bgCol = fallbackColor(el.BackgroundColors.Click, bgCol)
-		fgCol = fallbackColor(el.ForegroundColors.Click, fgCol)
+		oCol = el.OutlineColors.Color(util.ClickState)
+		bgCol = el.BackgroundColors.Color(util.ClickState)
+		fgCol = el.ForegroundColors.Color(util.ClickState)
 	}
 
 	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, *oCol)
@@ -169,11 +166,4 @@ func (el *ButtonElement) draw() {
 	rl.DrawRectangle(el.x, el.y, el.w, el.h, *bgCol)
 
 	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, *fgCol)
-}
-
-func fallbackColor(override, fallback *color.RGBA) *color.RGBA {
-	if override != nil {
-		return override
-	}
-	return fallback
 }

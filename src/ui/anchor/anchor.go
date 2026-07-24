@@ -1,6 +1,6 @@
 package anchor
 
-import "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
+import "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 
 type Anchor int
 

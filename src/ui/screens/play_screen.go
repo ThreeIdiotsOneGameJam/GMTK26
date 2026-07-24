@@ -9,10 +9,10 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-var MainScreen = ui.Screen().
+var PlayScreen = ui.Screen().
 	AddChild(
 		ui.Text().
-			WithText("Game").
+			WithText("Play").
 			WithTextSize(96).
 			WithTextColor(rl.Black).
 			WithAnchors(anchor.Center, anchor.Top).
@@ -25,30 +25,30 @@ var MainScreen = ui.Screen().
 	).
 	AddChild(
 		ui.Button().
-			WithText("Play").
-			WithTextSize(48).
-			WithPadding(8).
-			WithOutlineWidth(4).
-			WithForegroundColors(util.ColorSet{
-				Default: &rl.DarkGray,
-			}).
-			WithBackgroundColors(util.ColorSet{
-				Default: &rl.LightGray,
-				Hover:   util.ColorAdd(rl.LightGray, 25),
-				Click:   util.ColorAdd(rl.LightGray, 40),
-			}).
-			WithOutlineColors(util.ColorSet{
-				Default: &rl.Gray,
-			}).
-			WithAnchors(anchor.Center, anchor.Center).
-			WithRelativePos(vec.Vec2i{}).
+			WithText("Singleplayer").
+			WithAnchors(anchor.Bottom, anchor.Center).
+			WithRelativePos(vec.Vec2i{X: 0, Y: -16}).
 			WithClick(func() {
-				SetActiveScreen(PlayScreenID)
+				SetActiveScreen(GameScreenID)
 			}),
 	).
 	AddChild(
+		ui.Input().
+			WithPlaceholderText("Placeholder").
+			WithSize(vec.Vec2i{X: 600, Y: 0}).
+			WithAnchors(anchor.Top, anchor.Center),
+	).
+	AddChild(
+		ui.Input().
+			WithPlaceholderText("Placeholder").
+			WithText("Text").
+			WithSize(vec.Vec2i{X: 600, Y: 0}).
+			WithAnchors(anchor.Top, anchor.Center).
+			WithRelativePos(vec.Vec2i{X: 0, Y: 80}),
+	).
+	AddChild(
 		ui.Button().
-			WithText("Settings").
+			WithText("Back").
 			WithTextSize(48).
 			WithPadding(8).
 			WithOutlineWidth(4).
@@ -63,9 +63,9 @@ var MainScreen = ui.Screen().
 			WithOutlineColors(util.ColorSet{
 				Default: &rl.Gray,
 			}).
-			WithAnchors(anchor.Center, anchor.Center).
-			WithRelativePos(vec.Vec2i{X: 0, Y: 80}).
+			WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
+			WithRelativePos(vec.Vec2i{X: 20, Y: -20}).
 			WithClick(func() {
-				SetActiveScreen(SettingsScreenID)
+				SetActiveScreen(MainScreenID)
 			}),
 	)

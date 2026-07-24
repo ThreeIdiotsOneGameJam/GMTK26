@@ -4,7 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 type TileDrawState int32

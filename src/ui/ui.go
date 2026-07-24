@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 type Element interface {

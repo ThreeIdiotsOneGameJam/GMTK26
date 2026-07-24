@@ -5,8 +5,8 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
-	v "github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 type World struct {
@@ -205,7 +205,7 @@ func (w *World) Draw() {
 
 			tileColor := tileData.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
-				tileColor = *mathutil.ColorAdd(tileColor, 20)
+				tileColor = *util.ColorAdd(tileColor, 20)
 			}
 
 			DrawHexagonBuffered(worldPos.X, worldPos.Y, w.HexSize, tileColor)

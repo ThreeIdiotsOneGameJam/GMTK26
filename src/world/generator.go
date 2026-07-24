@@ -5,8 +5,8 @@ import (
 	"math/rand"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 type Generator struct {

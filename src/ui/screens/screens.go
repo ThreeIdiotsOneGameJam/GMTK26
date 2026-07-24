@@ -8,6 +8,7 @@ type ScreenID int
 
 const (
 	MainScreenID ScreenID = iota
+	PlayScreenID
 	GameScreenID
 	SettingsScreenID
 )
@@ -18,6 +19,7 @@ var activeScreen *ui.ScreenElement
 func init() {
 	screenMap = map[ScreenID]*ui.ScreenElement{
 		MainScreenID:     MainScreen,
+		PlayScreenID:     PlayScreen,
 		GameScreenID:     GameScreen,
 		SettingsScreenID: SettingsScreen,
 	}

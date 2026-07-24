@@ -7,9 +7,9 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 func update() {

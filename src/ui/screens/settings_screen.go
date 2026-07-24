@@ -2,11 +2,10 @@ package screens
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil"
-	"github.com/threeidiotsonegamejam/gmtk26/src/mathutil/vec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 var SettingsScreen = ui.Screen().
@@ -31,8 +30,8 @@ var SettingsScreen = ui.Screen().
 			}).
 			WithBackgroundColors(util.ColorSet{
 				Default: &rl.LightGray,
-				Hover:   mathutil.ColorAdd(rl.LightGray, 25),
-				Click:   mathutil.ColorAdd(rl.LightGray, 40),
+				Hover:   util.ColorAdd(rl.LightGray, 25),
+				Click:   util.ColorAdd(rl.LightGray, 40),
 			}).
 			WithOutlineColors(util.ColorSet{
 				Default: &rl.Gray,
