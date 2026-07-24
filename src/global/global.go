@@ -9,7 +9,7 @@ import (
 
 var WSState atomic.Value
 
-var DebugEnabled = true
+var DebugEnabled = false
 
 var MouseCursorState = rl.MouseCursorDefault
 var MousePosition vec.Vec2
