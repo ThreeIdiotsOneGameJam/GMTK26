@@ -11,7 +11,7 @@ import (
 )
 
 type World struct {
-	Generator     Generator
+	Seed          int64
 	Grid          [][]Cell
 	TileToGrid    map[string][]v.Vec2i
 	GridSize      v.Vec2i
@@ -38,7 +38,7 @@ func (w *World) Init() {
 		w.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
 	if w.GridSize == (v.Vec2i{}) {
-		w.GridSize = v.Vec2i{X: 64, Y: 64}
+		w.GridSize = v.Vec2i{X: 96, Y: 96}
 	}
 	w.Camera.Target = w.GridSize.Vec2().Mul(w.HexSize).Sub(global.ViewportSize.Vec2()).ToRL()
 
@@ -53,19 +53,18 @@ func (w *World) Init() {
 }
 
 func (w *World) Generate() {
-	w.Grid = w.Generator.Generate(w.GridSize)
-
+	w.Grid = Generate(w.GridSize, w.Seed)
 	w.TileToGrid = make(map[string][]v.Vec2i)
 
 	for x := range w.GridSize.X {
 		for y := range w.GridSize.Y {
 			cell := w.Grid[x][y]
-			tileData := cell.Tile.Data()
-			if w.TileToGrid[tileData.Type] == nil {
-				w.TileToGrid[tileData.Type] = make([]v.Vec2i, 0)
+			tile := cell.Tile
+			if w.TileToGrid[tile.Type] == nil {
+				w.TileToGrid[tile.Type] = make([]v.Vec2i, 0)
 			}
 
-			w.TileToGrid[tileData.Type] = append(w.TileToGrid[tileData.Type], v.Vec2i{X: int32(x), Y: int32(y)})
+			w.TileToGrid[tile.Type] = append(w.TileToGrid[tile.Type], v.Vec2i{X: int32(x), Y: int32(y)})
 		}
 	}
 }
@@ -218,11 +217,11 @@ func (w *World) Draw() {
 			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
 				continue
 			}
-			tileData := cell.Tile.Data()
+			tile := cell.Tile
 
 			hex := w.PixelToHex(mousePos)
 
-			tileColor := tileData.Color
+			tileColor := tile.Color
 			if hex.X == int32(x) && hex.Y == int32(y) {
 				tileColor = *util.ColorAdd(tileColor, 30)
 			}
@@ -239,17 +238,20 @@ func (w *World) Draw() {
 	rl.End()
 	for _, tiles := range w.TileToGrid {
 		for i, tilePos := range tiles {
+			tile := w.GetCell(tilePos).Tile
+			if tile.Draw == nil {
+				continue
+			}
 			yOffset := float32(height/2.0) * float32(tilePos.X%2)
 			worldPos := v.Vec2{X: float32(tilePos.X) * width / 4.0 * 3.0, Y: float32(tilePos.Y)*height + yOffset}
 			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
 				if i == 0 {
-					w.GetCell(tilePos).Tile.Draw(w, worldPos, tilePos, DrawStateBegin)
+					tile.Draw(*w, tilePos, worldPos, DrawStateBegin)
 				} else if i == len(tiles)-1 {
-					w.GetCell(tilePos).Tile.Draw(w, worldPos, tilePos, DrawStateEnd)
+					tile.Draw(*w, tilePos, worldPos, DrawStateEnd)
 				}
 				continue
 			}
-			tile := w.GetCell(tilePos).Tile
 
 			drawState := DrawStateNormal
 			if i == 0 {
@@ -257,7 +259,7 @@ func (w *World) Draw() {
 			} else if i == len(tiles)-1 {
 				drawState = DrawStateEnd
 			}
-			tile.Draw(w, worldPos, tilePos, drawState)
+			tile.Draw(*w, tilePos, worldPos, drawState)
 		}
 	}
 

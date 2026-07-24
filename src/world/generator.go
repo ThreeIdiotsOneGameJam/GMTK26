@@ -1,21 +1,14 @@
 package world
 
 import (
-	// "image/color"
 	"math"
-	"math/rand"
 
 	"github.com/aquilax/go-perlin"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-type Generator struct {
-	Seed   int64
-	Random *rand.Rand
-}
-
-func (g *Generator) Generate(size vec.Vec2i) [][]Cell {
-	noise := perlin.NewPerlin(2, 3, 2, g.Seed)
+func Generate(size vec.Vec2i, seed int64) [][]Cell {
+	noise := perlin.NewPerlin(2, 3, 2, seed)
 
 	sampleNoise := func(x, y float64) float64 {
 		sx := x * 10.0
@@ -29,37 +22,44 @@ func (g *Generator) Generate(size vec.Vec2i) [][]Cell {
 	for x := range size.X {
 		grid[x] = make([]Cell, size.Y)
 		for y := range size.Y {
-			var tile Tile = &WaterTile{}
+			tile := PlainsTile
 
 			fx, fy := float64(x), float64(y)
 			vx, vy := fx/float64(size.X), fy/float64(size.Y)
 
-			noise := sampleNoise(vx, vy)
 			distance := float64(1.0 - (center.Distance(vec.Vec2i{X: x, Y: y}.Vec2())/(size.Vec2().Y*0.5) - 0.2))
-			height := distance * (noise*0.5 + 0.2) * math.Min(sampleNoise(vx, vy)*2.0, 1.0)
+			height := distance * (sampleNoise(vx, vy)*0.5 + 0.2) * math.Min(sampleNoise(vx, vy)*2.0, 1.0)
 			if height < 0.0 {
 				height = 0.0
 			}
-			// value256 := uint8(height * 255)
 
-			if x == 0 || x == size.X-1 || y == 0 || y == size.Y-1 || distance < 0.2 {
-				tile = &VoidTile{}
-				goto finish_tile
+			const moistureNoiseOffset = 17.6321
+			moisture := sampleNoise(vx+moistureNoiseOffset, vy+moistureNoiseOffset)
+
+			const temperatureNoiseOffset = 29.13329
+			temperature := sampleNoise(vx+temperatureNoiseOffset, vy+temperatureNoiseOffset)
+
+			if moisture > 0.6 {
+				tile = ForestTile
+			} else if moisture < 0.45 {
+				tile = RockTile
 			}
 
-			if height > 0.25 {
-				tile = &GrassTile{}
-			} else if height > 0.2 {
-				tile = &UnkownTile{}
-			} else {
-				tile = &WaterTile{}
+			if temperature > 0.6 {
+				tile = DesertTile
+				if moisture > 0.6 {
+					tile = JungleTile
+				}
 			}
 
-			// tile = &ColorTile{
-			// 	Color: color.RGBA{R: value256, G: value256, B: value256, A: 255},
-			// }
+			if height < 0.25 {
+				tile = WaterTile
+			}
 
-		finish_tile:
+			if x == 0 || x == size.X-1 || y == 0 || y == size.Y-1 || distance-sampleNoise(vx*0.5-2.32, vy*0.5-2.32)*0.3 < 0.2 {
+				tile = VoidTile
+			}
+
 			grid[x][y] = Cell{Tile: tile}
 		}
 	}
