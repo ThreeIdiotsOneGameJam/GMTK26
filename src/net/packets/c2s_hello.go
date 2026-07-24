@@ -11,7 +11,7 @@ type C2SHelloPacket struct {
 
 func init() {
 	mustRegisterPacket(
-		C2SPingPacketType,
+		C2SHelloPacketType,
 		func() Packet {
 			return &C2SHelloPacket{}
 		},
@@ -23,7 +23,7 @@ func init() {
 }
 
 func (*C2SHelloPacket) PacketType() PacketType {
-	return C2SPingPacketType
+	return C2SHelloPacketType
 }
 
 func (p *C2SHelloPacket) Handle(c *Connection) {

@@ -11,8 +11,8 @@ type PacketType int
 
 const (
 	UnknownPacketType PacketType = iota
-	C2SPingPacketType
-	S2CPongPacketType
+	C2SHelloPacketType
+	S2CServerInfoPacketType
 )
 
 type Packet interface {

@@ -6,7 +6,7 @@ type S2CServerInfoPacket struct {
 
 func init() {
 	mustRegisterPacket(
-		S2CPongPacketType,
+		S2CServerInfoPacketType,
 		func() Packet {
 			return &S2CServerInfoPacket{}
 		},
@@ -18,7 +18,7 @@ func init() {
 }
 
 func (*S2CServerInfoPacket) PacketType() PacketType {
-	return S2CPongPacketType
+	return S2CServerInfoPacketType
 }
 
 func (p *S2CServerInfoPacket) Handle(c *Connection) {
