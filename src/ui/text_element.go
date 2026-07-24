@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -53,5 +54,5 @@ func (el *TextElement) update(deltaNano int64) {
 
 func (el *TextElement) draw() {
 	pos := el.AbsolutePos()
-	rl.DrawText(el.Text(), pos.X, pos.Y, el.TextSize, el.TextColor)
+	rl.DrawText(el.Text(), pos.X, pos.Y, el.TextSize, util.ColorOpacity(el.TextColor, el.Opacity()))
 }

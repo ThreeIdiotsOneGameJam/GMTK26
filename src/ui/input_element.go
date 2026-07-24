@@ -20,13 +20,10 @@ TODO: this motherfucker needs so much functionality that i decided the just leav
 - double-click word select, triple-click line select
 - tab focus traversal
 - fixed-width horizontal scrolling + clipping (currently just expands infinitely lol)
-- disabled state (readonly)
 
 FIXME: setting charset does not reverify existing text
 FIXME: setting max length does not reverify existing text
 FIXME: WithText can bypass all checks
-
-FIXME: geometry/layout are not recalculated after processing text input, leaving them one frame behind edits - needs to be calculated again at end of update
 */
 
 // Pos and Size do not account for the outline, which is rendered outside this
@@ -135,6 +132,23 @@ func (el *InputElement) WithCallback(callback func(text string)) *InputElement {
 	return el
 }
 
+func (el *InputElement) WithSubmit(submit func(text string)) *InputElement {
+	el.Submit = submit
+	return el
+}
+
+func (el *InputElement) Focus() {
+	el.clicked = true
+	el.cursorPos = len([]rune(el.Text))
+	el.clearSelection()
+	el.recalculateTextSplit()
+}
+
+func (el *InputElement) Blur() {
+	el.clicked = false
+	el.clearSelection()
+}
+
 type InputTransformer func(input string) string
 
 type InputElement struct {
@@ -150,6 +164,7 @@ type InputElement struct {
 	BackgroundColors      util.ColorSet
 	OutlineColors         util.ColorSet
 	Callback              func(text string)
+	Submit                func(text string)
 
 	x, y, cx, cy, w, h, textWidth int32
 
@@ -356,7 +371,7 @@ var clipboardNewlineReplacer = strings.NewReplacer(
 	"\r", " ",
 )
 
-func (el *InputElement) update(deltaNano int64) {
+func (el *InputElement) prepare() {
 	el.recalculateTextSplit()
 
 	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
@@ -365,6 +380,14 @@ func (el *InputElement) update(deltaNano int64) {
 
 	pos := el.AbsolutePos()
 	el.x, el.y, el.cx, el.cy = pos.X, pos.Y, pos.X+el.w/2, pos.Y+el.h/2
+}
+
+func (el *InputElement) update(deltaNano int64) {
+	if !el.Enabled() {
+		el.hovered = false
+		el.Blur()
+		return
+	}
 
 	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
 	el.hovered = mouseX > el.x &&
@@ -401,11 +424,15 @@ func (el *InputElement) update(deltaNano int64) {
 
 		del := rl.IsKeyPressed(rl.KeyDelete) || rl.IsKeyPressedRepeat(rl.KeyDelete)
 
+		enter := rl.IsKeyPressed(rl.KeyEnter)
 		ctrlA := ctrlOrCmd && rl.IsKeyPressed(rl.KeyA)
 		ctrlV := ctrlOrCmd && rl.IsKeyPressed(rl.KeyV)
 		ctrlC, ctrlX := ctrlOrCmd && rl.IsKeyPressed(rl.KeyC), ctrlOrCmd && rl.IsKeyPressed(rl.KeyX)
 
 		switch {
+		case enter && el.Submit != nil:
+			el.Submit(el.Text)
+
 		case ctrlA:
 			if len(el.runes) == 0 {
 				el.clearSelection()
@@ -496,14 +523,20 @@ func (el *InputElement) draw() {
 		fgCol = el.ForegroundColors.Color(util.ClickState)
 	}
 
-	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, *oCol)
+	opacity := el.Opacity()
+	outlineColor := util.ColorOpacity(*oCol, opacity)
+	placeholderColor := util.ColorOpacity(*pCol, opacity)
+	backgroundColor := util.ColorOpacity(*bgCol, opacity)
+	foregroundColor := util.ColorOpacity(*fgCol, opacity)
+	selectionColor := util.ColorOpacity(rl.SkyBlue, opacity)
 
-	rl.DrawRectangle(el.x, el.y, el.w, el.h, *bgCol)
+	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
+	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
 
 	textY := el.cy - el.TextSize/2
 
 	if el.Text == "" {
-		rl.DrawText(el.PlaceholderText, el.x+el.Padding, textY, el.TextSize, *pCol)
+		rl.DrawText(el.PlaceholderText, el.x+el.Padding, textY, el.TextSize, placeholderColor)
 	} else {
 		if el.selectionStarted && el.selectionStart != el.cursorPos {
 			start := min(el.selectionStart, el.cursorPos)
@@ -512,16 +545,16 @@ func (el *InputElement) draw() {
 			startX := el.caretOffsetAt(start)
 			endX := el.caretOffsetAt(end)
 
-			rl.DrawRectangle(el.x+el.Padding+startX, textY, endX-startX, el.TextSize, rl.SkyBlue)
+			rl.DrawRectangle(el.x+el.Padding+startX, textY, endX-startX, el.TextSize, selectionColor)
 		}
 
-		rl.DrawText(el.Text, el.x+el.Padding, textY, el.TextSize, *fgCol)
+		rl.DrawText(el.Text, el.x+el.Padding, textY, el.TextSize, foregroundColor)
 	}
 
 	if el.clicked && int(rl.GetTime()*2)%2 == 0 {
 		cursorWidth := max(rl.MeasureText("|", el.TextSize)/2, 1)
 		cursorX := el.caretOffsetAt(el.cursorPos)
 
-		rl.DrawRectangle(el.x+el.Padding+cursorX, textY-cursorWidth/2, cursorWidth, el.TextSize+cursorWidth, *fgCol)
+		rl.DrawRectangle(el.x+el.Padding+cursorX, textY-cursorWidth/2, cursorWidth, el.TextSize+cursorWidth, foregroundColor)
 	}
 }

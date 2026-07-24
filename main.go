@@ -52,9 +52,8 @@ func frame() {
 
 	global.MouseCursorState = rl.MouseCursorDefault
 
-	screen := screens.GetActiveScreen()
-	screen.Update(deltaTime.Nanoseconds())
-	screen.Draw()
+	screens.Update(deltaTime.Nanoseconds())
+	screens.Draw()
 
 	util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
 	util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)

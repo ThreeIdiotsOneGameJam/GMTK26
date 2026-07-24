@@ -6,9 +6,11 @@ import (
 )
 
 type Element interface {
+	prepare()
 	update(deltaNano int64)
 	draw()
 
+	prepareTree()
 	updateTree(deltaNano int64)
 	drawTree()
 
@@ -18,6 +20,9 @@ type Element interface {
 	RelativePos() vec.Vec2i
 	Size() vec.Vec2i
 	AbsolutePos() vec.Vec2i
+	Visible() bool
+	Enabled() bool
+	Opacity() float32
 }
 
 type ElementBase struct {
@@ -36,6 +41,9 @@ type BaseElement[T Element] struct {
 	// RelativePos is the offset from the parent anchor.
 	RelativePosProvider func(el T) vec.Vec2i
 	SizeProvider        func(el T) vec.Vec2i
+	VisibleProvider     func(el T) bool
+	EnabledProvider     func(el T) bool
+	OpacityProvider     func(el T) float32
 }
 
 // NewBaseElement initializes the self-reference required by fluent methods.
@@ -49,7 +57,26 @@ func (el *BaseElement[T]) update(deltaNano int64) {}
 
 func (el *BaseElement[T]) draw() {}
 
+func (el *BaseElement[T]) prepare() {}
+
+func (el *BaseElement[T]) prepareTree() {
+	if !el.Visible() {
+		return
+	}
+
+	el.self.prepare()
+
+	for _, child := range el.Children {
+		child.prepareTree()
+	}
+}
+
 func (el *BaseElement[T]) updateTree(deltaNano int64) {
+	if !el.Visible() {
+		return
+	}
+
+	el.self.prepare()
 	el.self.update(deltaNano)
 
 	for _, child := range el.Children {
@@ -58,6 +85,10 @@ func (el *BaseElement[T]) updateTree(deltaNano int64) {
 }
 
 func (el *BaseElement[T]) drawTree() {
+	if !el.Visible() || el.Opacity() <= 0 {
+		return
+	}
+
 	el.self.draw()
 
 	for _, child := range el.Children {
@@ -100,6 +131,42 @@ func (el *BaseElement[T]) WithSizeDynamic(
 	sizeProvider func(el T) vec.Vec2i,
 ) T {
 	el.SizeProvider = sizeProvider
+	return el.self
+}
+
+func (el *BaseElement[T]) WithVisible(visible bool) T {
+	el.VisibleProvider = func(T) bool {
+		return visible
+	}
+	return el.self
+}
+
+func (el *BaseElement[T]) WithVisibleDynamic(visibleProvider func(el T) bool) T {
+	el.VisibleProvider = visibleProvider
+	return el.self
+}
+
+func (el *BaseElement[T]) WithEnabled(enabled bool) T {
+	el.EnabledProvider = func(T) bool {
+		return enabled
+	}
+	return el.self
+}
+
+func (el *BaseElement[T]) WithEnabledDynamic(enabledProvider func(el T) bool) T {
+	el.EnabledProvider = enabledProvider
+	return el.self
+}
+
+func (el *BaseElement[T]) WithOpacity(opacity float32) T {
+	el.OpacityProvider = func(T) float32 {
+		return opacity
+	}
+	return el.self
+}
+
+func (el *BaseElement[T]) WithOpacityDynamic(opacityProvider func(el T) float32) T {
+	el.OpacityProvider = opacityProvider
 	return el.self
 }
 
@@ -153,6 +220,48 @@ func (el *BaseElement[T]) Size() vec.Vec2i {
 	}
 
 	return el.SizeProvider(el.self)
+}
+
+func (el *BaseElement[T]) Visible() bool {
+	if el == nil {
+		return false
+	}
+
+	if el.Parent != nil && !el.Parent.Visible() {
+		return false
+	}
+
+	return el.VisibleProvider == nil || el.VisibleProvider(el.self)
+}
+
+func (el *BaseElement[T]) Enabled() bool {
+	if el == nil {
+		return false
+	}
+
+	if el.Parent != nil && !el.Parent.Enabled() {
+		return false
+	}
+
+	return el.EnabledProvider == nil || el.EnabledProvider(el.self)
+}
+
+func (el *BaseElement[T]) Opacity() float32 {
+	if el == nil {
+		return 0
+	}
+
+	opacity := float32(1)
+	if el.OpacityProvider != nil {
+		opacity = el.OpacityProvider(el.self)
+	}
+	opacity = max(float32(0), min(opacity, float32(1)))
+
+	if el.Parent != nil {
+		opacity *= el.Parent.Opacity()
+	}
+
+	return opacity
 }
 
 func (el *BaseElement[T]) AbsolutePos() vec.Vec2i {

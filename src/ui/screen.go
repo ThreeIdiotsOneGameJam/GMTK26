@@ -26,9 +26,33 @@ func (el *ScreenElement) WithBackgroundColor(backgroundColor color.RGBA) *Screen
 	return el
 }
 
+func (el *ScreenElement) WithEnter(enter func()) *ScreenElement {
+	el.OnEnter = enter
+	return el
+}
+
+func (el *ScreenElement) WithExit(exit func()) *ScreenElement {
+	el.OnExit = exit
+	return el
+}
+
 type ScreenElement struct {
 	BaseElement[*ScreenElement]
 	BackgroundColor color.RGBA
+	OnEnter         func()
+	OnExit          func()
+}
+
+func (el *ScreenElement) Enter() {
+	if el.OnEnter != nil {
+		el.OnEnter()
+	}
+}
+
+func (el *ScreenElement) Exit() {
+	if el.OnExit != nil {
+		el.OnExit()
+	}
 }
 
 func (el *ScreenElement) Update(deltaNano int64) {
@@ -37,7 +61,17 @@ func (el *ScreenElement) Update(deltaNano int64) {
 	}
 }
 
+// Prepare recalculates render data without processing input or advancing state.
+// Draw calls this automatically so a newly activated screen is laid out before
+// its first frame is rendered.
+func (el *ScreenElement) Prepare() {
+	for _, child := range el.Children {
+		child.prepareTree()
+	}
+}
+
 func (el *ScreenElement) Draw() {
+	el.Prepare()
 	el.Clear()
 
 	for _, child := range el.Children {

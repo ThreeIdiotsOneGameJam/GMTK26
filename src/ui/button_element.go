@@ -93,13 +93,23 @@ type ButtonElement struct {
 	clicked, clickedPrevious bool
 }
 
-func (el *ButtonElement) update(deltaNano int64) {
+func (el *ButtonElement) prepare() {
 	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
 
 	el.w, el.h = max(el.textWidth+el.Padding*2, el.Size().X), max(el.TextSize+el.Padding*2, el.Size().Y)
 
 	pos := el.AbsolutePos()
 	el.x, el.y, el.cx, el.cy = pos.X, pos.Y, pos.X+el.w/2, pos.Y+el.h/2
+}
+
+func (el *ButtonElement) update(deltaNano int64) {
+	if !el.Enabled() {
+		el.hovered = false
+		el.clicked = false
+		el.hoveredPrevious = false
+		el.clickedPrevious = false
+		return
+	}
 
 	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
 	el.hovered = mouseX > el.x &&
@@ -161,9 +171,12 @@ func (el *ButtonElement) draw() {
 		fgCol = el.ForegroundColors.Color(util.ClickState)
 	}
 
-	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, *oCol)
+	opacity := el.Opacity()
+	outlineColor := util.ColorOpacity(*oCol, opacity)
+	backgroundColor := util.ColorOpacity(*bgCol, opacity)
+	foregroundColor := util.ColorOpacity(*fgCol, opacity)
 
-	rl.DrawRectangle(el.x, el.y, el.w, el.h, *bgCol)
-
-	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, *fgCol)
+	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
+	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
+	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, foregroundColor)
 }

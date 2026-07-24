@@ -107,3 +107,9 @@ func ColorSub(color color.RGBA, n uint8) *color.RGBA {
 	color.B = ClampByte(int32(color.B) - int32(n))
 	return &color
 }
+
+func ColorOpacity(c color.RGBA, opacity float32) color.RGBA {
+	opacity = max(float32(0), min(opacity, float32(1)))
+	c.A = uint8(float32(c.A) * opacity)
+	return c
+}

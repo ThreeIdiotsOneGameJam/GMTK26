@@ -18,10 +18,13 @@ type WorldElement struct {
 	World world.World
 }
 
-func (w *WorldElement) update(deltaNano int64) {
+func (w *WorldElement) prepare() {
 	if !w.World.HasInit {
 		w.World.Init()
 	}
+}
+
+func (w *WorldElement) update(deltaNano int64) {
 	w.World.Update(float32(deltaNano / int64(time.Nanosecond)))
 }
 
