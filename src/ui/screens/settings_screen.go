@@ -1,7 +1,10 @@
 package screens
 
 import (
+	"fmt"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
@@ -18,6 +21,16 @@ var SettingsScreen = ui.Screen().
 			WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 				return vec.Vec2i{X: 0, Y: el.Parent.Size().Y / 6}
 			}),
+	).
+	AddChild(
+		ui.Text().
+			WithTextDynamic(func() string {
+				p := game.PlayerData
+				return fmt.Sprintf("Player Data:\n  ClientID: %s\n  PlayerName: %s\n  Color: %d,%d,%d", p.ClientID, p.PlayerName, p.Color[0], p.Color[1], p.Color[2])
+			}).
+			WithTextSize(32).
+			WithTextColor(rl.Black).
+			WithAnchors(anchor.Center, anchor.Center),
 	).
 	AddChild(
 		ui.Button().
