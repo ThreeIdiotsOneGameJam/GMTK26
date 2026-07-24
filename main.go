@@ -28,6 +28,10 @@ func tick() {
 	if rl.IsKeyPressed(rl.KeyF11) {
 		rl.ToggleFullscreen()
 	}
+
+	if rl.IsKeyPressed(rl.KeyF3) {
+		global.DebugEnabled = !global.DebugEnabled
+	}
 }
 
 var startTime = time.Now()
@@ -58,8 +62,10 @@ func frame() {
 	screens.Update(deltaTime.Nanoseconds())
 	screens.Draw()
 
-	util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
-	util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
+	if global.DebugEnabled {
+		util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
+		util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
+	}
 
 	rl.EndDrawing()
 

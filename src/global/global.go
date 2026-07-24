@@ -5,6 +5,8 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
+var DebugEnabled = false
+
 var MouseCursorState = rl.MouseCursorDefault
 var MousePosition vec.Vec2
 var ViewportSize = vec.Vec2i{X: 640, Y: 360}
