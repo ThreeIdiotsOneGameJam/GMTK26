@@ -5,6 +5,7 @@ import (
 )
 
 var GameScreen = ui.Screen().
+	WithEnter(func() { EscScreen.WithVisible(false) }).
 	AddChild(
 		ui.World(),
 	).

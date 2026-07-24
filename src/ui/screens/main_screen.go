@@ -68,4 +68,6 @@ var MainScreen = ui.Screen().
 			WithClick(func() {
 				SetActiveScreen(SettingsScreenID)
 			}),
-	)
+	).
+	AddChild(
+		ui.Button().WithText("Exit").WithAnchors(anchor.Center, anchor.Center).WithRelativePos(vec.Vec2i{Y: 160}).WithClick(func() { rl.CloseWindow() }))
