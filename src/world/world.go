@@ -66,11 +66,6 @@ func (w *World) Init() {
 }
 
 func (w *World) Update(delta float32) {
-	if w.Viewport.Texture.Width != global.ViewportSize.X {
-		rl.UnloadRenderTexture(w.Viewport)
-		w.Viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
-	}
-
 	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(w.MousePosition), w.Camera))
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		w.PanStart = mousePos
@@ -99,8 +94,8 @@ func (w *World) Update(delta float32) {
 
 	w.Camera.Target = v.Vec2FromRL(w.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{X: 10.0, Y: 10.0})).ToRL()
 
-	w.Camera.Offset.X = float32(global.ViewportSize.X) / 2.0
-	w.Camera.Offset.Y = float32(global.ViewportSize.Y) / 2.0
+	w.Camera.Offset.X = float32(w.Viewport.Texture.Width) / 2.0
+	w.Camera.Offset.Y = float32(w.Viewport.Texture.Height) / 2.0
 
 	w.Camera.Zoom += rl.GetMouseWheelMove() * 0.5
 
@@ -116,9 +111,14 @@ func (w *World) Update(delta float32) {
 func (w *World) Draw() {
 	screenW := float32(rl.GetRenderWidth())
 	screenH := float32(rl.GetRenderHeight())
-
-	viewW := float32(w.Viewport.Texture.Width)
 	viewH := float32(w.Viewport.Texture.Height)
+	ratio := screenH / viewH
+	viewW := float32(int32(screenW/ratio) + 1)
+
+	if w.Viewport.Texture.Width != int32(viewW) {
+		rl.UnloadRenderTexture(w.Viewport)
+		w.Viewport = rl.LoadRenderTexture(int32(viewW), int32(viewH))
+	}
 
 	srcRect := rl.Rectangle{
 		X:      0.0,
@@ -126,10 +126,6 @@ func (w *World) Draw() {
 		Width:  viewW,
 		Height: -viewH,
 	}
-	ratio := float32(int32(math.Min(
-		float64(screenW/viewW),
-		float64(screenH/viewH),
-	))) + 1
 	dstRect := rl.Rectangle{
 		X:      (screenW - viewW*ratio) / 2.0,
 		Y:      (screenH - viewH*ratio) / 2.0,
