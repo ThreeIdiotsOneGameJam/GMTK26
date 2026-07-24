@@ -2,7 +2,6 @@ package ui
 
 import (
 	"math"
-	"slices"
 	"strings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -22,25 +21,12 @@ TODO: this motherfucker needs so much functionality that i decided the just leav
 - tab focus traversal
 - fixed-width horizontal scrolling + clipping (currently just expands infinitely lol)
 - disabled state (readonly)
-- most stuff could be refactored to be merged into just a few methods
-
-FIXME: cases which trigger callbacks without any actual changes:
- del at end/backspace at start
- pasting empty/filtered text without a selection
- cutting zero-length selection
- replacing text with identical text
-
-can be handled by storing oldText and only triggering callback on el.Text != oldText
-
-FIXME: ctrlA on empty input creates zero width selection
 
 FIXME: setting charset does not reverify existing text
 FIXME: setting max length does not reverify existing text
 FIXME: WithText can bypass all checks
 
 FIXME: geometry/layout are not recalculated after processing text input, leaving them one frame behind edits - needs to be calculated again at end of update
-
-FIXME: if callback modifies Text everything falls apart - need to recalculateTextSplit after
 */
 
 // Pos and Size do not account for the outline, which is rendered outside this
@@ -101,6 +87,11 @@ func (el *InputElement) WithCharset(charset string) *InputElement {
 	return el
 }
 
+func (el *InputElement) WithInputTransformer(transformer InputTransformer) *InputElement {
+	el.InputTransformer = transformer
+	return el
+}
+
 func (el *InputElement) WithTextSize(textSize int32) *InputElement {
 	el.TextSize = textSize
 	return el
@@ -144,11 +135,14 @@ func (el *InputElement) WithCallback(callback func(text string)) *InputElement {
 	return el
 }
 
+type InputTransformer func(input string) string
+
 type InputElement struct {
 	BaseElement[*InputElement]
 	Text, PlaceholderText string
 	MaxTextLength         int // in runes, NOT []byte len
 	Charset               util.RuneSet
+	InputTransformer      InputTransformer
 	TextSize              int32
 	Padding, OutlineWidth int32
 	ForegroundColors      util.ColorSet
@@ -168,6 +162,23 @@ type InputElement struct {
 
 	runes                                []rune
 	textBefore, textSelection, textAfter []rune
+}
+
+func (el *InputElement) prepareInput(input string) []rune {
+	if el.InputTransformer != nil {
+		input = el.InputTransformer(input)
+	}
+
+	runes := []rune(input)
+	filtered := make([]rune, 0, len(runes))
+
+	for _, char := range runes {
+		if el.isCharValid(char) {
+			filtered = append(filtered, char)
+		}
+	}
+
+	return filtered
 }
 
 func (el *InputElement) recalculateTextSplit() {
@@ -190,6 +201,24 @@ func (el *InputElement) recalculateTextSplit() {
 	el.textAfter = el.runes[end:]
 }
 
+func (el *InputElement) selectionRange() (start, end int) {
+	start, end = el.cursorPos, el.cursorPos
+
+	if el.selectionStarted {
+		start = el.selectionStart
+		if start > end {
+			start, end = end, start
+		}
+	}
+
+	return start, end
+}
+
+func (el *InputElement) hasSelection() bool {
+	start, end := el.selectionRange()
+	return start != end
+}
+
 func (el *InputElement) clearSelection() {
 	el.selectionStarted = false
 	el.selectionStart = 0
@@ -202,6 +231,130 @@ func (el *InputElement) isCharValid(char rune) bool {
 
 	return el.Charset.Contains(char)
 }
+
+// replaceRange is the only method that should assign el.Text during editing.
+// insert is assumed to have already been charset-filtered.
+func (el *InputElement) replaceRange(start, end int, insert []rune) {
+	start = util.Clamp(start, 0, len(el.runes))
+	end = util.Clamp(end, start, len(el.runes))
+
+	remainingLength := len(el.runes) - (end - start)
+	available := max(0, el.MaxTextLength-remainingLength)
+
+	if len(insert) > available {
+		insert = insert[:available]
+	}
+
+	next := make([]rune, 0, remainingLength+len(insert))
+	next = append(next, el.runes[:start]...)
+	next = append(next, insert...)
+	next = append(next, el.runes[end:]...)
+
+	el.Text = string(next)
+	el.cursorPos = start + len(insert)
+	el.clearSelection()
+}
+
+func (el *InputElement) replaceSelection(insert []rune) {
+	start, end := el.selectionRange()
+	el.replaceRange(start, end, insert)
+}
+
+func (el *InputElement) insertInput(input string) {
+	if input == "" {
+		return
+	}
+
+	insert := el.prepareInput(input)
+	if len(insert) == 0 {
+		return
+	}
+
+	el.replaceSelection(insert)
+}
+
+func (el *InputElement) applyEdit(edit func()) {
+	oldText := el.Text
+
+	edit()
+	el.recalculateTextSplit()
+
+	if el.Text == oldText {
+		return
+	}
+
+	if el.Callback != nil {
+		el.Callback(el.Text)
+
+		// Protect against callbacks that modify Text.
+		el.recalculateTextSplit()
+	}
+}
+
+func (el *InputElement) deleteBackward() {
+	start, end := el.selectionRange()
+
+	if start != end {
+		el.replaceRange(start, end, nil)
+		return
+	}
+
+	if start > 0 {
+		el.replaceRange(start-1, start, nil)
+	}
+}
+
+func (el *InputElement) deleteForward() {
+	start, end := el.selectionRange()
+
+	if start != end {
+		el.replaceRange(start, end, nil)
+		return
+	}
+
+	if end < len(el.runes) {
+		el.replaceRange(end, end+1, nil)
+	}
+}
+
+func (el *InputElement) moveCursor(delta int, extendSelection bool) {
+	start, end := el.selectionRange()
+
+	if !extendSelection && start != end {
+		if delta < 0 {
+			el.cursorPos = start
+		} else {
+			el.cursorPos = end
+		}
+
+		el.clearSelection()
+		el.recalculateTextSplit()
+		return
+	}
+
+	if extendSelection && !el.selectionStarted {
+		el.selectionStart = el.cursorPos
+		el.selectionStarted = true
+	}
+
+	el.cursorPos = util.Clamp(
+		el.cursorPos+delta,
+		0,
+		len(el.runes),
+	)
+
+	if el.selectionStarted && el.selectionStart == el.cursorPos {
+		el.clearSelection()
+	}
+
+	el.recalculateTextSplit()
+}
+
+var clipboardNewlineReplacer = strings.NewReplacer(
+	"\r\n", " ",
+	"\n", " ",
+	"\r", " ",
+)
 
 func (el *InputElement) update(deltaNano int64) {
 	el.recalculateTextSplit()
@@ -252,131 +405,55 @@ func (el *InputElement) update(deltaNano int64) {
 		ctrlV := ctrlOrCmd && rl.IsKeyPressed(rl.KeyV)
 		ctrlC, ctrlX := ctrlOrCmd && rl.IsKeyPressed(rl.KeyC), ctrlOrCmd && rl.IsKeyPressed(rl.KeyX)
 
-		paste := ""
-		if ctrlV {
-			paste = rl.GetClipboardText()
-		}
-
 		switch {
 		case ctrlA:
-			el.selectionStarted = true
-			el.selectionStart = 0
-			el.cursorPos = len(el.runes)
-			el.recalculateTextSplit()
-		case ctrlV && paste != "":
-			paste = strings.NewReplacer(
-				"\r\n", " ",
-				"\n", " ",
-				"\r", " ",
-			).Replace(paste)
-			insert := []rune(paste)
-
-			filtered := insert[:0]
-			for _, char := range insert {
-				if el.isCharValid(char) {
-					filtered = append(filtered, char)
-				}
-			}
-			insert = filtered
-
-			available := el.MaxTextLength -
-				(len(el.runes) - len(el.textSelection))
-
-			if available <= 0 {
-				return
+			if len(el.runes) == 0 {
+				el.clearSelection()
+			} else {
+				el.selectionStarted = true
+				el.selectionStart = 0
+				el.cursorPos = len(el.runes)
+				el.recalculateTextSplit()
 			}
 
-			insert = insert[:min(len(insert), available)]
+		case ctrlV:
+			text := clipboardNewlineReplacer.Replace(rl.GetClipboardText())
+			el.applyEdit(func() {
+				el.insertInput(text)
+			})
 
-			if len(insert) == 0 {
-				break
-			}
-
-			el.Text = string(slices.Concat(el.textBefore, insert, el.textAfter))
-			el.cursorPos = len(el.textBefore) + len(insert)
-			el.clearSelection()
-			el.recalculateTextSplit()
-			el.Callback(el.Text)
-		case (ctrlC || ctrlX) && el.selectionStarted:
+		case ctrlC && el.hasSelection():
 			rl.SetClipboardText(string(el.textSelection))
-			if ctrlX {
-				el.cursorPos = len(el.textBefore)
-				el.Text = string(slices.Concat(el.textBefore, el.textAfter))
-				el.clearSelection()
-				el.recalculateTextSplit()
-				el.Callback(el.Text)
-			}
+
+		case ctrlX && el.hasSelection():
+			rl.SetClipboardText(string(el.textSelection))
+			el.applyEdit(func() {
+				el.replaceSelection(nil)
+			})
+
 		case left && !right:
-			if !shift && el.selectionStarted {
-				el.cursorPos = min(el.cursorPos, el.selectionStart)
-				el.clearSelection()
-			} else if el.cursorPos > 0 {
-				if shift && !el.selectionStarted {
-					el.selectionStart = el.cursorPos
-					el.selectionStarted = true
-				}
-				el.cursorPos--
-			}
-			if el.selectionStarted && el.selectionStart == el.cursorPos {
-				el.clearSelection()
-			}
-			el.recalculateTextSplit()
+			el.moveCursor(-1, shift)
+
 		case right && !left:
-			if !shift && el.selectionStarted {
-				el.cursorPos = max(el.cursorPos, el.selectionStart)
-				el.clearSelection()
-			} else if el.cursorPos < len(el.runes) {
-				if shift && !el.selectionStarted {
-					el.selectionStart = el.cursorPos
-					el.selectionStarted = true
-				}
-				el.cursorPos++
-			}
-			if el.selectionStarted && el.selectionStart == el.cursorPos {
-				el.clearSelection()
-			}
-			el.recalculateTextSplit()
+			el.moveCursor(1, shift)
+
 		case backspace:
-			if el.selectionStarted && len(el.textSelection) > 0 {
-				el.cursorPos = len(el.textBefore)
-				el.Text = string(slices.Concat(el.textBefore, el.textAfter))
-				el.clearSelection()
-			} else if len(el.textBefore) > 0 {
-				el.Text = string(slices.Concat(el.textBefore[:len(el.textBefore)-1], el.textAfter))
-				el.cursorPos--
-			}
-			el.recalculateTextSplit()
-			el.Callback(el.Text)
+			el.applyEdit(el.deleteBackward)
+
 		case del:
-			if el.selectionStarted && len(el.textSelection) > 0 {
-				el.cursorPos = len(el.textBefore)
-				el.Text = string(slices.Concat(el.textBefore, el.textAfter))
-				el.clearSelection()
-			} else if len(el.textAfter) > 0 {
-				el.Text = string(slices.Concat(el.textBefore, el.textAfter[1:]))
-			}
-			el.recalculateTextSplit()
-			el.Callback(el.Text)
+			el.applyEdit(el.deleteForward)
+
 		default:
+			var input strings.Builder
+
 			for char := rl.GetCharPressed(); char != 0; char = rl.GetCharPressed() {
-				if !el.isCharValid(char) {
-					continue
-				}
-				insert := []rune{char}
-				available := el.MaxTextLength -
-					(len(el.runes) - len(el.textSelection))
+				input.WriteRune(char)
+			}
 
-				if available <= 0 {
-					continue
-				}
-
-				insert = insert[:min(len(insert), available)]
-				el.cursorPos = len(el.textBefore)
-				el.Text = string(slices.Concat(el.textBefore, insert, el.textAfter))
-				el.cursorPos++
-				el.clearSelection()
-				el.recalculateTextSplit()
-				el.Callback(el.Text)
+			if input.Len() > 0 {
+				el.applyEdit(func() {
+					el.insertInput(input.String())
+				})
 			}
 		}
 	}
