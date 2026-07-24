@@ -21,6 +21,10 @@ func tick() {
 	if rl.IsKeyPressed(rl.KeyEscape) {
 		screens.SetActiveScreen(screens.MainScreenID)
 	}
+
+	if rl.IsKeyPressed(rl.KeyF11) {
+		rl.ToggleFullscreen()
+	}
 }
 
 var startTime = time.Now()
