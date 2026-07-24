@@ -70,4 +70,9 @@ var MainScreen = ui.Screen().
 			}),
 	).
 	AddChild(
-		ui.Button().WithText("Exit").WithAnchors(anchor.Center, anchor.Center).WithRelativePos(vec.Vec2i{Y: 160}).WithClick(func() { rl.CloseWindow() }))
+		ui.Button().
+			WithText("Exit").
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{Y: 160}).
+			WithClick(rl.CloseWindow),
+	)
