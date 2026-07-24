@@ -1,9 +1,13 @@
 package packets
 
-import "github.com/gorilla/websocket"
+import (
+	"github.com/gorilla/websocket"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+)
 
 type Connection struct {
-	Conn *websocket.Conn
+	Player game.Player
+	Conn   *websocket.Conn
 }
 
 func (c *Connection) SendPacket(packet Packet) {}
