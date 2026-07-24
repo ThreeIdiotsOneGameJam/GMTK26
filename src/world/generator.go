@@ -14,9 +14,9 @@ type Generator struct {
 	Random *rand.Rand
 }
 
-func (g Generator) Generate(size vec.Vec2i) [][]Cell {
+func (g *Generator) Generate(size vec.Vec2i) [][]Cell {
 	g.Random = rand.New(rand.NewSource(g.Seed))
-	perlin := rl.GenImagePerlinNoise(512, 512, int(g.Random.Float32()), 0, 0.7)
+	perlin := rl.GenImagePerlinNoise(512, 512, int(g.Random.Float32()*174.23213), 0, 0.7)
 	defer rl.UnloadImage(perlin)
 
 	sampleNoise := func(x, y float32) float32 {
