@@ -8,7 +8,6 @@ import (
 var MouseCursorState = rl.MouseCursorDefault
 var MousePosition vec.Vec2
 var ViewportSize = vec.Vec2i{X: 640, Y: 360}
-var ViewportTargetHeight int32 = 360
 
 var closeWindowRequested bool
 
