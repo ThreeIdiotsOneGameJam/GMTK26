@@ -13,6 +13,7 @@ func Text() *TextElement {
 	el.BaseElement = NewBaseElement(el)
 
 	return el.WithSizeDynamic(func(el *TextElement) vec.Vec2i {
+		// FIXME: not measured properly for multiline text
 		return vec.Vec2i{
 			X: rl.MeasureText(el.Text(), el.TextSize),
 			Y: el.TextSize,
