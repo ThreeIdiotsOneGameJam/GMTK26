@@ -41,7 +41,7 @@ func Generate(size vec.Vec2i, seed int64) [][]Cell {
 
 			if moisture > 0.6 {
 				tile = ForestTile
-			} else if moisture < 0.4 {
+			} else if moisture < 0.45 {
 				tile = RockTile
 			}
 

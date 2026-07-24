@@ -38,7 +38,7 @@ func (w *World) Init() {
 		w.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
 	if w.GridSize == (v.Vec2i{}) {
-		w.GridSize = v.Vec2i{X: 64, Y: 64}
+		w.GridSize = v.Vec2i{X: 96, Y: 96}
 	}
 	w.Camera.Target = w.GridSize.Vec2().Mul(w.HexSize).Sub(global.ViewportSize.Vec2()).ToRL()
 
