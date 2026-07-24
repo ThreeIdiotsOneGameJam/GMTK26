@@ -2,6 +2,7 @@ package screens
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 
@@ -74,5 +75,5 @@ var MainScreen = ui.Screen().
 			WithText("Exit").
 			WithAnchors(anchor.Center, anchor.Center).
 			WithRelativePos(vec.Vec2i{Y: 160}).
-			WithClick(rl.CloseWindow),
+			WithClick(global.CloseWindow),
 	)

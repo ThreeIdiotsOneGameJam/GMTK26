@@ -2,10 +2,12 @@
 
 package main
 
-import "github.com/gen2brain/raylib-go/raylib"
+import (
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+)
 
 func mainLoop() {
-	for !rl.WindowShouldClose() {
+	for !global.WindowShouldClose() {
 		updateFunc()
 	}
 }
