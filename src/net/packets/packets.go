@@ -17,7 +17,7 @@ const (
 
 type Packet interface {
 	PacketType() PacketType
-	Handle()
+	Handle(c *Connection)
 }
 
 type S2CPacket interface {
