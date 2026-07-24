@@ -26,17 +26,20 @@ var GameScreen = ui.Screen().
 			AddChild(
 				gameSeedInput.
 					WithPadding(8).
+					WithTextSize(24).
+					WithSize(vec.Vec2i{X: 320, Y: 0}).
 					WithPlaceholderText("Seed"),
 			).
 			AddChild(
 				gameRegenerateButton.
 					WithPadding(8).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 80}).
+					WithTextSize(24).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
 					WithText("Regenerate").
 					WithClick(func() {
 						if gameSeedInput.Text == "0" || gameSeedInput.Text == "" {
 							gameWorld.World.Seed = 0
-						} else {	
+						} else {
 							h := fnv.New64a()
 							h.Write([]byte(gameSeedInput.Text))
 							gameWorld.World.Seed = int64(h.Sum64())
@@ -44,17 +47,18 @@ var GameScreen = ui.Screen().
 
 						gameWorld.World.Generate()
 					}),
-		).
-		AddChild(
-			ui.Button().
-				WithPadding(8).
-				WithRelativePos(vec.Vec2i{X: 0, Y: 160}).
-				WithText("Random").
-				WithClick(func() {
-					gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
-					gameRegenerateButton.Click()
-				}),
-		),
+			).
+			AddChild(
+				ui.Button().
+					WithPadding(8).
+					WithTextSize(24).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
+					WithText("Random").
+					WithClick(func() {
+						gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
+						gameRegenerateButton.Click()
+					}),
+			),
 	).
 	AddChild(
 		EscScreen)
