@@ -29,7 +29,7 @@ func EnterMatchmakingWaiting(previousScreen *ui.ScreenElement) {
 func ApplyMatchmakingWaiting(position int) {
 	matchmakingActive = true
 	matchmakingQueuePos = position
-	if GetActiveScreen() == matchmakingScreen {
+	if activeScreen == matchmakingScreen || pendingScreen == matchmakingScreen {
 		return
 	}
 	previous := playScreen

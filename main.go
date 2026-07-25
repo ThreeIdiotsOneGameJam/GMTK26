@@ -200,6 +200,7 @@ func main() {
 
 	audio.Init()
 	defer audio.Terminate()
+	defer screens.Shutdown()
 
 	mainLoop()
 }

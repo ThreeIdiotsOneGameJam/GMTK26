@@ -1,7 +1,6 @@
 package screens
 
 import (
-	"image/color"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -9,15 +8,13 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 )
 
-const (
-	screenFadeOutDuration = 110 * time.Millisecond
-	screenFadeInDuration  = 160 * time.Millisecond
-)
+const screenCrossfadeDuration = 250 * time.Millisecond
 
 var activeScreen *ui.ScreenElement
 var pendingScreen *ui.ScreenElement
-var transitionAlpha float32
-var transitionColor color.RGBA
+var transitionProgress float32
+var transitionCanceling bool
+var transitionSource rl.Texture2D
 
 // Retained instances needed for overlays and return navigation.
 var playScreen *ui.ScreenElement
@@ -28,7 +25,6 @@ var matchmakingScreen *ui.ScreenElement
 func init() {
 	activeScreen = NewMainScreen()
 	activeScreen.Enter()
-	transitionColor = activeScreen.BackgroundColor
 }
 
 func GetActiveScreen() *ui.ScreenElement {
@@ -40,15 +36,26 @@ func SetActiveScreen(screen *ui.ScreenElement) {
 		panic("active screen must not be nil")
 	}
 
-	if screen == activeScreen && pendingScreen == nil {
+	if screen == activeScreen {
+		cancelTransition()
+		return
+	}
+	if screen == pendingScreen {
+		transitionCanceling = false
 		return
 	}
 
-	transitionColor = blendScreenColors(activeScreen.BackgroundColor, screen.BackgroundColor)
+	if pendingScreen != nil {
+		pendingScreen.Exit()
+	}
+	releaseTransitionSource()
+
 	pendingScreen = screen
+	transitionProgress = 0
+	transitionCanceling = false
+	pendingScreen.Enter()
 }
 
-// GoToPreviousScreen activates previousScreen, or Main when previous is nil.
 func GoToPreviousScreen(previousScreen *ui.ScreenElement) {
 	if previousScreen == nil {
 		SetActiveScreen(NewMainScreen())
@@ -65,7 +72,22 @@ func playScreenOrNew() *ui.ScreenElement {
 }
 
 func IsTransitioning() bool {
-	return pendingScreen != nil || transitionAlpha > 0
+	return pendingScreen != nil
+}
+
+func cancelTransition() {
+	if pendingScreen == nil {
+		return
+	}
+	transitionCanceling = true
+}
+
+func finishCanceledTransition() {
+	pendingScreen.Exit()
+	pendingScreen = nil
+	transitionProgress = 0
+	transitionCanceling = false
+	releaseTransitionSource()
 }
 
 func Update(deltaNano int64) {
@@ -75,8 +97,6 @@ func Update(deltaNano int64) {
 
 	if !IsTransitioning() {
 		if IsEscScreenOpen() {
-			// Update the game under the modal with input blocked so hover/click
-			// state clears instead of freezing, then give the overlay a pass.
 			global.UIModalBlocksInput = true
 			global.UIBlocksWorldInput = true
 			gameScreen.UpdateExcept(deltaNano, escScreen)
@@ -89,29 +109,37 @@ func Update(deltaNano int64) {
 		}
 	}
 
-	delta := time.Duration(deltaNano)
+	if pendingScreen == nil {
+		return
+	}
 
-	if pendingScreen != nil {
-		transitionAlpha = moveTowards(
-			transitionAlpha,
-			1,
-			float32(delta)/float32(screenFadeOutDuration),
-		)
+	target := float32(1)
+	if transitionCanceling {
+		target = 0
+	}
+	transitionProgress = moveTowards(
+		transitionProgress,
+		target,
+		float32(time.Duration(deltaNano))/float32(screenCrossfadeDuration),
+	)
 
-		if transitionAlpha >= 1 {
-			activeScreen.Exit()
-			activeScreen = pendingScreen
-			pendingScreen = nil
-			activeScreen.Enter()
+	if transitionCanceling {
+		if transitionProgress <= 0 {
+			finishCanceledTransition()
 		}
 		return
 	}
 
-	transitionAlpha = moveTowards(
-		transitionAlpha,
-		0,
-		float32(delta)/float32(screenFadeInDuration),
-	)
+	if transitionProgress < 1 {
+		return
+	}
+
+	activeScreen.Exit()
+	activeScreen = pendingScreen
+	pendingScreen = nil
+	transitionProgress = 0
+	transitionCanceling = false
+	releaseTransitionSource()
 }
 
 func Draw() {
@@ -119,31 +147,78 @@ func Draw() {
 		return
 	}
 
-	activeScreen.Draw()
-
-	if transitionAlpha <= 0 {
+	if pendingScreen == nil {
+		activeScreen.Draw()
 		return
 	}
 
-	alpha := smoothstep(transitionAlpha)
-	overlay := transitionColor
-	overlay.A = uint8(alpha * 255)
-	rl.DrawRectangle(
-		0,
-		0,
-		int32(rl.GetRenderWidth()),
-		int32(rl.GetRenderHeight()),
-		overlay,
-	)
+	activeScreen.Draw()
+
+	w := int32(rl.GetRenderWidth())
+	h := int32(rl.GetRenderHeight())
+	if w <= 0 || h <= 0 {
+		return
+	}
+	if !ensureTransitionSource(w, h) {
+		// The source is already visible. If capture fails, show the destination
+		// only while moving forward and keep the source visible while canceling.
+		if !transitionCanceling {
+			pendingScreen.Draw()
+		}
+		return
+	}
+
+	// Draw the destination directly to the window. Screens such as the game
+	// use their own render textures, which cannot be nested in raylib.
+	pendingScreen.Draw()
+
+	alpha := smoothstep(1 - transitionProgress)
+	tint := rl.Color{R: 255, G: 255, B: 255, A: uint8(alpha * 255)}
+	src := rl.Rectangle{X: 0, Y: 0, Width: float32(w), Height: float32(h)}
+	dst := rl.Rectangle{X: 0, Y: 0, Width: float32(w), Height: float32(h)}
+	rl.DrawTexturePro(transitionSource, src, dst, rl.Vector2{}, 0, tint)
 }
 
-func blendScreenColors(from, to color.RGBA) color.RGBA {
-	return color.RGBA{
-		R: uint8((uint16(from.R) + uint16(to.R)) / 2),
-		G: uint8((uint16(from.G) + uint16(to.G)) / 2),
-		B: uint8((uint16(from.B) + uint16(to.B)) / 2),
-		A: 255,
+func ensureTransitionSource(w, h int32) bool {
+	if rl.IsTextureValid(transitionSource) &&
+		transitionSource.Width == w &&
+		transitionSource.Height == h {
+		return true
 	}
+
+	releaseTransitionSource()
+	image := rl.LoadImageFromScreen()
+	if image == nil {
+		return false
+	}
+	defer rl.UnloadImage(image)
+
+	transitionSource = rl.LoadTextureFromImage(image)
+	return rl.IsTextureValid(transitionSource)
+}
+
+func releaseTransitionSource() {
+	if !rl.IsTextureValid(transitionSource) {
+		return
+	}
+	rl.UnloadTexture(transitionSource)
+	transitionSource = rl.Texture2D{}
+}
+
+func Shutdown() {
+	if pendingScreen != nil {
+		pendingScreen.Exit()
+		pendingScreen = nil
+	}
+	if activeScreen != nil {
+		activeScreen.Exit()
+		activeScreen = nil
+	}
+	transitionProgress = 0
+	transitionCanceling = false
+	releaseTransitionSource()
+	HideEscScreen()
+	gameWorld.Renderer.Unload()
 }
 
 func moveTowards(current, target, amount float32) float32 {
@@ -159,20 +234,16 @@ func smoothstep(value float32) float32 {
 }
 
 func HandleEscape() {
+	if pendingScreen != nil {
+		cancelTransition()
+		return
+	}
 	if activeScreen == gameScreen {
-		if pendingScreen != nil {
-			pendingScreen = nil
-			return
-		}
 		ToggleEscScreen()
 		return
 	}
 	if activeScreen != nil && activeScreen.OnBack != nil {
 		activeScreen.OnBack()
-		return
-	}
-	if pendingScreen != nil {
-		pendingScreen = nil
 	}
 }
 

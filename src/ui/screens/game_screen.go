@@ -148,7 +148,7 @@ func EnterGame(state game.Game) {
 	gameActionError = ""
 	applyGameState(state)
 	gameWorld.Renderer.ResetCamera(&gameWorld.Map)
-	if GetActiveScreen() == gameScreen {
+	if activeScreen == gameScreen || pendingScreen == gameScreen {
 		return
 	}
 	// Return to the play menu on close, not intermediate creation/matchmaking screens.
