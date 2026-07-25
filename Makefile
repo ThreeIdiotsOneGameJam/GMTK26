@@ -22,13 +22,13 @@ build_desktop: web_replace_off
 	go build -o ./bin/desktop .
 
 run_desktop: build_desktop
-	./bin/desktop
+	./bin/desktop --debug
 
 run_desktop_guest: build_desktop
-	./bin/desktop --guest
+	./bin/desktop --debug --guest
 
 run_desktop_random: build_desktop
-	./bin/desktop --uuid=random
+	./bin/desktop --debug --uuid=random
 
 ## Web (WASM) ##
 build_web: web_replace_on
@@ -56,10 +56,10 @@ run_local: build_desktop build_server
 	./bin/game-server &
 	SERVER_PID=$$!; \
 	sleep 1; \
-	./bin/desktop --uuid=random & \
+	./bin/desktop --debug --uuid=random & \
 	CLIENT1_PID=$$!; \
 	sleep 0.5; \
-	./bin/desktop --uuid=random & \
+	./bin/desktop --debug --uuid=random & \
 	CLIENT2_PID=$$!; \
 	trap 'kill $${SERVER_PID} $${CLIENT1_PID} $${CLIENT2_PID} 2>/dev/null' EXIT INT TERM; \
 	wait
