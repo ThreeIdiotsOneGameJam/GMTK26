@@ -316,7 +316,7 @@ func (gi *GameInstance) processClientActions() {
 				continue
 			}
 
-			dstCell.Troop = payload.Troop
+			dstCell.Troop = srcCell.Troop
 			dstCell.Owner = int8(i)
 			srcCell.Troop = game.TroopUnknown
 		}
