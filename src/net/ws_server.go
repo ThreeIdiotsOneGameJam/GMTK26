@@ -28,6 +28,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if registered {
 			server.Lobby.RemoveConnection(client)
+			client.LeaveGame()
 		}
 	}()
 

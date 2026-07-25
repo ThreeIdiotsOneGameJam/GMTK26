@@ -59,19 +59,9 @@ func generateMap(size vec.Vec2i, seed int64) [][]Cell {
 				tile = TileVoid
 			}
 
-			grid[x][y] = Cell{Tile: tile}
+			grid[x][y] = Cell{Tile: tile, Owner: -1}
 		}
 	}
-
-	// TODO: Remove these. They are for testing only
-	grid[1][1].Building = BuildingForester
-	grid[1][1].Tile = TileForest
-	grid[2][1].Building = BuildingMine
-	grid[2][1].Tile = TileIron
-	grid[3][1].Building = BuildingBarracks
-	grid[3][1].Tile = TilePlains
-	grid[4][1].Building = BuildingFarm
-	grid[4][1].Tile = TilePlains
 
 	return grid
 }

@@ -1,0 +1,335 @@
+package server
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+)
+
+type submittedAction struct {
+	Type     game.ActionType
+	Build    *game.BuildActionPayload
+	Dispatch *game.DispatchActionPayload
+}
+
+type GameInstance struct {
+	ID             uint64
+	game           *game.Game
+	clients        []*Client
+	factionClients map[*Client]int
+	actions        map[int]*submittedAction
+	mu             sync.RWMutex
+}
+
+func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
+	factionClients := make(map[*Client]int)
+	for i, c := range clients {
+		if c != nil {
+			factionClients[c] = i
+		}
+	}
+
+	return &GameInstance{
+		ID:             id,
+		game:           g,
+		clients:        clients,
+		factionClients: factionClients,
+		actions:        make(map[int]*submittedAction),
+	}
+}
+
+func (gi *GameInstance) SubmitAction(c *Client, round int32, actionType game.ActionType, build *game.BuildActionPayload, dispatch *game.DispatchActionPayload) error {
+	gi.mu.Lock()
+	defer gi.mu.Unlock()
+
+	if round != gi.game.Round {
+		return fmt.Errorf("wrong round: got %d, want %d", round, gi.game.Round)
+	}
+
+	factionIdx, ok := gi.factionClients[c]
+	if !ok {
+		return fmt.Errorf("client not in this game")
+	}
+
+	gi.actions[factionIdx] = &submittedAction{
+		Type:     actionType,
+		Build:    build,
+		Dispatch: dispatch,
+	}
+	return nil
+}
+
+func (gi *GameInstance) sendToClient(client *Client, packet packets.S2CPacket) {
+	if client == nil {
+		return
+	}
+	_ = client.SendPacket(packet)
+}
+
+func (gi *GameInstance) Run() {
+	defer func() {
+		for _, c := range gi.clients {
+			if c != nil {
+				c.LeaveGame()
+			}
+		}
+		GameManager.RemoveGame(gi.ID)
+	}()
+
+	gi.game.Map.Generate()
+
+	for i := range gi.game.Factions {
+		if i < len(gi.clients) {
+			f := &gi.game.Factions[i]
+			f.Index = i
+			f.Coins = 100
+			f.Points = 0
+			f.Resources = make(game.Resources)
+			f.Alive = true
+			if gi.clients[i] == nil {
+				f.AI = true
+			}
+		}
+	}
+
+	gameEndTime := time.Now().Add(5 * time.Minute)
+	firstDeadline := time.Now().Add(5 * time.Second)
+
+	for i, c := range gi.clients {
+		if c == nil {
+			continue
+		}
+		f := gi.game.Factions[i]
+		startPacket := &packets.S2CGameStartPacket{
+			FactionIdx: i,
+			Map:        gi.game.Map,
+			Coins:      f.Coins,
+			Points:     f.Points,
+			Resources:  f.Resources,
+			Round:      1,
+			Deadline:   firstDeadline.UnixNano(),
+		}
+		gi.sendToClient(c, startPacket)
+	}
+
+	gi.game.Round = 1
+
+	for {
+		if !gi.hasConnectedPlayers() {
+			return
+		}
+
+		roundStart := time.Now()
+		deadline := roundStart.Add(5 * time.Second)
+
+		for i, c := range gi.clients {
+			if c == nil {
+				continue
+			}
+			f := gi.game.Factions[i]
+			statePacket := &packets.S2CGameStatePacket{
+				Round:     gi.game.Round,
+				Deadline:  deadline.UnixNano(),
+				Map:       gi.game.Map,
+				Coins:     f.Coins,
+				Points:    f.Points,
+				Resources: f.Resources,
+			}
+			gi.sendToClient(c, statePacket)
+		}
+
+		sleepDuration := time.Until(deadline)
+		if sleepDuration > 0 {
+			time.Sleep(sleepDuration)
+		}
+
+		gi.processAutoActions()
+		gi.processClientActions()
+
+		gi.game.Round++
+
+		gi.mu.Lock()
+		gi.actions = make(map[int]*submittedAction)
+		gi.mu.Unlock()
+
+		aliveCount := gi.checkAlive()
+
+		if time.Now().After(gameEndTime) || aliveCount <= 1 {
+			gi.broadcastGameEnd()
+			return
+		}
+	}
+}
+
+func (gi *GameInstance) hasConnectedPlayers() bool {
+	for _, c := range gi.clients {
+		if c != nil && c.GameInstance() == gi {
+			return true
+		}
+	}
+	return false
+}
+
+func (gi *GameInstance) processAutoActions() {
+	for i := range gi.game.Factions {
+		for x := range gi.game.Map.Grid {
+			for y := range gi.game.Map.Grid[x] {
+				cell := &gi.game.Map.Grid[x][y]
+				if cell.Owner == int8(i) && cell.Building != game.BuildingUnknown {
+					produced := game.BuildingProduces(cell.Building)
+					for resType, amount := range produced {
+						gi.game.Factions[i].Resources[resType] += amount
+					}
+				}
+			}
+		}
+	}
+}
+
+func (gi *GameInstance) processClientActions() {
+	for i := range gi.game.Factions {
+		gi.mu.RLock()
+		act, submitted := gi.actions[i]
+		gi.mu.RUnlock()
+
+		if !submitted || act == nil || act.Type == game.ActionPass {
+			continue
+		}
+
+		faction := &gi.game.Factions[i]
+
+		switch act.Type {
+		case game.ActionBuild:
+			payload := act.Build
+			if payload == nil {
+				continue
+			}
+
+			cell := gi.game.Map.GetCell(payload.Hex)
+			if cell == nil {
+				continue
+			}
+			if !game.BuildingCanPlace(&gi.game.Map, payload.Building, payload.Hex) {
+				continue
+			}
+			if cell.Owner != -1 && cell.Owner != int8(i) {
+				continue
+			}
+			cost := game.BuildingCost(payload.Building)
+			if faction.Coins < cost {
+				continue
+			}
+
+			faction.Coins -= cost
+			cell.Owner = int8(i)
+			cell.Building = payload.Building
+
+		case game.ActionDispatch:
+			payload := act.Dispatch
+			if payload == nil {
+				continue
+			}
+
+			srcCell := gi.game.Map.GetCell(payload.Hex)
+			dstCell := gi.game.Map.GetCell(payload.To)
+			if srcCell == nil || dstCell == nil {
+				continue
+			}
+			if srcCell.Owner != int8(i) {
+				continue
+			}
+			if srcCell.Troop == game.TroopUnknown {
+				continue
+			}
+
+			dstCell.Troop = payload.Troop
+			dstCell.Owner = int8(i)
+			srcCell.Troop = game.TroopUnknown
+		}
+	}
+}
+
+func (gi *GameInstance) checkAlive() int {
+	aliveCount := 0
+	for i := range gi.game.Factions {
+		alive := false
+		for x := range gi.game.Map.Grid {
+			for y := range gi.game.Map.Grid[x] {
+				if gi.game.Map.Grid[x][y].Owner == int8(i) {
+					alive = true
+					break
+				}
+			}
+			if alive {
+				break
+			}
+		}
+		gi.game.Factions[i].Alive = alive
+		if alive {
+			aliveCount++
+		}
+	}
+	return aliveCount
+}
+
+func (gi *GameInstance) broadcastGameEnd() {
+	type rankSortable struct {
+		idx    int
+		points int32
+		alive  bool
+		name   string
+	}
+
+	factions := gi.game.Factions[:]
+	sorted := make([]rankSortable, 0, len(factions))
+	for i := range factions {
+		name := ""
+		if factions[i].Player != nil {
+			name = factions[i].Player.PlayerName
+		}
+		sorted = append(sorted, rankSortable{
+			idx:    i,
+			points: factions[i].Points,
+			alive:  factions[i].Alive,
+			name:   name,
+		})
+	}
+
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[j].points > sorted[i].points {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	winnerFaction := -1
+	winnerName := ""
+	if len(sorted) > 0 {
+		winnerFaction = sorted[0].idx
+		winnerName = sorted[0].name
+	}
+
+	rankings := make([]packets.RankEntry, 0, len(sorted))
+	for _, r := range sorted {
+		rankings = append(rankings, packets.RankEntry{
+			FactionIdx: r.idx,
+			PlayerName: r.name,
+			Points:     r.points,
+			Alive:      r.alive,
+		})
+	}
+
+	endPacket := &packets.S2CGameEndPacket{
+		WinnerFaction: winnerFaction,
+		WinnerName:    winnerName,
+		Rankings:      rankings,
+	}
+
+	for _, c := range gi.clients {
+		gi.sendToClient(c, endPacket)
+	}
+}

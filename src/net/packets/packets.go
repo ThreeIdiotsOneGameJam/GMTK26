@@ -17,6 +17,11 @@ const (
 	UnknownPacketType PacketType = iota
 	C2SConnectPacketType
 	S2CConnectAcceptedPacketType
+	C2SActionPacketType
+	S2CGameStartPacketType
+	S2CGameStatePacketType
+	S2CGameEndPacketType
+	S2CAckPacketType
 )
 
 type Packet interface {
@@ -161,6 +166,10 @@ func Serialize(packet Packet) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func errMissingField(packetType, field string) error {
+	return fmt.Errorf("%s packet: missing or null %s", packetType, field)
 }
 
 func Deserialize(data []byte) (Packet, error) {

@@ -5,19 +5,16 @@ package game
 import "strconv"
 
 func _() {
-	// An "invalid array index" compiler error signifies that the constant values have changed.
-	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[ActionUnknown-0]
 	_ = x[ActionPass-1]
-	_ = x[ActionClaim-2]
-	_ = x[ActionBuild-3]
-	_ = x[ActionDispatch-4]
+	_ = x[ActionBuild-2]
+	_ = x[ActionDispatch-3]
 }
 
-const _ActionType_name = "UnknownPassClaimBuildDispatch"
+const _ActionType_name = "UnknownPassBuildDispatch"
 
-var _ActionType_index = [...]uint8{0, 7, 11, 16, 21, 29}
+var _ActionType_index = [...]uint8{0, 7, 11, 16, 24}
 
 func (i ActionType) String() string {
 	idx := int(i) - 0

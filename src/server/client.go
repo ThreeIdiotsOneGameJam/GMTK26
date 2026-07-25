@@ -45,6 +45,25 @@ type Client struct {
 	persistent bool
 	ready      bool
 	sender     packetSender
+	game       *GameInstance
+}
+
+func (c *Client) JoinGame(gi *GameInstance) {
+	c.mu.Lock()
+	c.game = gi
+	c.mu.Unlock()
+}
+
+func (c *Client) LeaveGame() {
+	c.mu.Lock()
+	c.game = nil
+	c.mu.Unlock()
+}
+
+func (c *Client) GameInstance() *GameInstance {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.game
 }
 
 func NewClient(sender packetSender) *Client {
@@ -88,6 +107,15 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 	switch packet := packet.(type) {
 	case *packets.C2SConnectPacket:
 		return c.handleConnectPacket(packet)
+	case *packets.C2SActionPacket:
+		gi := c.GameInstance()
+		if gi == nil {
+			return nil, fatalPacketErrorf("handle action packet: not in a game")
+		}
+		if err := gi.SubmitAction(c, packet.Round, packet.Type, packet.Build, packet.Dispatch); err != nil {
+			return &packets.S2CAckPacket{OK: false}, nil
+		}
+		return &packets.S2CAckPacket{OK: true}, nil
 	default:
 		return nil, fatalPacketErrorf(
 			"handle client packet: unsupported packet %T",

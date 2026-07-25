@@ -10,6 +10,7 @@ type Map struct {
 
 type Cell struct {
 	Tile     TileType     `json:"tile"`
+	Owner    int8         `json:"owner,omitempty"` // -1 = unowned, 0-3 = faction index
 	Building BuildingType `json:"building,omitempty"`
 	Troop    TroopType    `json:"troop,omitempty"`
 }
