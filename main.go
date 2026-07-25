@@ -1,12 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	// "math"
+	"os"
 	"strconv"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/google/uuid"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
@@ -141,13 +144,33 @@ func frame() {
 var updateFunc = update
 
 func main() {
+	guest := flag.Bool("guest", false, "use a temporary guest identity (not saved)")
+	uuidFlag := flag.String("uuid", "", `session client ID: "random" or a canonical UUID (not saved)`)
+	flag.Parse()
+
+	if *guest && *uuidFlag != "" {
+		fmt.Fprintln(os.Stderr, "flags --guest and --uuid are mutually exclusive")
+		os.Exit(2)
+	}
+
 	if err := settings.Load(); err != nil {
 		fmt.Printf("failed to load settings, using defaults: %v\n", err)
 	}
 
-	err := game.LoadOrCreatePlayerData()
-	if err != nil {
-		fmt.Println("failed to load or create player data, using ephemeral values")
+	switch {
+	case *guest:
+		game.UseGuestIdentity()
+	case *uuidFlag != "":
+		id, err := parseLaunchUUID(*uuidFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		game.UseEphemeralUUID(id)
+	default:
+		if err := game.LoadOrCreatePlayerData(); err != nil {
+			fmt.Println("failed to load or create player data, using ephemeral values")
+		}
 	}
 
 	var configFlags uint32 = rl.FlagWindowResizable
@@ -170,6 +193,22 @@ func main() {
 	defer audio.Terminate()
 
 	mainLoop()
+}
+
+func parseLaunchUUID(value string) (uuid.UUID, error) {
+	if value == "random" {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("generate random uuid: %w", err)
+		}
+		return id, nil
+	}
+
+	id, err := uuid.Parse(value)
+	if err != nil || id == uuid.Nil || id.String() != value {
+		return uuid.Nil, fmt.Errorf(`--uuid must be "random" or a canonical non-nil UUID`)
+	}
+	return id, nil
 }
 
 func toggleVsync() {

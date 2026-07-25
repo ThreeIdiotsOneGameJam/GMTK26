@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/threeidiotsonegamejam/gmtk26/src/storage"
@@ -63,12 +62,10 @@ func (p *Player) UnmarshalJSON(data []byte) error {
 
 var PlayerData = &Player{}
 
-func LoadOrCreatePlayerData() error {
-	if os.Getenv("NEWUUID") != "" {
-		createPlayerData()
-		return SavePlayerData()
-	}
+// ephemeralSession skips all player data persistence for this process.
+var ephemeralSession bool
 
+func LoadOrCreatePlayerData() error {
 	var loadedPlayer Player
 	loaded, loadErr := storage.Load("player", &loadedPlayer)
 	if loadErr == nil && loaded {
@@ -95,6 +92,22 @@ func LoadOrCreatePlayerData() error {
 	return nil
 }
 
+// UseGuestIdentity sets an ephemeral nil client ID so the server assigns a
+// temporary identity. Nothing is loaded from or saved to storage.
+func UseGuestIdentity() {
+	ephemeralSession = true
+	createPlayerData()
+	PlayerData.ClientID = ClientID(uuid.Nil.String())
+}
+
+// UseEphemeralUUID sets player data with the given client ID for this session
+// only. Nothing is loaded from or saved to storage.
+func UseEphemeralUUID(id uuid.UUID) {
+	ephemeralSession = true
+	createPlayerData()
+	PlayerData.ClientID = ClientID(id.String())
+}
+
 func createPlayerData() {
 	uid, err := uuid.NewRandom()
 	if err != nil {
@@ -110,6 +123,10 @@ func createPlayerData() {
 }
 
 func SavePlayerData() error {
+	if ephemeralSession {
+		return nil
+	}
+
 	if err := storage.Save("player", PlayerData); err != nil {
 		return fmt.Errorf("save player data: %w", err)
 	}
