@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/threeidiotsonegamejam/gmtk26/src/util/jsonutil"
 )
 
 const appName = "3I1GJ-GMTK26"
@@ -67,8 +65,13 @@ func Load[T any](key string, destination *T) (bool, error) {
 		return false, fmt.Errorf("read save file: %w", err)
 	}
 
-	if err := jsonutil.DecodeStrict(data, destination); err != nil {
-		return false, fmt.Errorf("%w: %v", ErrInvalidData, err)
+	repaired, err := decode(data, destination)
+	if err != nil {
+		return false, err
+	}
+	if repaired {
+		// Best-effort rewrite so the on-disk shape matches the current schema.
+		_ = Save(key, *destination)
 	}
 
 	return true, nil
