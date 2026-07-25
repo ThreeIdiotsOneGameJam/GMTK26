@@ -16,15 +16,18 @@ func Button() *ButtonElement {
 		Padding:      8,
 		OutlineWidth: 4,
 		ForegroundColors: ColorSet{
-			Default: &rl.DarkGray,
+			Default:  &rl.DarkGray,
+			Disabled: util.SimpleGrayscaleColor(145),
 		},
 		BackgroundColors: ColorSet{
-			Default: &rl.LightGray,
-			Hover:   util.ColorAdd(rl.LightGray, 25),
-			Click:   util.ColorAdd(rl.LightGray, 40),
+			Default:  &rl.LightGray,
+			Hover:    util.ColorAdd(rl.LightGray, 25),
+			Click:    util.ColorAdd(rl.LightGray, 40),
+			Disabled: util.SimpleGrayscaleColor(210),
 		},
 		OutlineColors: ColorSet{
-			Default: &rl.Gray,
+			Default:  &rl.Gray,
+			Disabled: util.SimpleGrayscaleColor(180),
 		},
 	}
 	el.BaseElement = NewBaseElement(el)
@@ -155,21 +158,19 @@ func (el *ButtonElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := el.OutlineColors.Color(StateDefault)
-	bgCol := el.BackgroundColors.Color(StateDefault)
-	fgCol := el.ForegroundColors.Color(StateDefault)
-
-	if el.hovered {
-		oCol = el.OutlineColors.Color(StateHover)
-		bgCol = el.BackgroundColors.Color(StateHover)
-		fgCol = el.ForegroundColors.Color(StateHover)
+	state := StateDefault
+	switch {
+	case !el.Enabled():
+		state = StateDisabled
+	case el.clicked:
+		state = StateClick
+	case el.hovered:
+		state = StateHover
 	}
 
-	if el.clicked {
-		oCol = el.OutlineColors.Color(StateClick)
-		bgCol = el.BackgroundColors.Color(StateClick)
-		fgCol = el.ForegroundColors.Color(StateClick)
-	}
+	oCol := el.OutlineColors.Color(state)
+	bgCol := el.BackgroundColors.Color(state)
+	fgCol := el.ForegroundColors.Color(state)
 
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*oCol, opacity)
