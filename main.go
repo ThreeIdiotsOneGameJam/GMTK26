@@ -13,7 +13,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
 )
 
 func update() {
@@ -85,7 +85,7 @@ func frame() {
 
 	rl.EndDrawing()
 
-	global.MousePosition = vec.Vec2FromRL(rl.GetMousePosition())
+	global.MousePosition = rlvec.FromRL(rl.GetMousePosition())
 
 	rl.SetMouseCursor(global.MouseCursorState)
 

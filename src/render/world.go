@@ -9,6 +9,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
 	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -80,11 +81,11 @@ func (r *WorldRenderer) Init(m *game.Map) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
 
-	r.Camera.Target = v.Vec2{
+	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
 		Y: float32(m.GridSize.Y),
-	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()).ToRL()
-	r.Camera.Offset = global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}).ToRL()
+	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()))
+	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
 
 	r.bgShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
 	r.bgTimeLoc = rl.GetLocationUniform(r.bgShader.ID, "time")
@@ -116,7 +117,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
-	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
@@ -135,7 +136,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			Y: -1.0 / r.Camera.Zoom,
 		})
 
-		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(panDelta).ToRL()
+		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
 
 		if deltaSeconds > 0.0 {
 			rawVelocity := panDelta.Mul(v.Vec2{
@@ -169,10 +170,10 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 		r.PanStart = r.MousePosition
 	} else {
-		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
+		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
 			X: deltaSeconds,
 			Y: deltaSeconds,
-		})).ToRL()
+		})))
 
 		// Exponential damping keeps momentum frame-rate independent.
 		panDecay := float32(math.Exp(float64(-panMomentumDamping * deltaSeconds)))
@@ -196,10 +197,10 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	if moveDir.X != 0.0 || moveDir.Y != 0.0 {
 		zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
 		moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
-		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
+		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
 			X: moveDistance,
 			Y: moveDistance,
-		})).ToRL()
+		})))
 	}
 
 	wheel := rl.GetMouseWheelMove()
@@ -215,10 +216,10 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 	if nextZoom != r.Camera.Zoom {
 		// Offset the camera by the cursor's world-space shift after zooming.
-		zoomBefore := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
+		zoomBefore := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
 		r.Camera.Zoom = nextZoom
-		zoomAfter := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
-		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(zoomBefore.Sub(zoomAfter)).ToRL()
+		zoomAfter := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
+		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(zoomBefore.Sub(zoomAfter)))
 	}
 
 	r.clampCameraToMap(m)
@@ -244,7 +245,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	rl.BeginTextureMode(r.viewport)
 	r.drawBackground()
 
-	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	rl.BeginMode2D(r.Camera)
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
@@ -375,7 +376,7 @@ func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
 	maxTargetX := worldMaxX - viewHalfWidth
 	minTargetY := worldMinY + viewHalfHeight
 	maxTargetY := worldMaxY - viewHalfHeight
-	target := v.Vec2FromRL(r.Camera.Target)
+	target := rlvec.FromRL(r.Camera.Target)
 	previousTarget := target
 
 	// Center axes where the viewport is larger than the map.
@@ -390,7 +391,7 @@ func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
 		target.Y = max(minTargetY, min(target.Y, maxTargetY))
 	}
 
-	r.Camera.Target = target.ToRL()
+	r.Camera.Target = rlvec.ToRL(target)
 	if stopMomentumAtBounds {
 		if target.X != previousTarget.X {
 			r.PanVelocity.X = 0.0
