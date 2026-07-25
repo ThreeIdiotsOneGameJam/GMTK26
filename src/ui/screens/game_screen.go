@@ -38,14 +38,14 @@ var GameScreen = ui.Screen().
 					WithText("Regenerate").
 					WithClick(func() {
 						if gameSeedInput.Text == "0" || gameSeedInput.Text == "" {
-							gameWorld.World.Seed = 0
+							gameWorld.Map.Seed = 0
 						} else {
 							h := fnv.New64a()
 							h.Write([]byte(gameSeedInput.Text))
-							gameWorld.World.Seed = int64(h.Sum64())
+							gameWorld.Map.Seed = int64(h.Sum64())
 						}
 
-						gameWorld.World.Generate()
+						gameWorld.Map.Generate()
 					}),
 			).
 			AddChild(

@@ -3,7 +3,8 @@ package ui
 import (
 	"time"
 
-	"github.com/threeidiotsonegamejam/gmtk26/src/world"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render"
 )
 
 func World() *WorldElement {
@@ -15,19 +16,21 @@ func World() *WorldElement {
 
 type WorldElement struct {
 	BaseElement[*WorldElement]
-	World world.World
+	Map      game.Map
+	Renderer render.WorldRenderer
 }
 
-func (w *WorldElement) prepare() {
-	if !w.World.HasInit {
-		w.World.Init()
+func (el *WorldElement) prepare() {
+	if el.Map.Grid == nil {
+		el.Map.Generate()
 	}
+	el.Renderer.Init(&el.Map)
 }
 
-func (w *WorldElement) update(deltaNano int64) {
-	w.World.Update(float32(deltaNano / int64(time.Nanosecond)))
+func (el *WorldElement) update(deltaNano int64) {
+	el.Renderer.Update(&el.Map, time.Duration(deltaNano))
 }
 
-func (w *WorldElement) draw() {
-	w.World.Draw()
+func (el *WorldElement) draw() {
+	el.Renderer.Draw(&el.Map)
 }

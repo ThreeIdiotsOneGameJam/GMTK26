@@ -11,4 +11,5 @@ type Game struct {
 	Round        int32      `json:"round"`
 	RoundEndTime int64      `json:"round_end_time"`
 	GameEndTime  int64      `json:"game_end_time"`
+	Map          Map        `json:"map"`
 }

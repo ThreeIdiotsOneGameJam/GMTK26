@@ -1,0 +1,402 @@
+package render
+
+import (
+	"fmt"
+	"math"
+	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
+)
+
+var sqrt3 = float32(math.Sqrt(3.0))
+
+const (
+	// Extra screen-space distance the camera may show beyond the map.
+	cameraBoundsPadding float32 = 200.0
+
+	// Stop momentum on an axis when it reaches the map boundary.
+	stopMomentumAtBounds = false
+
+	// Base WASD movement speed in world units per second.
+	cameraMoveSpeed float32 = 1000.0
+
+	// How strongly zoom reduces WASD speed: 0 ignores zoom, 1 scales directly.
+	cameraMoveZoomExponent = 0.5
+
+	cameraMinZoom float32 = 0.08
+	cameraMaxZoom float32 = 1.0
+
+	// Zoom change per wheel step and speed of interpolation toward it.
+	cameraZoomStep       float32 = 0.18
+	cameraZoomSmoothness float32 = 12.0
+
+	// Approximate screen-space momentum speed that drags converge toward.
+	panMomentumMidSpeed float32 = 600.0
+
+	// Compresses extreme drag speeds while retaining some variation.
+	panSpeedCompressionExponent = 0.4
+
+	// How much each new drag sample replaces existing momentum; higher values
+	// react faster, while lower values produce smoother momentum.
+	panVelocitySampleWeight = float32(0.35)
+
+	// Rate at which momentum decays after releasing the mouse.
+	panMomentumDamping = float32(4.0)
+)
+
+type WorldRenderer struct {
+	Camera        rl.Camera2D
+	ZoomAnchor    v.Vec2
+	TargetZoom    float32
+	HexSize       v.Vec2
+	PanStart      v.Vec2
+	PanVelocity   v.Vec2
+	MousePosition v.Vec2
+
+	bgShader    rl.Shader
+	bgTimeLoc   int32
+	voidShader  rl.Shader
+	viewport    rl.RenderTexture2D
+	initialized bool
+}
+
+func (r *WorldRenderer) Init(m *game.Map) {
+	if r.initialized {
+		return
+	}
+	r.initialized = true
+
+	if r.Camera.Zoom == 0.0 {
+		r.Camera.Zoom = 0.75
+	}
+	if r.TargetZoom == 0.0 {
+		r.TargetZoom = r.Camera.Zoom
+	}
+	if r.HexSize == (v.Vec2{}) {
+		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
+	}
+
+	r.Camera.Target = v.Vec2{
+		X: float32(m.GridSize.X),
+		Y: float32(m.GridSize.Y),
+	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()).ToRL()
+	r.Camera.Offset = global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}).ToRL()
+
+	r.bgShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
+	r.bgTimeLoc = rl.GetLocationUniform(r.bgShader.ID, "time")
+	r.voidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
+	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
+}
+
+func (r *WorldRenderer) Unload() {
+	if !r.initialized {
+		return
+	}
+
+	rl.UnloadShader(r.bgShader)
+	rl.UnloadShader(r.voidShader)
+	rl.UnloadRenderTexture(r.viewport)
+	r.initialized = false
+}
+
+func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
+	deltaSeconds := float32(delta.Seconds())
+	srcRect, dstRect := r.viewportRects()
+	mouse := global.MousePosition
+	// Convert window coordinates into the fixed-height render viewport.
+	r.MousePosition = v.Vec2{
+		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
+		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
+	}
+
+	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
+	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
+
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+	hex := r.PixelToHex(mousePos)
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
+	}
+
+	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
+		r.PanStart = r.MousePosition
+		r.PanVelocity = v.Vec2{}
+	}
+
+	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
+		mouseDelta := r.MousePosition.Sub(r.PanStart)
+		// Convert the screen-space drag to world-space camera movement.
+		panDelta := mouseDelta.Mul(v.Vec2{
+			X: -1.0 / r.Camera.Zoom,
+			Y: -1.0 / r.Camera.Zoom,
+		})
+
+		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(panDelta).ToRL()
+
+		if deltaSeconds > 0.0 {
+			rawVelocity := panDelta.Mul(v.Vec2{
+				X: 1.0 / deltaSeconds,
+				Y: 1.0 / deltaSeconds,
+			})
+			rawSpeed := rawVelocity.Magnitude()
+
+			if rawSpeed > 0.0 {
+				// Keep momentum feeling similar at every zoom level.
+				midSpeed := panMomentumMidSpeed / r.Camera.Zoom
+				// Pull very slow and fast drags toward the midpoint speed.
+				compressedSpeed := midSpeed * float32(math.Pow(
+					float64(rawSpeed/midSpeed),
+					panSpeedCompressionExponent,
+				))
+				dragVelocity := rawVelocity.Mul(v.Vec2{
+					X: compressedSpeed / rawSpeed,
+					Y: compressedSpeed / rawSpeed,
+				})
+				previousVelocityWeight := 1.0 - panVelocitySampleWeight
+				r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
+					X: previousVelocityWeight,
+					Y: previousVelocityWeight,
+				}).Add(dragVelocity.Mul(v.Vec2{
+					X: panVelocitySampleWeight,
+					Y: panVelocitySampleWeight,
+				}))
+			}
+		}
+
+		r.PanStart = r.MousePosition
+	} else {
+		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
+			X: deltaSeconds,
+			Y: deltaSeconds,
+		})).ToRL()
+
+		// Exponential damping keeps momentum frame-rate independent.
+		panDecay := float32(math.Exp(float64(-panMomentumDamping * deltaSeconds)))
+		r.PanVelocity = r.PanVelocity.Mul(v.Vec2{X: panDecay, Y: panDecay})
+	}
+
+	moveDir := v.Vec2{}
+	if rl.IsKeyDown(rl.KeyW) {
+		moveDir.Y -= 1.0
+	}
+	if rl.IsKeyDown(rl.KeyA) {
+		moveDir.X -= 1.0
+	}
+	if rl.IsKeyDown(rl.KeyS) {
+		moveDir.Y += 1.0
+	}
+	if rl.IsKeyDown(rl.KeyD) {
+		moveDir.X += 1.0
+	}
+
+	if moveDir.X != 0.0 || moveDir.Y != 0.0 {
+		zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
+		moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
+		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
+			X: moveDistance,
+			Y: moveDistance,
+		})).ToRL()
+	}
+
+	wheel := rl.GetMouseWheelMove()
+	if wheel != 0.0 {
+		// Lock the world point beneath the cursor while zooming.
+		r.ZoomAnchor = r.MousePosition
+		r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
+	}
+
+	r.TargetZoom = max(cameraMinZoom, min(r.TargetZoom, cameraMaxZoom))
+	zoomBlend := 1.0 - float32(math.Exp(float64(-cameraZoomSmoothness*deltaSeconds)))
+	nextZoom := r.Camera.Zoom + (r.TargetZoom-r.Camera.Zoom)*zoomBlend
+
+	if nextZoom != r.Camera.Zoom {
+		// Offset the camera by the cursor's world-space shift after zooming.
+		zoomBefore := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
+		r.Camera.Zoom = nextZoom
+		zoomAfter := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
+		r.Camera.Target = v.Vec2FromRL(r.Camera.Target).Add(zoomBefore.Sub(zoomAfter)).ToRL()
+	}
+
+	r.clampCameraToMap(m)
+}
+
+func (r *WorldRenderer) Draw(m *game.Map) {
+	screenW := float32(rl.GetRenderWidth())
+	screenH := float32(rl.GetRenderHeight())
+	viewH := float32(r.viewport.Texture.Height)
+	ratio := screenH / viewH
+	viewW := float32(int32(screenW/ratio) + 1)
+
+	if r.viewport.Texture.Width != int32(viewW) {
+		rl.UnloadRenderTexture(r.viewport)
+		r.viewport = rl.LoadRenderTexture(int32(viewW), int32(viewH))
+	}
+	r.Camera.Offset = rl.Vector2{
+		X: float32(r.viewport.Texture.Width) / 2.0,
+		Y: float32(r.viewport.Texture.Height) / 2.0,
+	}
+
+	srcRect, dstRect := r.viewportRects()
+	rl.BeginTextureMode(r.viewport)
+	r.drawBackground()
+
+	mousePos := v.Vec2FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+	rl.BeginMode2D(r.Camera)
+	visible := r.drawMapTiles(m, mousePos)
+	r.drawTileDetails(m, visible)
+	rl.EndMode2D()
+
+	rl.EndTextureMode()
+	rl.DrawTexturePro(r.viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)
+}
+
+func (r *WorldRenderer) PixelToHex(position v.Vec2) game.Hex {
+	q := (2.0 * position.X) / (3.0 * r.HexSize.X)
+	axialR := (-position.X)/(3.0*r.HexSize.X) + position.Y/(sqrt3*r.HexSize.Y)
+	return game.Axial{X: q, Y: axialR}.ToHex()
+}
+
+func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
+	screenW := float32(rl.GetRenderWidth())
+	screenH := float32(rl.GetRenderHeight())
+	viewH := float32(r.viewport.Texture.Height)
+	ratio := screenH / viewH
+	viewW := float32(int32(screenW/ratio) + 1)
+
+	return rl.Rectangle{X: 0, Y: 0, Width: viewW, Height: -viewH}, rl.Rectangle{
+		X:      (screenW - viewW*ratio) / 2.0,
+		Y:      (screenH - viewH*ratio) / 2.0,
+		Width:  viewW * ratio,
+		Height: viewH * ratio,
+	}
+}
+
+func (r *WorldRenderer) drawBackground() {
+	if rl.IsShaderValid(r.bgShader) {
+		rl.SetShaderValue(r.bgShader, r.bgTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+		rl.BeginShaderMode(r.bgShader)
+		rl.Begin(rl.Triangles)
+
+		width := float32(r.viewport.Texture.Width)
+		height := float32(r.viewport.Texture.Height)
+		rl.Color4ub(255, 255, 0, 255)
+		rl.Normal3f(0.0, 0.0, 1.0)
+
+		rl.TexCoord2f(0.0, 0.0)
+		rl.Vertex2f(0, 0)
+		rl.TexCoord2f(width, height)
+		rl.Vertex2f(width, height)
+		rl.TexCoord2f(width, 0.0)
+		rl.Vertex2f(width, 0)
+		rl.TexCoord2f(0.0, height)
+		rl.Vertex2f(0, height)
+		rl.TexCoord2f(width, height)
+		rl.Vertex2f(width, height)
+		rl.TexCoord2f(0.0, 0.0)
+		rl.Vertex2f(0, 0)
+
+		rl.End()
+		rl.EndShaderMode()
+	}
+
+	if rl.IsShaderValid(r.voidShader) {
+		timeLoc := rl.GetLocationUniform(r.voidShader.ID, "time")
+		rl.SetShaderValue(r.voidShader, timeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+	}
+}
+
+func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile {
+	topLeft := rl.GetScreenToWorld2D(rl.Vector2{}, r.Camera)
+	topLeft = topLeft.Subtract(rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
+	bottomRight := rl.GetScreenToWorld2D(rl.Vector2{
+		X: float32(r.viewport.Texture.Width),
+		Y: float32(r.viewport.Texture.Height),
+	}, r.Camera)
+	bottomRight = bottomRight.Add(rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
+
+	width := r.HexSize.X * 2.0
+	height := r.HexSize.Y * sqrt3
+	hoveredHex := r.PixelToHex(mousePos)
+	visible := make([]visibleTile, 0)
+
+	rl.Begin(rl.Triangles)
+	for x := range m.Grid {
+		for y, cell := range m.Grid[x] {
+			yOffset := height / 2.0 * float32(x%2)
+			worldPos := v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
+			if worldPos.X < topLeft.X || worldPos.X > bottomRight.X || worldPos.Y < topLeft.Y || worldPos.Y > bottomRight.Y {
+				continue
+			}
+
+			hex := game.Hex{X: int32(x), Y: int32(y)}
+			color := tileColor(cell.Tile)
+			if hex == hoveredHex {
+				color = *util.ColorAdd(color, 30)
+			}
+			if x%2 == 1 {
+				color = *util.ColorSub(color, 12)
+			}
+			if y%2 == 1 {
+				color = *util.ColorSub(color, 6)
+			}
+
+			drawHexagonBuffered(worldPos.X, worldPos.Y, r.HexSize, color)
+			visible = append(visible, visibleTile{hex: hex, position: worldPos, tile: cell.Tile})
+		}
+	}
+	rl.End()
+
+	return visible
+}
+
+func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
+	hexWidth := r.HexSize.X * 2.0
+	hexHeight := r.HexSize.Y * sqrt3
+	// Include the full outer hexagons in the map bounds.
+	worldMinX := -r.HexSize.X
+	worldMaxX := float32(m.GridSize.X-1)*hexWidth/4.0*3.0 + r.HexSize.X
+	worldMinY := -hexHeight / 2.0
+	worldMaxY := float32(m.GridSize.Y) * hexHeight
+	// Convert the screen-space padding to world units at the current zoom.
+	worldPadding := cameraBoundsPadding / r.Camera.Zoom
+	worldMinX -= worldPadding
+	worldMaxX += worldPadding
+	worldMinY -= worldPadding
+	worldMaxY += worldPadding
+
+	// Camera.Target sits at Camera.Offset, so clamp using visible half-sizes.
+	viewHalfWidth := float32(r.viewport.Texture.Width) / (2.0 * r.Camera.Zoom)
+	viewHalfHeight := float32(r.viewport.Texture.Height) / (2.0 * r.Camera.Zoom)
+	minTargetX := worldMinX + viewHalfWidth
+	maxTargetX := worldMaxX - viewHalfWidth
+	minTargetY := worldMinY + viewHalfHeight
+	maxTargetY := worldMaxY - viewHalfHeight
+	target := v.Vec2FromRL(r.Camera.Target)
+	previousTarget := target
+
+	// Center axes where the viewport is larger than the map.
+	if minTargetX > maxTargetX {
+		target.X = (worldMinX + worldMaxX) / 2.0
+	} else {
+		target.X = max(minTargetX, min(target.X, maxTargetX))
+	}
+	if minTargetY > maxTargetY {
+		target.Y = (worldMinY + worldMaxY) / 2.0
+	} else {
+		target.Y = max(minTargetY, min(target.Y, maxTargetY))
+	}
+
+	r.Camera.Target = target.ToRL()
+	if stopMomentumAtBounds {
+		if target.X != previousTarget.X {
+			r.PanVelocity.X = 0.0
+		}
+		if target.Y != previousTarget.Y {
+			r.PanVelocity.Y = 0.0
+		}
+	}
+}
