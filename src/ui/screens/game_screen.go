@@ -146,6 +146,7 @@ func EnterGame(state game.Game) {
 	gameOverMessage = ""
 	gameActionError = ""
 	applyGameState(state)
+	gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 	if GetActiveScreen() == gameScreen {
 		return
 	}
@@ -262,12 +263,14 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	screen := ui.Screen().
 		WithEnter(func() {
 			HideEscScreen()
+			gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 
 			audio.StartMusic()
 			audio.StartAmbience()
 		}).
 		WithExit(func() {
 			HideEscScreen()
+			gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 			audio.StopMusic()
 			audio.StopAmbience()
 		}).
