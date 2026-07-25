@@ -8,6 +8,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
@@ -66,9 +67,6 @@ type WorldRenderer struct {
 	OnPlaceBuilding func(hex game.Hex, building game.BuildingType) bool
 	buildingPreview buildingPreview
 
-	bgShader    rl.Shader
-	bgTimeLoc   int32
-	voidShader  rl.Shader
 	viewport    rl.RenderTexture2D
 	initialized bool
 }
@@ -95,9 +93,6 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()))
 	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
 
-	r.bgShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
-	r.bgTimeLoc = rl.GetShaderLocation(r.bgShader, "time")
-	r.voidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
 	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
 
@@ -105,9 +100,6 @@ func (r *WorldRenderer) Unload() {
 	if !r.initialized {
 		return
 	}
-
-	rl.UnloadShader(r.bgShader)
-	rl.UnloadShader(r.voidShader)
 	rl.UnloadRenderTexture(r.viewport)
 	r.initialized = false
 }
@@ -305,9 +297,9 @@ func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
 }
 
 func (r *WorldRenderer) drawBackground() {
-	if rl.IsShaderValid(r.bgShader) {
-		rl.SetShaderValue(r.bgShader, r.bgTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
-		rl.BeginShaderMode(r.bgShader)
+	if rl.IsShaderValid(shaders.WorldBackground) {
+		rl.SetShaderValue(shaders.WorldBackground, shaders.WorldBackgroundTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+		rl.BeginShaderMode(shaders.WorldBackground)
 		rl.Begin(rl.Triangles)
 
 		width := float32(r.viewport.Texture.Width)
@@ -332,9 +324,8 @@ func (r *WorldRenderer) drawBackground() {
 		rl.EndShaderMode()
 	}
 
-	if rl.IsShaderValid(r.voidShader) {
-		timeLoc := rl.GetShaderLocation(r.voidShader, "time")
-		rl.SetShaderValue(r.voidShader, timeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+	if rl.IsShaderValid(shaders.Void) {
+		rl.SetShaderValue(shaders.Void, shaders.VoidTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
 	}
 }
 

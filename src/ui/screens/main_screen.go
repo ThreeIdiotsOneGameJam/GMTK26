@@ -3,6 +3,7 @@ package screens
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 
@@ -13,6 +14,7 @@ import (
 func NewMainScreen() *ui.ScreenElement {
 	var screen *ui.ScreenElement
 	screen = ui.Screen().
+		AddChild(ui.Shader().WithShader(&shaders.MenuBackground)).
 		AddChild(
 			ui.Text().
 				WithText("Game").

@@ -5,6 +5,7 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -65,7 +66,7 @@ func (r *WorldRenderer) drawTileDetails(m *game.Map, visible []visibleTile) {
 }
 
 func (r *WorldRenderer) drawEdges(m *game.Map, visible []visibleTile, tileType game.TileType, edgeColor color.RGBA) {
-	if !rl.IsShaderValid(r.voidShader) {
+	if !rl.IsShaderValid(shaders.Void) {
 		return
 	}
 
@@ -80,7 +81,7 @@ func (r *WorldRenderer) drawEdges(m *game.Map, visible []visibleTile, tileType g
 		return
 	}
 
-	rl.BeginShaderMode(r.voidShader)
+	rl.BeginShaderMode(shaders.Void)
 	rl.Begin(rl.Triangles)
 	for _, tile := range visible {
 		if tile.tile == tileType {
