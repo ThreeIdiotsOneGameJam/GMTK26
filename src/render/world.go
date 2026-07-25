@@ -9,6 +9,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
 	v "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
@@ -91,7 +92,7 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
 
 	r.bgShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/bg.frag")
-	r.bgTimeLoc = rl.GetLocationUniform(r.bgShader.ID, "time")
+	r.bgTimeLoc = rl.GetShaderLocation(r.bgShader, "time")
 	r.voidShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
 	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
@@ -299,40 +300,40 @@ func (r *WorldRenderer) drawBackground() {
 
 		width := float32(r.viewport.Texture.Width)
 		height := float32(r.viewport.Texture.Height)
-		rl.Color4ub(255, 255, 0, 255)
+		rlutil.Color4ub(255, 255, 0, 255)
 		rl.Normal3f(0.0, 0.0, 1.0)
 
 		rl.TexCoord2f(0.0, 0.0)
-		rl.Vertex2f(0, 0)
+		rlutil.Vertex2f(0, 0)
 		rl.TexCoord2f(width, height)
-		rl.Vertex2f(width, height)
+		rlutil.Vertex2f(width, height)
 		rl.TexCoord2f(width, 0.0)
-		rl.Vertex2f(width, 0)
+		rlutil.Vertex2f(width, 0)
 		rl.TexCoord2f(0.0, height)
-		rl.Vertex2f(0, height)
+		rlutil.Vertex2f(0, height)
 		rl.TexCoord2f(width, height)
-		rl.Vertex2f(width, height)
+		rlutil.Vertex2f(width, height)
 		rl.TexCoord2f(0.0, 0.0)
-		rl.Vertex2f(0, 0)
+		rlutil.Vertex2f(0, 0)
 
 		rl.End()
 		rl.EndShaderMode()
 	}
 
 	if rl.IsShaderValid(r.voidShader) {
-		timeLoc := rl.GetLocationUniform(r.voidShader.ID, "time")
+		timeLoc := rl.GetShaderLocation(r.voidShader, "time")
 		rl.SetShaderValue(r.voidShader, timeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
 	}
 }
 
 func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile {
 	topLeft := rl.GetScreenToWorld2D(rl.Vector2{}, r.Camera)
-	topLeft = topLeft.Subtract(rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
+	topLeft = rl.Vector2Subtract(topLeft, rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
 	bottomRight := rl.GetScreenToWorld2D(rl.Vector2{
 		X: float32(r.viewport.Texture.Width),
 		Y: float32(r.viewport.Texture.Height),
 	}, r.Camera)
-	bottomRight = bottomRight.Add(rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
+	bottomRight = rl.Vector2Add(bottomRight, rl.Vector2{X: r.HexSize.X * 2.0, Y: r.HexSize.Y * 2.0})
 
 	width := r.HexSize.X * 2.0
 	height := r.HexSize.Y * sqrt3

@@ -19,7 +19,7 @@ require (
 )
 
 replace (
-	github.com/BrownNPC/Raylib-Go-Wasm/wasm-runtime => ./Raylib-Go-Wasm/wasm-runtime
+	github.com/ThreeIdiotsOneGameJam/Raylib-Go-Wasm/wasm-runtime => ./Raylib-Go-Wasm/wasm-runtime
 	github.com/gen2brain/raylib-go/raygui => ./Raylib-Go-Wasm/raygui
 )
 

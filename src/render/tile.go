@@ -6,6 +6,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -112,26 +113,26 @@ func (r *WorldRenderer) drawEdge(m *game.Map, tile game.Hex, position vec.Vec2, 
 		if (border1 || border2) && !edge {
 			mid := v1.Lerp(v2, 0.5)
 			setEdgeNormal(border1)
-			rl.Vertex2f(v1.X, v1.Y)
+			rlutil.Vertex2f(v1.X, v1.Y)
 			setEdgeNormal(false)
-			rl.Vertex2f(mid.X, mid.Y)
-			rl.Vertex2f(center.X, center.Y)
-			rl.Vertex2f(mid.X, mid.Y)
+			rlutil.Vertex2f(mid.X, mid.Y)
+			rlutil.Vertex2f(center.X, center.Y)
+			rlutil.Vertex2f(mid.X, mid.Y)
 			setEdgeNormal(border2)
-			rl.Vertex2f(v2.X, v2.Y)
+			rlutil.Vertex2f(v2.X, v2.Y)
 			setEdgeNormal(false)
-			rl.Vertex2f(center.X, center.Y)
+			rlutil.Vertex2f(center.X, center.Y)
 			return
 		}
 
 		setEdgeNormal(edge)
-		rl.Vertex2f(v1.X, v1.Y)
-		rl.Vertex2f(v2.X, v2.Y)
+		rlutil.Vertex2f(v1.X, v1.Y)
+		rlutil.Vertex2f(v2.X, v2.Y)
 		setEdgeNormal(false)
-		rl.Vertex2f(center.X, center.Y)
+		rlutil.Vertex2f(center.X, center.Y)
 	}
 
-	rl.Color4ub(edgeColor.R, edgeColor.G, edgeColor.B, edgeColor.A)
+	rlutil.Color4ub(edgeColor.R, edgeColor.G, edgeColor.B, edgeColor.A)
 	rl.TexCoord2f(position.X, position.Y)
 	drawSection(a, b, isEdge(neighbors.N), isEdge(neighbors.SW), isEdge(neighbors.NW))
 	drawSection(b, c, isEdge(neighbors.NW), isEdge(neighbors.S), isEdge(neighbors.SW))
@@ -164,23 +165,23 @@ func drawHexagonBuffered(x, y float32, size vec.Vec2, color color.RGBA) {
 	f := rl.Vector2{X: x - ox + wp*3, Y: y - oy}
 	center := rl.Vector2{X: x, Y: y}
 
-	rl.Color4ub(color.R, color.G, color.B, color.A)
-	rl.Vertex2f(a.X, a.Y)
-	rl.Vertex2f(b.X, b.Y)
-	rl.Vertex2f(center.X, center.Y)
-	rl.Vertex2f(b.X, b.Y)
-	rl.Vertex2f(c.X, c.Y)
-	rl.Vertex2f(center.X, center.Y)
-	rl.Vertex2f(c.X, c.Y)
-	rl.Vertex2f(d.X, d.Y)
-	rl.Vertex2f(center.X, center.Y)
-	rl.Vertex2f(d.X, d.Y)
-	rl.Vertex2f(e.X, e.Y)
-	rl.Vertex2f(center.X, center.Y)
-	rl.Vertex2f(e.X, e.Y)
-	rl.Vertex2f(f.X, f.Y)
-	rl.Vertex2f(center.X, center.Y)
-	rl.Vertex2f(f.X, f.Y)
-	rl.Vertex2f(a.X, a.Y)
-	rl.Vertex2f(center.X, center.Y)
+	rlutil.Color4ub(color.R, color.G, color.B, color.A)
+	rlutil.Vertex2f(a.X, a.Y)
+	rlutil.Vertex2f(b.X, b.Y)
+	rlutil.Vertex2f(center.X, center.Y)
+	rlutil.Vertex2f(b.X, b.Y)
+	rlutil.Vertex2f(c.X, c.Y)
+	rlutil.Vertex2f(center.X, center.Y)
+	rlutil.Vertex2f(c.X, c.Y)
+	rlutil.Vertex2f(d.X, d.Y)
+	rlutil.Vertex2f(center.X, center.Y)
+	rlutil.Vertex2f(d.X, d.Y)
+	rlutil.Vertex2f(e.X, e.Y)
+	rlutil.Vertex2f(center.X, center.Y)
+	rlutil.Vertex2f(e.X, e.Y)
+	rlutil.Vertex2f(f.X, f.Y)
+	rlutil.Vertex2f(center.X, center.Y)
+	rlutil.Vertex2f(f.X, f.Y)
+	rlutil.Vertex2f(a.X, a.Y)
+	rlutil.Vertex2f(center.X, center.Y)
 }
