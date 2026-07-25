@@ -166,14 +166,19 @@ func (c *Client) handleJoinGamePacket(packet *packets.C2SJoinGamePacket) (packet
 		return nil, fatalPacketErrorf("handle join game packet: client is not ready")
 	}
 
-	state, err := Lobbies.JoinGame(c, packet.GameCode)
+	outcome, err := Lobbies.JoinGame(c, packet.GameCode)
 	if err != nil {
 		return &packets.S2CGameRejectedPacket{
 			Operation: "join",
 			Message:   err.Error(),
 		}, nil
 	}
-	return &packets.S2CGameJoinedPacket{Game: state}, nil
+	if outcome.Waiting {
+		return &packets.S2CMatchmakingWaitingPacket{
+			QueuePosition: outcome.QueuePosition,
+		}, nil
+	}
+	return &packets.S2CGameJoinedPacket{Game: outcome.Game}, nil
 }
 
 func (c *Client) handleStartGamePacket() (packets.S2CPacket, error) {

@@ -3,6 +3,7 @@ package net
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"time"
 
@@ -28,9 +29,10 @@ type Connection struct {
 	send     chan []byte
 	done     chan struct{}
 
-	// pings enables periodic liveness pings. Only the server sends them:
-	// the browser WebSocket API cannot send pings, so the wasm client
-	// relies on the server pinging instead.
+	// pings enables periodic liveness pings. The server always enables
+	// them. Native clients do too so a black-holed peer is detected;
+	// js/wasm cannot send WebSocket pings, so those clients rely on the
+	// server (and the browser close event) instead.
 	pings bool
 
 	startOnce sync.Once
@@ -42,9 +44,10 @@ type Connection struct {
 
 func NewConnection(conn *websocket.Conn) *Connection {
 	return &Connection{
-		conn: conn,
-		send: make(chan []byte, sendQueueLength),
-		done: make(chan struct{}),
+		conn:  conn,
+		send:  make(chan []byte, sendQueueLength),
+		done:  make(chan struct{}),
+		pings: runtime.GOOS != "js",
 	}
 }
 

@@ -22,6 +22,7 @@ const (
 )
 
 var playGameCodeInput *ui.InputElement
+var playError string
 var PlayScreen = newPlayScreen()
 
 func ClearGameCodeInput() {
@@ -30,6 +31,10 @@ func ClearGameCodeInput() {
 	}
 	playGameCodeInput.Text = ""
 	playGameCodeInput.Blur()
+}
+
+func SetPlayError(message string) {
+	playError = message
 }
 
 func newPlayScreen() *ui.ScreenElement {
@@ -69,12 +74,25 @@ func newPlayScreen() *ui.ScreenElement {
 
 	sendGameRequest := func(packet packets.C2SPacket) {
 		if err := gameNet.Send(packet); err != nil {
+			playError = err.Error()
 			fmt.Printf("failed to send game request: %v\n", err)
 		}
 	}
 
 	joinGame := func(code string) {
+		playError = ""
 		sendGameRequest(&packets.C2SJoinGamePacket{GameCode: code})
+	}
+
+	joinRandom := func() {
+		playError = ""
+		EnterMatchmakingWaiting()
+		if err := gameNet.Send(&packets.C2SJoinGamePacket{GameCode: ""}); err != nil {
+			clearMatchmaking()
+			playError = err.Error()
+			SetActiveScreen(PlayScreenID)
+			fmt.Printf("failed to start matchmaking: %v\n", err)
+		}
 	}
 
 	panelProgress := func() float32 {
@@ -264,14 +282,23 @@ func newPlayScreen() *ui.ScreenElement {
 				WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 					return multiplayerEnabled()
 				}).
-				WithClick(func() {
-					joinGame("")
-				}),
+				WithClick(joinRandom),
 		).
 		AddChild(joinCodeButton).
 		AddChild(codeInput).
 		AddChild(joinButton).
 		AddChild(codeHelp).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string { return playError }).
+				WithTextSize(22).
+				WithTextColor(rl.Maroon).
+				WithAnchors(anchor.Bottom, anchor.Bottom).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -128}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return playError != ""
+				}),
+		).
 		AddChild(
 			ui.Text().
 				WithTextDynamic(connectionWarning).
@@ -280,7 +307,7 @@ func newPlayScreen() *ui.ScreenElement {
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -96}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
-					return !multiplayerEnabled() && joinPanelProgress <= 0
+					return playError == "" && !multiplayerEnabled() && joinPanelProgress <= 0
 				}),
 		).
 		AddChild(
