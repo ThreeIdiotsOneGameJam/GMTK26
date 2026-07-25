@@ -61,4 +61,7 @@ var GameScreen = ui.Screen().
 			),
 	).
 	AddChild(
-		EscScreen)
+		EscScreen).
+	AddChild(
+		ui.Vignette().WithAlpha(120),
+	)
