@@ -15,6 +15,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
@@ -187,6 +188,9 @@ func main() {
 
 	rl.InitWindow(1200, 675, "Game")
 	defer rl.CloseWindow()
+
+	shaders.Load()
+	defer shaders.Unload()
 
 	go net.Connect("localhost:58008")
 	defer net.Close()

@@ -10,6 +10,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
@@ -188,6 +189,10 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithClick(submitGameCreation)
 
 	screen := ui.Screen().
+		AddChild(
+			ui.Shader().
+				WithShader(&shaders.MenuBackground),
+		).
 		AddChild(controller).
 		AddChild(
 			ui.Text().

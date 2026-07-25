@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 )
 
@@ -17,8 +18,6 @@ func Vignette() *VignetteElement {
 	return el
 }
 
-var vignetteShader rl.Shader
-
 type VignetteElement struct {
 	BaseElement[*VignetteElement]
 
@@ -26,21 +25,15 @@ type VignetteElement struct {
 	Radius float32
 }
 
-func (el *VignetteElement) prepare() {
-	if !rl.IsShaderValid(vignetteShader) {
-		vignetteShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/vignette.frag")
-	}
-}
-
 func (el *VignetteElement) draw() {
-	if !rl.IsShaderValid(vignetteShader) {
+	if !rl.IsShaderValid(shaders.Vignette) {
 		return
 	}
 
 	s := el.Parent.Size().Vec2()
 	p := el.Parent.AbsolutePos().Vec2()
 
-	rl.BeginShaderMode(vignetteShader)
+	rl.BeginShaderMode(shaders.Vignette)
 	rl.Begin(rl.Triangles)
 
 	rlutil.Color4ub(el.Color.R, el.Color.G, el.Color.B, el.Color.A)
