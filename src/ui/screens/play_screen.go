@@ -41,11 +41,11 @@ func newPlayScreen() *ui.ScreenElement {
 	var joinCodeButton *ui.ButtonElement
 
 	multiplayerEnabled := func() bool {
-		return !settings.Offline && gameNet.State() == gameNet.ConnectionConnected
+		return !settings.Current.Offline && gameNet.State() == gameNet.ConnectionConnected
 	}
 
 	connectionWarning := func() string {
-		if settings.Offline {
+		if settings.Current.Offline {
 			return "Multiplayer is disabled while offline mode is enabled"
 		}
 		if gameNet.State() == gameNet.ConnectionConnecting {
@@ -290,7 +290,7 @@ func newPlayScreen() *ui.ScreenElement {
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -24}).
 				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
-					return !settings.Offline && gameNet.State() == gameNet.ConnectionDisconnected && joinPanelProgress <= 0
+					return !settings.Current.Offline && gameNet.State() == gameNet.ConnectionDisconnected && joinPanelProgress <= 0
 				}).
 				WithClick(gameNet.RetryConnection),
 		).

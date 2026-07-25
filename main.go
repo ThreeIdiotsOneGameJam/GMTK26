@@ -12,6 +12,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
@@ -120,6 +121,10 @@ func frame() {
 var updateFunc = update
 
 func main() {
+	if err := settings.Load(); err != nil {
+		fmt.Printf("failed to load settings, using defaults: %v\n", err)
+	}
+
 	err := game.LoadOrCreatePlayerData()
 	if err != nil {
 		fmt.Println("failed to load or create player data, using ephemeral values")

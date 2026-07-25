@@ -63,7 +63,7 @@ func newGameCreationScreen() *ui.ScreenElement {
 		return creationMode == gameCreationHost
 	}
 	hostConnected := func() bool {
-		return !settings.Offline && gameNet.State() == gameNet.ConnectionConnected
+		return !settings.Current.Offline && gameNet.State() == gameNet.ConnectionConnected
 	}
 
 	controller := ui.Group().WithUpdate(func(deltaNano int64) {
@@ -301,7 +301,7 @@ func submitGameCreation() {
 		return
 	}
 
-	if settings.Offline || gameNet.State() != gameNet.ConnectionConnected {
+	if settings.Current.Offline || gameNet.State() != gameNet.ConnectionConnected {
 		creationError = "Connect to the multiplayer server before creating a game"
 		return
 	}
@@ -320,7 +320,7 @@ func gameCreationStatus() string {
 	if creationError != "" {
 		return creationError
 	}
-	if creationMode == gameCreationHost && (settings.Offline || gameNet.State() != gameNet.ConnectionConnected) {
+	if creationMode == gameCreationHost && (settings.Current.Offline || gameNet.State() != gameNet.ConnectionConnected) {
 		return "Multiplayer connection required"
 	}
 	return ""

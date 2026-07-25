@@ -215,7 +215,7 @@ func (c *WSClient) dialContext(
 }
 
 func (c *WSClient) waitForRetry(delay time.Duration) bool {
-	if settings.Offline {
+	if settings.Current.Offline {
 		return c.waitUntilOnline()
 	}
 
@@ -227,17 +227,17 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 	for {
 		select {
 		case <-timer.C:
-			if settings.Offline {
+			if settings.Current.Offline {
 				return c.waitUntilOnline()
 			}
 			return true
 		case <-c.retry:
-			if settings.Offline {
+			if settings.Current.Offline {
 				continue
 			}
 			return true
 		case <-offlineTicker.C:
-			if settings.Offline {
+			if settings.Current.Offline {
 				return c.waitUntilOnline()
 			}
 		case <-c.ctx.Done():
@@ -247,7 +247,7 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 }
 
 func (c *WSClient) waitUntilOnline() bool {
-	if !settings.Offline {
+	if !settings.Current.Offline {
 		return true
 	}
 
@@ -255,7 +255,7 @@ func (c *WSClient) waitUntilOnline() bool {
 	ticker := time.NewTicker(offlinePollPeriod)
 	defer ticker.Stop()
 
-	for settings.Offline {
+	for settings.Current.Offline {
 		select {
 		case <-ticker.C:
 		case <-c.retry:
@@ -369,7 +369,7 @@ func (c *WSClient) state() ConnectionState {
 }
 
 func (c *WSClient) retryConnection() {
-	if settings.Offline || c.state() != ConnectionDisconnected {
+	if settings.Current.Offline || c.state() != ConnectionDisconnected {
 		return
 	}
 
