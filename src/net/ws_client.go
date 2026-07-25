@@ -10,7 +10,14 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+)
+
+const (
+	initialReconnectDelay = time.Second
+	maxReconnectDelay     = 30 * time.Second
+	offlinePollPeriod     = 250 * time.Millisecond
 )
 
 //go:generate stringer -type=ConnectionState -trimprefix=Connection
@@ -31,6 +38,7 @@ func newWSClient() *WSClient {
 		ctx:     ctx,
 		cancel:  cancel,
 		runDone: make(chan struct{}),
+		retry:   make(chan struct{}, 1),
 	}
 }
 
@@ -61,6 +69,10 @@ func State() ConnectionState {
 	return ConnectionState(client.stateAtomic.Load())
 }
 
+func RetryConnection() {
+	client.retryConnection()
+}
+
 func Close() {
 	client.close()
 }
@@ -75,6 +87,7 @@ type WSClient struct {
 
 	events   []packets.S2CPacket
 	eventsMu sync.Mutex
+	retry    chan struct{}
 
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -106,12 +119,18 @@ func (c *WSClient) endRun() {
 }
 
 func (c *WSClient) connect(addr string) {
+	retryDelay := initialReconnectDelay
+
 	for {
 		if c.ctx.Err() != nil {
 			c.setState(ConnectionDisconnected)
 			return
 		}
+		if !c.waitUntilOnline() {
+			return
+		}
 
+		c.clearRetryRequest()
 		c.setState(ConnectionConnecting)
 
 		dialer := *websocket.DefaultDialer
@@ -122,31 +141,33 @@ func (c *WSClient) connect(addr string) {
 		c.dialMu.Unlock()
 		if err != nil {
 			c.setState(ConnectionDisconnected)
-			if !c.waitForRetry() {
+			if !c.waitForRetry(retryDelay) {
 				return
 			}
+			retryDelay = nextReconnectDelay(retryDelay)
 			continue
 		}
 
 		connection := NewConnection(conn)
 		connection.Start(c.handlePacket)
-		if err := connection.SendPacket(&packets.C2SConnectPacket{
-			Player: *game.PlayerData,
-		}); err != nil {
-			connection.Close()
-			connection.wait()
-			c.setState(ConnectionDisconnected)
-			if !c.waitForRetry() {
-				return
-			}
-			continue
-		}
-
 		if !c.setConnection(connection) {
 			connection.Close()
 			connection.wait()
 			c.setState(ConnectionDisconnected)
 			return
+		}
+		if err := connection.SendPacket(&packets.C2SConnectPacket{
+			Player: *game.PlayerData,
+		}); err != nil {
+			c.clearConnection(connection)
+			connection.Close()
+			connection.wait()
+			c.setState(ConnectionDisconnected)
+			if !c.waitForRetry(retryDelay) {
+				return
+			}
+			retryDelay = nextReconnectDelay(retryDelay)
+			continue
 		}
 
 		select {
@@ -156,14 +177,17 @@ func (c *WSClient) connect(addr string) {
 		}
 		connection.wait()
 
-		c.connMu.Lock()
-		c.conn = nil
-		c.connMu.Unlock()
+		wasConnected := c.state() == ConnectionConnected
+		c.clearConnection(connection)
 		c.setState(ConnectionDisconnected)
+		if wasConnected {
+			retryDelay = initialReconnectDelay
+		}
 
-		if !c.waitForRetry() {
+		if !c.waitForRetry(retryDelay) {
 			return
 		}
+		retryDelay = nextReconnectDelay(retryDelay)
 	}
 }
 
@@ -190,16 +214,56 @@ func (c *WSClient) dialContext(
 	return conn, nil
 }
 
-func (c *WSClient) waitForRetry() bool {
-	timer := time.NewTimer(5 * time.Second)
-	defer timer.Stop()
-
-	select {
-	case <-timer.C:
-		return true
-	case <-c.ctx.Done():
-		return false
+func (c *WSClient) waitForRetry(delay time.Duration) bool {
+	if global.Offline {
+		return c.waitUntilOnline()
 	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	offlineTicker := time.NewTicker(offlinePollPeriod)
+	defer offlineTicker.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			if global.Offline {
+				return c.waitUntilOnline()
+			}
+			return true
+		case <-c.retry:
+			if global.Offline {
+				continue
+			}
+			return true
+		case <-offlineTicker.C:
+			if global.Offline {
+				return c.waitUntilOnline()
+			}
+		case <-c.ctx.Done():
+			return false
+		}
+	}
+}
+
+func (c *WSClient) waitUntilOnline() bool {
+	if !global.Offline {
+		return true
+	}
+
+	c.setState(ConnectionDisconnected)
+	ticker := time.NewTicker(offlinePollPeriod)
+	defer ticker.Stop()
+
+	for global.Offline {
+		select {
+		case <-ticker.C:
+		case <-c.retry:
+		case <-c.ctx.Done():
+			return false
+		}
+	}
+	return true
 }
 
 func (c *WSClient) setConnection(conn *Connection) bool {
@@ -211,8 +275,15 @@ func (c *WSClient) setConnection(conn *Connection) bool {
 	}
 
 	c.conn = conn
-	c.setState(ConnectionConnected)
 	return true
+}
+
+func (c *WSClient) clearConnection(conn *Connection) {
+	c.connMu.Lock()
+	if c.conn == conn {
+		c.conn = nil
+	}
+	c.connMu.Unlock()
 }
 
 func (c *WSClient) close() {
@@ -267,6 +338,9 @@ func (c *WSClient) handlePacket(packet packets.Packet) error {
 	if !ok {
 		return fmt.Errorf("received client packet %T from server", packet)
 	}
+	if _, accepted := serverPacket.(*packets.S2CConnectAcceptedPacket); accepted {
+		c.setState(ConnectionConnected)
+	}
 
 	c.eventsMu.Lock()
 	c.events = append(c.events, serverPacket)
@@ -288,4 +362,30 @@ func (c *WSClient) drainEvents(onPacket func(packets.S2CPacket)) {
 
 func (c *WSClient) setState(s ConnectionState) {
 	c.stateAtomic.Store(int32(s))
+}
+
+func (c *WSClient) state() ConnectionState {
+	return ConnectionState(c.stateAtomic.Load())
+}
+
+func (c *WSClient) retryConnection() {
+	if global.Offline || c.state() != ConnectionDisconnected {
+		return
+	}
+
+	select {
+	case c.retry <- struct{}{}:
+	default:
+	}
+}
+
+func (c *WSClient) clearRetryRequest() {
+	select {
+	case <-c.retry:
+	default:
+	}
+}
+
+func nextReconnectDelay(delay time.Duration) time.Duration {
+	return min(delay*2, maxReconnectDelay)
 }

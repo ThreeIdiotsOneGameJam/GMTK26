@@ -11,11 +11,12 @@ func _() {
 	_ = x[StateDefault-0]
 	_ = x[StateHover-1]
 	_ = x[StateClick-2]
+	_ = x[StateDisabled-3]
 }
 
-const _UIState_name = "DefaultHoverClick"
+const _UIState_name = "DefaultHoverClickDisabled"
 
-var _UIState_index = [...]uint8{0, 7, 12, 17}
+var _UIState_index = [...]uint8{0, 7, 12, 17, 25}
 
 func (i UIState) String() string {
 	idx := int(i) - 0

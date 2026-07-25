@@ -1,10 +1,14 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
+	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
@@ -27,6 +31,20 @@ func newPlayScreen() *ui.ScreenElement {
 	var codeInput *ui.InputElement
 	var joinCodeButton *ui.ButtonElement
 
+	multiplayerEnabled := func() bool {
+		return !global.Offline && gameNet.State() == gameNet.ConnectionConnected
+	}
+
+	connectionWarning := func() string {
+		if global.Offline {
+			return "Multiplayer is disabled while offline mode is enabled"
+		}
+		if gameNet.State() == gameNet.ConnectionConnecting {
+			return "Connecting to the multiplayer server..."
+		}
+		return "Multiplayer server unavailable. Retrying automatically..."
+	}
+
 	resetJoinPanel := func() {
 		joinPanelOpen = false
 		joinPanelProgress = 0
@@ -40,8 +58,14 @@ func newPlayScreen() *ui.ScreenElement {
 		}
 	}
 
-	enterGame := func() {
-		SetActiveScreen(GameScreenID)
+	sendGameRequest := func(packet packets.C2SPacket) {
+		if err := gameNet.Send(packet); err != nil {
+			fmt.Printf("failed to send game request: %v\n", err)
+		}
+	}
+
+	joinGame := func(code string) {
+		sendGameRequest(&packets.C2SJoinGamePacket{GameCode: code})
 	}
 
 	panelProgress := func() float32 {
@@ -61,6 +85,12 @@ func newPlayScreen() *ui.ScreenElement {
 	}
 
 	controller := ui.Group().WithUpdate(func(deltaNano int64) {
+		if !multiplayerEnabled() && joinPanelOpen {
+			joinPanelOpen = false
+			focusCodeInput = false
+			codeInput.Blur()
+		}
+
 		target := float32(0)
 		if joinPanelOpen {
 			target = 1
@@ -110,14 +140,14 @@ func newPlayScreen() *ui.ScreenElement {
 			return joinPanelProgress > 0
 		}).
 		WithEnabledDynamic(func(el *ui.InputElement) bool {
-			return joinPanelOpen && joinPanelProgress >= 0.98
+			return multiplayerEnabled() && joinPanelOpen && joinPanelProgress >= 0.98
 		}).
 		WithOpacityDynamic(func(el *ui.InputElement) float32 {
 			return panelProgress()
 		}).
 		WithSubmit(func(text string) {
 			if codeIsValid() {
-				enterGame()
+				joinGame(text)
 			}
 		})
 
@@ -135,7 +165,7 @@ func newPlayScreen() *ui.ScreenElement {
 			return joinPanelProgress > 0
 		}).
 		WithEnabledDynamic(func(el *ui.ButtonElement) bool {
-			return joinPanelOpen && joinPanelProgress >= 0.98 && codeIsValid()
+			return multiplayerEnabled() && joinPanelOpen && joinPanelProgress >= 0.98 && codeIsValid()
 		}).
 		WithOpacityDynamic(func(el *ui.ButtonElement) float32 {
 			opacity := panelProgress()
@@ -144,7 +174,9 @@ func newPlayScreen() *ui.ScreenElement {
 			}
 			return opacity
 		}).
-		WithClick(enterGame)
+		WithClick(func() {
+			joinGame(codeInput.Text)
+		})
 
 	codeHelp := ui.Text().
 		WithTextDynamic(func() string {
@@ -169,6 +201,9 @@ func newPlayScreen() *ui.ScreenElement {
 
 	joinCodeButton = playMenuButton("Join with Game Code").
 		WithRelativePosDynamic(menuButtonPos(116)).
+		WithEnabledDynamic(func(el *ui.ButtonElement) bool {
+			return multiplayerEnabled()
+		}).
 		WithClick(func() {
 			joinPanelOpen = !joinPanelOpen
 			if joinPanelOpen {
@@ -203,22 +238,52 @@ func newPlayScreen() *ui.ScreenElement {
 		AddChild(
 			playMenuButton("Play Solo").
 				WithRelativePosDynamic(menuButtonPos(-100)).
-				WithClick(enterGame),
+				WithClick(OpenSoloGameCreation),
 		).
 		AddChild(
 			playMenuButton("Host a Game").
 				WithRelativePosDynamic(menuButtonPos(-28)).
-				WithClick(enterGame),
+				WithEnabledDynamic(func(el *ui.ButtonElement) bool {
+					return multiplayerEnabled()
+				}).
+				WithClick(OpenHostGameCreation),
 		).
 		AddChild(
 			playMenuButton("Join Random Game").
 				WithRelativePosDynamic(menuButtonPos(44)).
-				WithClick(enterGame),
+				WithEnabledDynamic(func(el *ui.ButtonElement) bool {
+					return multiplayerEnabled()
+				}).
+				WithClick(func() {
+					joinGame("")
+				}),
 		).
 		AddChild(joinCodeButton).
 		AddChild(codeInput).
 		AddChild(joinButton).
 		AddChild(codeHelp).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(connectionWarning).
+				WithTextSize(22).
+				WithTextColor(rl.DarkGray).
+				WithAnchors(anchor.Bottom, anchor.Bottom).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -96}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return !multiplayerEnabled() && joinPanelProgress <= 0
+				}),
+		).
+		AddChild(
+			playMenuButton("Try Reconnect").
+				WithTextSize(26).
+				WithSize(vec.Vec2i{X: 240, Y: 48}).
+				WithAnchors(anchor.Bottom, anchor.Bottom).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -24}).
+				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+					return !global.Offline && gameNet.State() == gameNet.ConnectionDisconnected && joinPanelProgress <= 0
+				}).
+				WithClick(gameNet.RetryConnection),
+		).
 		AddChild(backButton(func() {
 			SetActiveScreen(MainScreenID)
 		})).

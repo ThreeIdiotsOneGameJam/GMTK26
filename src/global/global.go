@@ -6,6 +6,7 @@ import (
 )
 
 var DebugEnabled = false
+var Offline = false
 
 var MouseCursorState = rl.MouseCursorDefault
 var MousePosition vec.Vec2

@@ -42,6 +42,20 @@ func handleServerPacket(packet packets.S2CPacket) {
 	switch p := packet.(type) {
 	case *packets.S2CConnectAcceptedPacket:
 		fmt.Printf("connected as %s (persistent: %t)\n", p.ClientID, p.Persistent)
+		screens.ResetGameSession()
+	case *packets.S2CGameJoinedPacket:
+		fmt.Printf("joined game %d with code %s\n", p.Game.GameID, p.Game.GameCode)
+		screens.EnterGame(p.Game)
+	case *packets.S2CGameUpdatePacket:
+		screens.ApplyGameUpdate(p.Game)
+	case *packets.S2CGameRejectedPacket:
+		fmt.Printf("game %s rejected: %s\n", p.Operation, p.Message)
+		if p.Operation == "create" {
+			screens.RejectGameCreation(p.Message)
+		}
+	case *packets.S2CGameClosedPacket:
+		fmt.Printf("game %d closed: %s\n", p.GameID, p.Reason)
+		screens.CloseGame(p.GameID)
 	default:
 		fmt.Printf("received unhandled packet type %T\n", packet)
 	}

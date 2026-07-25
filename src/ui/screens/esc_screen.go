@@ -14,4 +14,7 @@ var EscScreen = ui.Screen().
 	AddChild(
 		ui.Button().WithText("TestESC").WithAnchors(anchor.Center, anchor.Center).WithClick(func() { println("TEST ESC") })).
 	AddChild(
-		ui.Button().WithText("Main Menu").WithAnchors(anchor.Center, anchor.Center).WithRelativePos(vec.Vec2i{Y: 80}).WithClick(func() { SetActiveScreen(MainScreenID) }))
+		ui.Button().WithText("Main Menu").WithAnchors(anchor.Center, anchor.Center).WithRelativePos(vec.Vec2i{Y: 80}).WithClick(func() {
+			LeaveCurrentGame()
+			SetActiveScreen(MainScreenID)
+		}))
