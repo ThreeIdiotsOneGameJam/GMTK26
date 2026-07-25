@@ -36,14 +36,14 @@ func Input() *InputElement {
 		TextSize:        48,
 		Padding:         8,
 		OutlineWidth:    4,
-		ForegroundColors: util.ColorSet{
+		ForegroundColors: ColorSet{
 			Default: &rl.DarkGray,
 		},
-		PlaceholderColors: util.ColorSet{
+		PlaceholderColors: ColorSet{
 			Default: util.ColorSub(rl.LightGray, 10),
 		},
-		BackgroundColors: util.NewColorSetClick(util.SimpleGrayscaleColor(220), util.SimpleGrayscaleColor(240)),
-		OutlineColors: util.ColorSet{
+		BackgroundColors: NewColorSetClick(util.SimpleGrayscaleColor(220), util.SimpleGrayscaleColor(240)),
+		OutlineColors: ColorSet{
 			Default: util.ColorAdd(rl.Gray, 40),
 		},
 		Callback: func(text string) {},
@@ -104,22 +104,22 @@ func (el *InputElement) WithOutlineWidth(outlineWidth int32) *InputElement {
 	return el
 }
 
-func (el *InputElement) WithForegroundColors(foregroundColors util.ColorSet) *InputElement {
+func (el *InputElement) WithForegroundColors(foregroundColors ColorSet) *InputElement {
 	el.ForegroundColors = foregroundColors
 	return el
 }
 
-func (el *InputElement) WithPlaceholderColors(placeholderColors util.ColorSet) *InputElement {
+func (el *InputElement) WithPlaceholderColors(placeholderColors ColorSet) *InputElement {
 	el.PlaceholderColors = placeholderColors
 	return el
 }
 
-func (el *InputElement) WithBackgroundColors(backgroundColors util.ColorSet) *InputElement {
+func (el *InputElement) WithBackgroundColors(backgroundColors ColorSet) *InputElement {
 	el.BackgroundColors = backgroundColors
 	return el
 }
 
-func (el *InputElement) WithOutlineColors(outlineColors util.ColorSet) *InputElement {
+func (el *InputElement) WithOutlineColors(outlineColors ColorSet) *InputElement {
 	el.OutlineColors = outlineColors
 	return el
 }
@@ -159,10 +159,10 @@ type InputElement struct {
 	InputTransformer      InputTransformer
 	TextSize              int32
 	Padding, OutlineWidth int32
-	ForegroundColors      util.ColorSet
-	PlaceholderColors     util.ColorSet
-	BackgroundColors      util.ColorSet
-	OutlineColors         util.ColorSet
+	ForegroundColors      ColorSet
+	PlaceholderColors     ColorSet
+	BackgroundColors      ColorSet
+	OutlineColors         ColorSet
 	Callback              func(text string)
 	Submit                func(text string)
 
@@ -504,23 +504,23 @@ func (el *InputElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := el.OutlineColors.Color(util.StateDefault)
-	pCol := el.PlaceholderColors.Color(util.StateDefault)
-	bgCol := el.BackgroundColors.Color(util.StateDefault)
-	fgCol := el.ForegroundColors.Color(util.StateDefault)
+	oCol := el.OutlineColors.Color(StateDefault)
+	pCol := el.PlaceholderColors.Color(StateDefault)
+	bgCol := el.BackgroundColors.Color(StateDefault)
+	fgCol := el.ForegroundColors.Color(StateDefault)
 
 	if el.hovered {
-		oCol = el.OutlineColors.Color(util.StateHover)
-		pCol = el.PlaceholderColors.Color(util.StateHover)
-		bgCol = el.BackgroundColors.Color(util.StateHover)
-		fgCol = el.ForegroundColors.Color(util.StateHover)
+		oCol = el.OutlineColors.Color(StateHover)
+		pCol = el.PlaceholderColors.Color(StateHover)
+		bgCol = el.BackgroundColors.Color(StateHover)
+		fgCol = el.ForegroundColors.Color(StateHover)
 	}
 
 	if el.clicked {
-		oCol = el.OutlineColors.Color(util.StateClick)
-		pCol = el.PlaceholderColors.Color(util.StateClick)
-		bgCol = el.BackgroundColors.Color(util.StateClick)
-		fgCol = el.ForegroundColors.Color(util.StateClick)
+		oCol = el.OutlineColors.Color(StateClick)
+		pCol = el.PlaceholderColors.Color(StateClick)
+		bgCol = el.BackgroundColors.Color(StateClick)
+		fgCol = el.ForegroundColors.Color(StateClick)
 	}
 
 	opacity := el.Opacity()

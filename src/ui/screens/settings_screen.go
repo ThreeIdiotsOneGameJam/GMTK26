@@ -38,15 +38,15 @@ var SettingsScreen = ui.Screen().
 			WithTextSize(48).
 			WithPadding(8).
 			WithOutlineWidth(4).
-			WithForegroundColors(util.ColorSet{
+			WithForegroundColors(ui.ColorSet{
 				Default: &rl.DarkGray,
 			}).
-			WithBackgroundColors(util.ColorSet{
+			WithBackgroundColors(ui.ColorSet{
 				Default: &rl.LightGray,
 				Hover:   util.ColorAdd(rl.LightGray, 25),
 				Click:   util.ColorAdd(rl.LightGray, 40),
 			}).
-			WithOutlineColors(util.ColorSet{
+			WithOutlineColors(ui.ColorSet{
 				Default: &rl.Gray,
 			}).
 			WithAnchors(anchor.BottomLeft, anchor.BottomLeft).

@@ -15,15 +15,15 @@ func Button() *ButtonElement {
 		TextSize:     48,
 		Padding:      8,
 		OutlineWidth: 4,
-		ForegroundColors: util.ColorSet{
+		ForegroundColors: ColorSet{
 			Default: &rl.DarkGray,
 		},
-		BackgroundColors: util.ColorSet{
+		BackgroundColors: ColorSet{
 			Default: &rl.LightGray,
 			Hover:   util.ColorAdd(rl.LightGray, 25),
 			Click:   util.ColorAdd(rl.LightGray, 40),
 		},
-		OutlineColors: util.ColorSet{
+		OutlineColors: ColorSet{
 			Default: &rl.Gray,
 		},
 	}
@@ -57,17 +57,17 @@ func (el *ButtonElement) WithOutlineWidth(outlineWidth int32) *ButtonElement {
 	return el
 }
 
-func (el *ButtonElement) WithForegroundColors(foregroundColors util.ColorSet) *ButtonElement {
+func (el *ButtonElement) WithForegroundColors(foregroundColors ColorSet) *ButtonElement {
 	el.ForegroundColors = foregroundColors
 	return el
 }
 
-func (el *ButtonElement) WithBackgroundColors(backgroundColors util.ColorSet) *ButtonElement {
+func (el *ButtonElement) WithBackgroundColors(backgroundColors ColorSet) *ButtonElement {
 	el.BackgroundColors = backgroundColors
 	return el
 }
 
-func (el *ButtonElement) WithOutlineColors(outlineColors util.ColorSet) *ButtonElement {
+func (el *ButtonElement) WithOutlineColors(outlineColors ColorSet) *ButtonElement {
 	el.OutlineColors = outlineColors
 	return el
 }
@@ -82,9 +82,9 @@ type ButtonElement struct {
 	Text                  string
 	TextSize              int32
 	Padding, OutlineWidth int32
-	ForegroundColors      util.ColorSet
-	BackgroundColors      util.ColorSet
-	OutlineColors         util.ColorSet
+	ForegroundColors      ColorSet
+	BackgroundColors      ColorSet
+	OutlineColors         ColorSet
 	Click                 func()
 
 	x, y, cx, cy, w, h, textWidth int32
@@ -155,20 +155,20 @@ func (el *ButtonElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := el.OutlineColors.Color(util.StateDefault)
-	bgCol := el.BackgroundColors.Color(util.StateDefault)
-	fgCol := el.ForegroundColors.Color(util.StateDefault)
+	oCol := el.OutlineColors.Color(StateDefault)
+	bgCol := el.BackgroundColors.Color(StateDefault)
+	fgCol := el.ForegroundColors.Color(StateDefault)
 
 	if el.hovered {
-		oCol = el.OutlineColors.Color(util.StateHover)
-		bgCol = el.BackgroundColors.Color(util.StateHover)
-		fgCol = el.ForegroundColors.Color(util.StateHover)
+		oCol = el.OutlineColors.Color(StateHover)
+		bgCol = el.BackgroundColors.Color(StateHover)
+		fgCol = el.ForegroundColors.Color(StateHover)
 	}
 
 	if el.clicked {
-		oCol = el.OutlineColors.Color(util.StateClick)
-		bgCol = el.BackgroundColors.Color(util.StateClick)
-		fgCol = el.ForegroundColors.Color(util.StateClick)
+		oCol = el.OutlineColors.Color(StateClick)
+		bgCol = el.BackgroundColors.Color(StateClick)
+		fgCol = el.ForegroundColors.Color(StateClick)
 	}
 
 	opacity := el.Opacity()
