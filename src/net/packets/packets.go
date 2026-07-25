@@ -5,19 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/jsonutil"
 )
 
 type PacketType int
 
+const protocolVersion uint16 = 1
+
 const (
 	UnknownPacketType PacketType = iota
-	C2SHelloPacketType
-	S2CServerInfoPacketType
+	C2SConnectPacketType
+	S2CConnectAcceptedPacketType
 )
 
 type Packet interface {
 	PacketType() PacketType
-	Handle(c *Connection)
 }
 
 type S2CPacket interface {
@@ -112,8 +115,9 @@ func lookupPacket(packetType PacketType) (packetRegistration, bool) {
 }
 
 type serializedPacket struct {
-	Type PacketType      `json:"type"`
-	Data json.RawMessage `json:"data"`
+	Version uint16          `json:"version"`
+	Type    PacketType      `json:"type"`
+	Data    json.RawMessage `json:"data"`
 }
 
 func Serialize(packet Packet) ([]byte, error) {
@@ -148,8 +152,9 @@ func Serialize(packet Packet) ([]byte, error) {
 	}
 
 	data, err := json.Marshal(serializedPacket{
-		Type: packetType,
-		Data: payload,
+		Version: protocolVersion,
+		Type:    packetType,
+		Data:    payload,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("serialize packet envelope: %w", err)
@@ -160,8 +165,15 @@ func Serialize(packet Packet) ([]byte, error) {
 
 func Deserialize(data []byte) (Packet, error) {
 	var envelope serializedPacket
-	if err := json.Unmarshal(data, &envelope); err != nil {
+	if err := jsonutil.DecodeStrict(data, &envelope); err != nil {
 		return nil, fmt.Errorf("deserialize packet envelope: %w", err)
+	}
+	if envelope.Version != protocolVersion {
+		return nil, fmt.Errorf(
+			"deserialize packet: protocol version %d, want %d",
+			envelope.Version,
+			protocolVersion,
+		)
 	}
 
 	registration, ok := lookupPacket(envelope.Type)
@@ -188,7 +200,7 @@ func Deserialize(data []byte) (Packet, error) {
 		)
 	}
 
-	if err := json.Unmarshal(payload, packet); err != nil {
+	if err := jsonutil.DecodeStrict(payload, packet); err != nil {
 		return nil, fmt.Errorf(
 			"deserialize packet type %d: %w",
 			envelope.Type,

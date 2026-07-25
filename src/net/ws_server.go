@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/server"
 )
@@ -17,33 +16,61 @@ var upgrader = websocket.Upgrader{
 }
 
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	socket, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	connection := &packets.Connection{
-		Player: game.Player{}, // TODO: make ws request need player info (or at least uuid - and then store just that in connection) immediately on connect
-		Conn:   conn,
-	}
-	server.Lobby.AddConnection(connection)
+	connection := NewConnection(socket)
+	client := server.NewClient(connection)
+	registered := false
+	defer func() {
+		if registered {
+			server.Lobby.RemoveConnection(client)
+		}
+	}()
 
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			return
+	connection.Start(func(packet packets.Packet) error {
+		clientPacket, ok := packet.(packets.C2SPacket)
+		if !ok {
+			return fmt.Errorf("received server packet %T from client", packet)
 		}
 
-		packet, err := packets.Deserialize(message)
+		response, err := client.HandlePacket(clientPacket)
 		if err != nil {
-			log.Printf("failed to deserialize packet: %v", err)
-			continue
+			log.Printf("failed to handle client packet: %v", err)
+			if server.IsFatalPacketError(err) {
+				return err
+			}
+			if response != nil {
+				return client.SendPacket(response)
+			}
+			return nil
 		}
 
-		packet.Handle(connection)
-	}
+		newlyRegistered := !registered
+		if newlyRegistered {
+			if err := server.Lobby.AddConnection(client); err != nil {
+				log.Printf("failed to register client: %v", err)
+				return err
+			}
+			registered = true
+		}
+
+		if response != nil {
+			if err := client.SendPacket(response); err != nil {
+				return err
+			}
+			if newlyRegistered {
+				client.MarkReady()
+			}
+		}
+
+		return nil
+	})
+	<-connection.Done()
+	connection.wait()
 }
 
 func StartWebSocketServer(ip string, port uint16) {

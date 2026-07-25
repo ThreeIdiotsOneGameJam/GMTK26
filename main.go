@@ -38,10 +38,10 @@ func tick() {
 	net.DrainEvents(handleServerPacket)
 }
 
-func handleServerPacket(packet packets.Packet) {
+func handleServerPacket(packet packets.S2CPacket) {
 	switch p := packet.(type) {
-	case *packets.S2CServerInfoPacket:
-		fmt.Println("received server info:", p.Hello)
+	case *packets.S2CConnectAcceptedPacket:
+		fmt.Printf("connected as %s (persistent: %t)\n", p.ClientID, p.Persistent)
 	default:
 		fmt.Printf("received unhandled packet type %T\n", packet)
 	}
@@ -78,9 +78,7 @@ func frame() {
 	if global.DebugEnabled {
 		util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
 		util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
-		if state := global.WSState.Load(); state != nil {
-			util.DrawTextSimple("WS: "+state.(string), 10, 30)
-		}
+		util.DrawTextSimple("WS: "+net.State().String(), 10, 30)
 	}
 
 	rl.EndDrawing()
@@ -120,7 +118,7 @@ func main() {
 	rl.InitWindow(1200, 675, "Game")
 	defer rl.CloseWindow()
 
-	go net.Connect("localhost:58008", handleServerPacket)
+	go net.Connect("localhost:58008")
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)

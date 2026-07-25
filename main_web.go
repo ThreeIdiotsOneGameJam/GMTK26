@@ -6,7 +6,6 @@ import (
 	"embed"
 
 	"github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 )
 
 //go:embed assets
@@ -17,8 +16,5 @@ func init() {
 }
 
 func mainLoop() {
-	rl.SetMainLoop(updateFunc)
-	for !global.WindowShouldClose() {
-		updateFunc()
-	}
+	rl.SetMain(updateFunc)
 }

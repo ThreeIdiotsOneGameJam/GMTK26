@@ -1,13 +1,15 @@
 package net
 
 import (
+	"context"
+	"fmt"
+	stdnet "net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
 
@@ -21,19 +23,37 @@ const (
 	ConnectionConnected
 )
 
-var client = &WSClient{
-	stopCh: make(chan struct{}),
+var client = newWSClient()
+
+func newWSClient() *WSClient {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &WSClient{
+		ctx:     ctx,
+		cancel:  cancel,
+		runDone: make(chan struct{}),
+	}
 }
 
-func Connect(addr string, onPacket func(packets.Packet)) {
-	client.connect(addr, onPacket)
+func Connect(addr string) {
+	client.run(addr)
 }
 
-func Send(packet packets.Packet) error {
+func (c *WSClient) run(addr string) {
+	c.connectOnce.Do(func() {
+		if !c.beginRun() {
+			return
+		}
+		defer c.endRun()
+
+		c.connect(addr)
+	})
+}
+
+func Send(packet packets.C2SPacket) error {
 	return client.send(packet)
 }
 
-func DrainEvents(onPacket func(packets.Packet)) {
+func DrainEvents(onPacket func(packets.S2CPacket)) {
 	client.drainEvents(onPacket)
 }
 
@@ -46,126 +66,216 @@ func Close() {
 }
 
 type WSClient struct {
-	conn   *websocket.Conn
+	conn   *Connection
 	connMu sync.Mutex
+	dialMu sync.Mutex
+	dial   stdnet.Conn
 
 	stateAtomic atomic.Int32
 
-	events   []packets.Packet
+	events   []packets.S2CPacket
 	eventsMu sync.Mutex
 
-	sendMu sync.Mutex
+	ctx         context.Context
+	cancel      context.CancelFunc
+	connectOnce sync.Once
+	closeOnce   sync.Once
 
-	stopCh    chan struct{}
-	closeOnce sync.Once
+	lifecycleMu sync.Mutex
+	running     bool
+	runDone     chan struct{}
 }
 
-func (c *WSClient) connect(addr string, onPacket func(packets.Packet)) {
+func (c *WSClient) beginRun() bool {
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+
+	if c.ctx.Err() != nil {
+		return false
+	}
+
+	c.running = true
+	return true
+}
+
+func (c *WSClient) endRun() {
+	c.lifecycleMu.Lock()
+	c.running = false
+	close(c.runDone)
+	c.lifecycleMu.Unlock()
+}
+
+func (c *WSClient) connect(addr string) {
 	for {
-		select {
-		case <-c.stopCh:
+		if c.ctx.Err() != nil {
+			c.setState(ConnectionDisconnected)
 			return
-		default:
 		}
 
 		c.setState(ConnectionConnecting)
 
-		conn, _, err := websocket.DefaultDialer.Dial("ws://"+addr, nil)
+		dialer := *websocket.DefaultDialer
+		dialer.NetDialContext = c.dialContext
+		conn, _, err := dialer.DialContext(c.ctx, "ws://"+addr, nil)
+		c.dialMu.Lock()
+		c.dial = nil
+		c.dialMu.Unlock()
 		if err != nil {
 			c.setState(ConnectionDisconnected)
-			select {
-			case <-time.After(5 * time.Second):
-			case <-c.stopCh:
+			if !c.waitForRetry() {
 				return
 			}
 			continue
 		}
 
-		c.connMu.Lock()
-		c.conn = conn
-		c.connMu.Unlock()
-
-		c.setState(ConnectionConnected)
-
-		c.send(&packets.C2SHelloPacket{
+		connection := NewConnection(conn)
+		connection.Start(c.handlePacket)
+		if err := connection.SendPacket(&packets.C2SConnectPacket{
 			Player: *game.PlayerData,
-		})
-
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				c.closeConn(conn)
-				select {
-				case <-time.After(5 * time.Second):
-				case <-c.stopCh:
-					return
-				}
-				break
+		}); err != nil {
+			connection.Close()
+			connection.wait()
+			c.setState(ConnectionDisconnected)
+			if !c.waitForRetry() {
+				return
 			}
+			continue
+		}
 
-			packet, err := packets.Deserialize(message)
-			if err != nil {
-				continue
-			}
+		if !c.setConnection(connection) {
+			connection.Close()
+			connection.wait()
+			c.setState(ConnectionDisconnected)
+			return
+		}
 
-			c.eventsMu.Lock()
-			c.events = append(c.events, packet)
-			c.eventsMu.Unlock()
+		select {
+		case <-connection.Done():
+		case <-c.ctx.Done():
+			connection.Close()
+		}
+		connection.wait()
+
+		c.connMu.Lock()
+		c.conn = nil
+		c.connMu.Unlock()
+		c.setState(ConnectionDisconnected)
+
+		if !c.waitForRetry() {
+			return
 		}
 	}
 }
 
-func (c *WSClient) closeConn(conn *websocket.Conn) {
-	c.setState(ConnectionDisconnected)
-	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	conn.Close()
+func (c *WSClient) dialContext(
+	ctx context.Context,
+	network string,
+	address string,
+) (stdnet.Conn, error) {
+	var dialer stdnet.Dialer
+	conn, err := dialer.DialContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	c.dialMu.Lock()
+	if c.ctx.Err() != nil {
+		c.dialMu.Unlock()
+		_ = conn.Close()
+		return nil, c.ctx.Err()
+	}
+	c.dial = conn
+	c.dialMu.Unlock()
+
+	return conn, nil
+}
+
+func (c *WSClient) waitForRetry() bool {
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return true
+	case <-c.ctx.Done():
+		return false
+	}
+}
+
+func (c *WSClient) setConnection(conn *Connection) bool {
 	c.connMu.Lock()
-	c.conn = nil
-	c.connMu.Unlock()
+	defer c.connMu.Unlock()
+
+	if c.ctx.Err() != nil {
+		return false
+	}
+
+	c.conn = conn
+	c.setState(ConnectionConnected)
+	return true
 }
 
 func (c *WSClient) close() {
 	c.closeOnce.Do(func() {
-		close(c.stopCh)
+		c.lifecycleMu.Lock()
+		c.cancel()
+		waitForRun := c.running
+		c.lifecycleMu.Unlock()
+
+		c.dialMu.Lock()
+		dial := c.dial
+		c.dial = nil
+		c.dialMu.Unlock()
+		if dial != nil {
+			_ = dial.Close()
+		}
+
+		c.connMu.Lock()
+		conn := c.conn
+		c.conn = nil
+		c.connMu.Unlock()
+
+		if conn != nil {
+			conn.Close()
+		}
+
+		if waitForRun {
+			<-c.runDone
+		}
+
+		c.eventsMu.Lock()
+		c.events = nil
+		c.eventsMu.Unlock()
+		c.setState(ConnectionDisconnected)
 	})
-
-	c.connMu.Lock()
-	conn := c.conn
-	c.connMu.Unlock()
-
-	if conn != nil {
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		conn.Close()
-	}
-
-	c.connMu.Lock()
-	c.conn = nil
-	c.connMu.Unlock()
-
-	c.setState(ConnectionDisconnected)
 }
 
-func (c *WSClient) send(packet packets.Packet) error {
-	data, err := packets.Serialize(packet)
-	if err != nil {
-		return err
-	}
-
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
-
+func (c *WSClient) send(packet packets.C2SPacket) error {
 	c.connMu.Lock()
 	conn := c.conn
 	c.connMu.Unlock()
 
 	if conn == nil {
-		return nil
+		return ErrConnectionClosed
 	}
 
-	return conn.WriteMessage(websocket.TextMessage, data)
+	return conn.SendPacket(packet)
 }
 
-func (c *WSClient) drainEvents(onPacket func(packets.Packet)) {
+func (c *WSClient) handlePacket(packet packets.Packet) error {
+	serverPacket, ok := packet.(packets.S2CPacket)
+	if !ok {
+		return fmt.Errorf("received client packet %T from server", packet)
+	}
+
+	c.eventsMu.Lock()
+	c.events = append(c.events, serverPacket)
+	c.eventsMu.Unlock()
+
+	return nil
+}
+
+func (c *WSClient) drainEvents(onPacket func(packets.S2CPacket)) {
 	c.eventsMu.Lock()
 	events := c.events
 	c.events = nil
@@ -178,5 +288,4 @@ func (c *WSClient) drainEvents(onPacket func(packets.Packet)) {
 
 func (c *WSClient) setState(s ConnectionState) {
 	c.stateAtomic.Store(int32(s))
-	global.WSState.Store(s.String())
 }
