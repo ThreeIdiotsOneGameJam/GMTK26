@@ -30,6 +30,7 @@ var serverGameActive bool
 var serverRound int32
 var serverCoins int32
 var serverPoints int32
+var serverResources game.Resources
 var serverDeadline int64
 var gameOverMessage string
 var gameActionError string
@@ -65,14 +66,14 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	}
 	serverGameActive = true
 	gameOverMessage = ""
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points)
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 }
 
 func ApplyServerGameState(p *packets.S2CGameStatePacket) {
 	if !serverGameActive {
 		return
 	}
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points)
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 }
 
 func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
@@ -87,11 +88,12 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 	}
 }
 
-func applyServerRound(round int32, deadline int64, m game.Map, coins, points int32) {
+func applyServerRound(round int32, deadline int64, m game.Map, coins, points int32, resources game.Resources) {
 	serverRound = round
 	serverDeadline = deadline
 	serverCoins = coins
 	serverPoints = points
+	serverResources = resources
 	currentGame.Round = round
 	currentGame.Map = m
 	gameWorld.Map = m
@@ -221,6 +223,7 @@ func clearCurrentGame() {
 	serverGameActive = false
 	gameOverMessage = ""
 	gameActionError = ""
+	serverResources = nil
 }
 
 func setBuildingClick(building game.BuildingType) func() {
@@ -385,6 +388,68 @@ var GameScreen = ui.Screen().
 						gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
 						gameRegenerateButton.Click()
 					}),
+			),
+	).
+	AddChild(
+		ui.Group().
+			WithAnchors(anchor.TopLeft, anchor.TopLeft).
+			WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+			WithVisibleDynamic(func(el *ui.GroupElement) bool {
+				return serverGameActive
+			}).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Wood: %d", serverResources[game.ResourceWood])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
+			).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Stone: %d", serverResources[game.ResourceStone])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 48}),
+			).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Coal: %d", serverResources[game.ResourceCoal])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 72}),
+			).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Iron: %d", serverResources[game.ResourceIron])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 96}),
+			).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Steel: %d", serverResources[game.ResourceSteel])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 120}),
+			).
+			AddChild(
+				ui.Text().
+					WithTextDynamic(func() string {
+						return fmt.Sprintf("Gold: %d", serverResources[game.ResourceGold])
+					}).
+					WithTextSize(20).
+					WithTextColor(rl.Black).
+					WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
 			),
 	).
 	AddChild(
