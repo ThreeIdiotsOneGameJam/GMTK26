@@ -51,6 +51,8 @@ func buildingColor(building game.BuildingType) color.RGBA {
 	switch building {
 	case game.BuildingUnknown:
 		return color.RGBA{}
+	case game.BuildingTownhall:
+		return color.RGBA{R: 220, G: 200, B: 50, A: 255}
 	case game.BuildingBarracks:
 		return color.RGBA{R: 80, G: 150, B: 20, A: 255}
 	case game.BuildingFarm:

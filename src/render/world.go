@@ -301,6 +301,12 @@ func (r *WorldRenderer) HexToPixel(hex v.Vec2i) v.Vec2 {
 	return v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
 }
 
+func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
+	pixelPos := r.HexToPixel(hex.Vec2i)
+	r.Camera.Target = rl.Vector2{X: pixelPos.X, Y: pixelPos.Y}
+	r.PanVelocity = v.Vec2{}
+}
+
 func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
 	screenW := float32(rl.GetRenderWidth())
 	screenH := float32(rl.GetRenderHeight())

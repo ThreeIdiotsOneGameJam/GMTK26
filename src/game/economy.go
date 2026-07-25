@@ -49,3 +49,10 @@ func TroopCost(t TroopType) int32 {
 		return 0
 	}
 }
+
+func BuildingCoinsProduces(b BuildingType) int32 {
+	if b == BuildingTownhall {
+		return 1
+	}
+	return 0
+}

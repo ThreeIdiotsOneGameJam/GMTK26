@@ -73,6 +73,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	serverGameActive = true
 	gameOverMessage = ""
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
+	focusOnTownhall()
 }
 
 func ApplyServerGameState(p *packets.S2CGameStatePacket) {
@@ -252,6 +253,18 @@ func clearCurrentGame() {
 func setBuildingClick(building game.BuildingType) func() {
 	return func() {
 		gameWorld.Renderer.BuildingToPlace = building
+	}
+}
+
+func focusOnTownhall() {
+	for x := range gameWorld.Map.Grid {
+		for y := range gameWorld.Map.Grid[x] {
+			cell := &gameWorld.Map.Grid[x][y]
+			if cell.Owner == int8(gameNet.LocalGameState.FactionIdx) && cell.Building == game.BuildingTownhall {
+				gameWorld.Renderer.FocusOnHex(game.NewHex(int32(x), int32(y)))
+				return
+			}
+		}
 	}
 }
 
