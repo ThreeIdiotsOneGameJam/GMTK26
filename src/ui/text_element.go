@@ -43,11 +43,19 @@ func (el *TextElement) WithTextColor(textColor color.RGBA) *TextElement {
 	return el
 }
 
+func (el *TextElement) WithTextShadow(shadowColor color.RGBA, offset vec.Vec2i) *TextElement {
+	el.ShadowColor = &shadowColor
+	el.ShadowOffset = offset
+	return el
+}
+
 type TextElement struct {
 	BaseElement[*TextElement]
-	Text      func() string
-	TextSize  int32
-	TextColor color.RGBA
+	Text         func() string
+	TextSize     int32
+	TextColor    color.RGBA
+	ShadowColor  *color.RGBA
+	ShadowOffset vec.Vec2i
 }
 
 func (el *TextElement) update(deltaNano int64) {
@@ -55,5 +63,17 @@ func (el *TextElement) update(deltaNano int64) {
 
 func (el *TextElement) draw() {
 	pos := el.AbsolutePos()
-	rl.DrawText(el.Text(), pos.X, pos.Y, el.TextSize, util.ColorOpacity(el.TextColor, el.Opacity()))
+	text := el.Text()
+	opacity := el.Opacity()
+
+	if el.ShadowColor != nil {
+		rl.DrawText(
+			text,
+			pos.X+el.ShadowOffset.X,
+			pos.Y+el.ShadowOffset.Y,
+			el.TextSize,
+			util.ColorOpacity(*el.ShadowColor, opacity),
+		)
+	}
+	rl.DrawText(text, pos.X, pos.Y, el.TextSize, util.ColorOpacity(el.TextColor, opacity))
 }
