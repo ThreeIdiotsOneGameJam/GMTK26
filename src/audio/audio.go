@@ -2,13 +2,9 @@ package audio
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/storage"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 )
 
-// Volumes set to 0 because I dont want to jumpscare you guys
-var SFXVolume float32 = 0.0
-var MusicVolume float32 = 0.0
-var AmbienceVolume float32 = 0.0
 var AmbienceVolumeMulti float32 = 1.0
 
 var playingMusic = false
@@ -20,21 +16,17 @@ var ambience rl.Music
 func Init() {
 	rl.InitAudioDevice()
 
-	storage.Load("sfx_volume", &SFXVolume)
-	storage.Load("music_volume", &MusicVolume)
-	storage.Load("ambience_volume", &AmbienceVolume)
-
 	song = rl.LoadMusicStream("assets/audio/main_theme.ogg")
 	ambience = rl.LoadMusicStream("assets/audio/ambience.ogg")
 }
 
 func Update() {
 	if playingMusic {
-		rl.SetMusicVolume(song, MusicVolume)
+		rl.SetMusicVolume(song, settings.Current.MusicVolume)
 		rl.UpdateMusicStream(song)
 	}
 	if playingAmbience {
-		rl.SetMusicVolume(ambience, AmbienceVolume*AmbienceVolumeMulti)
+		rl.SetMusicVolume(ambience, settings.Current.AmbienceVolume*AmbienceVolumeMulti)
 		rl.UpdateMusicStream(ambience)
 	}
 }

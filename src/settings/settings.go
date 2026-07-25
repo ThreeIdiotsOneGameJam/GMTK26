@@ -9,7 +9,10 @@ import (
 const storageKey = "settings"
 
 type SettingsStore struct {
-	Offline bool `json:"offline"`
+	Offline        bool    `json:"offline"`
+	SFXVolume      float32 `json:"sfx_volume"`
+	MusicVolume    float32 `json:"music_volume"`
+	AmbienceVolume float32 `json:"ambience_volume"`
 }
 
 var Current = SettingsStore{}
@@ -24,6 +27,18 @@ func Load() error {
 		Current = loaded
 	}
 
+	clamped := Current
+	clamped.SFXVolume = clamp01(Current.SFXVolume)
+	clamped.MusicVolume = clamp01(Current.MusicVolume)
+	clamped.AmbienceVolume = clamp01(Current.AmbienceVolume)
+
+	if clamped != Current {
+		Current = clamped
+		if err := Save(); err != nil {
+			return fmt.Errorf("rewrite clamped settings: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -33,4 +48,8 @@ func Save() error {
 	}
 
 	return nil
+}
+
+func clamp01(v float32) float32 {
+	return min(max(v, 0), 1)
 }
