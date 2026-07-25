@@ -11,9 +11,11 @@ import (
 )
 
 const (
-	writeWait       = 10 * time.Second    // 10s
-	pingPeriod      = 54 * time.Second    // 54s (0.9min)
-	maxMessageSize  = 64 * 1024
+	writeWait      = 10 * time.Second // 10s
+	pingPeriod     = 54 * time.Second // 54s (0.9min)
+	// Maps are ~200KB as JSON (96x96 grid); 64KB rejected start/state
+	// packets and dropped the socket, which bounced clients to the menu.
+	maxMessageSize  = 1 << 20 // 1 MiB
 	sendQueueLength = 64
 )
 
