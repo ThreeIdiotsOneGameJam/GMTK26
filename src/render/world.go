@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -59,6 +58,9 @@ type WorldRenderer struct {
 	PanStart      v.Vec2
 	PanVelocity   v.Vec2
 	MousePosition v.Vec2
+
+	HoveredHex  game.Hex
+	SelectedHex *game.Hex
 
 	BuildingToPlace game.BuildingType
 	// OnPlaceBuilding, when set, may take over a placement click. Returning
@@ -228,9 +230,21 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
+	r.HoveredHex = hex
 	r.updateBuildingPlacement(m, hex)
-	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
-		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
+	if !global.UIBlocksWorldInput && r.BuildingToPlace == game.BuildingUnknown {
+		if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+			cell := m.GetCell(hex)
+			if cell != nil && cell.Building != game.BuildingUnknown {
+				h := hex
+				r.SelectedHex = &h
+			} else {
+				r.SelectedHex = nil
+			}
+		}
+		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
+			r.SelectedHex = nil
+		}
 	}
 }
 
@@ -259,6 +273,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
 	r.drawBuildings(m, visible)
+	r.drawTroops(m, visible)
 	rl.EndMode2D()
 
 	rl.EndTextureMode()

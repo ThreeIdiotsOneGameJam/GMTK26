@@ -253,7 +253,7 @@ func (gi *GameInstance) processAutoActions() {
 			for y := range gi.game.Map.Grid[x] {
 				cell := &gi.game.Map.Grid[x][y]
 				if cell.Owner == int8(i) && cell.Building != game.BuildingUnknown {
-					produced := game.BuildingProduces(cell.Building)
+					produced := game.BuildingProduces(cell.Building, cell.Tile)
 					for resType, amount := range produced {
 						gi.game.Factions[i].Resources[resType] += amount
 					}
@@ -315,7 +315,25 @@ func (gi *GameInstance) processClientActions() {
 			if srcCell.Owner != int8(i) {
 				continue
 			}
+
 			if srcCell.Troop == game.TroopUnknown {
+				if srcCell.Building != game.BuildingBarracks {
+					continue
+				}
+				cost := game.TroopCost(payload.Troop)
+				if faction.Coins < cost {
+					continue
+				}
+				if dstCell.Troop != game.TroopUnknown {
+					continue
+				}
+				faction.Coins -= cost
+				dstCell.Troop = payload.Troop
+				dstCell.Owner = int8(i)
+				continue
+			}
+
+			if dstCell.Troop != game.TroopUnknown {
 				continue
 			}
 

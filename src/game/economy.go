@@ -15,15 +15,37 @@ func BuildingCost(b BuildingType) int32 {
 	}
 }
 
-func BuildingProduces(b BuildingType) map[ResourceType]uint32 {
+func BuildingProduces(b BuildingType, tile TileType) map[ResourceType]uint32 {
 	switch b {
 	case BuildingForester:
 		return map[ResourceType]uint32{ResourceWood: 2}
 	case BuildingMine:
-		return map[ResourceType]uint32{ResourceStone: 2, ResourceCoal: 1}
+		switch tile {
+		case TileIron:
+			return map[ResourceType]uint32{ResourceIron: 2}
+		case TileCoal:
+			return map[ResourceType]uint32{ResourceCoal: 2}
+		case TileGold:
+			return map[ResourceType]uint32{ResourceGold: 1}
+		default:
+			return map[ResourceType]uint32{ResourceStone: 2}
+		}
 	case BuildingFarm:
 		return map[ResourceType]uint32{ResourceWood: 1}
 	default:
 		return nil
+	}
+}
+
+func TroopCost(t TroopType) int32 {
+	switch t {
+	case TroopPeasant:
+		return 10
+	case TroopArcher:
+		return 20
+	case TroopKnight:
+		return 30
+	default:
+		return 0
 	}
 }

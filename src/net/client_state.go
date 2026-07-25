@@ -57,6 +57,12 @@ func (s *localGameState) GetRound() int32 {
 	return s.Round
 }
 
+func (s *localGameState) GetCoins() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Coins
+}
+
 func SendBuildAction(round int32, hex game.Hex, building game.BuildingType) error {
 	return Send(&packets.C2SActionPacket{
 		Round: round,

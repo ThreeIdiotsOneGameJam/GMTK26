@@ -482,6 +482,10 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				),
 		).
 		AddChild(
+			ui.BuildingDetailsPanel().
+				WithWorld(gameWorld),
+		).
+		AddChild(
 			ui.Vignette().WithAlpha(120),
 		).
 		AddChild(
