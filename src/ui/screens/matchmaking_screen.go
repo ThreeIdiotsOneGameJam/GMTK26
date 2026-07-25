@@ -76,7 +76,7 @@ var MatchmakingScreen = ui.Screen().
 			WithTextDynamic(func() string {
 				if matchmakingQueuePos > 0 {
 					return fmt.Sprintf(
-						"Waiting for a public lobby — position %d in queue",
+						"Waiting for a public lobby - position %d in queue",
 						matchmakingQueuePos,
 					)
 				}
