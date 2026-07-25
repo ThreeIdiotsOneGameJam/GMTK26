@@ -258,7 +258,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 func (r *WorldRenderer) PixelToHex(position v.Vec2) game.Hex {
 	q := (2.0 * position.X) / (3.0 * r.HexSize.X)
 	axialR := (-position.X)/(3.0*r.HexSize.X) + position.Y/(sqrt3*r.HexSize.Y)
-	return game.Axial{X: q, Y: axialR}.ToHex()
+	return game.NewAxial(q, axialR).ToHex()
 }
 
 func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
@@ -333,7 +333,7 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 				continue
 			}
 
-			hex := game.Hex{X: int32(x), Y: int32(y)}
+			hex := game.NewHex(int32(x), int32(y))
 			color := tileColor(cell.Tile)
 			if hex == hoveredHex {
 				color = *util.ColorAdd(color, 30)

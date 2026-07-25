@@ -1,24 +1,33 @@
 package game
 
-import "math"
+import (
+	"math"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
+)
 
 type Hex struct {
-	X int32 `json:"x"`
-	Y int32 `json:"y"`
+	vec.Vec2i
+}
+
+func NewHex(x, y int32) Hex {
+	return Hex{Vec2i: vec.Vec2i{X: x, Y: y}}
 }
 
 func (h Hex) Add(other Hex) Hex {
-	return Hex{X: h.X + other.X, Y: h.Y + other.Y}
+	return Hex{Vec2i: h.Vec2i.Add(other.Vec2i)}
 }
 
 type Cube struct {
-	X float32
-	Y float32
-	Z float32
+	vec.Vec3
+}
+
+func NewCube(x, y, z float32) Cube {
+	return Cube{Vec3: vec.Vec3{X: x, Y: y, Z: z}}
 }
 
 func (c Cube) ToAxial() Axial {
-	return Axial{X: c.X, Y: c.Y}
+	return NewAxial(c.X, c.Y)
 }
 
 func (c Cube) Round() Cube {
@@ -38,16 +47,19 @@ func (c Cube) Round() Cube {
 		s = -q - r
 	}
 
-	return Cube{X: q, Y: r, Z: s}
+	return NewCube(q, r, s)
 }
 
 type Axial struct {
-	X float32
-	Y float32
+	vec.Vec2
+}
+
+func NewAxial(x, y float32) Axial {
+	return Axial{Vec2: vec.Vec2{X: x, Y: y}}
 }
 
 func (a Axial) ToCube() Cube {
-	return Cube{X: a.X, Y: a.Y, Z: -a.X - a.Y}
+	return NewCube(a.X, a.Y, -a.X-a.Y)
 }
 
 func (a Axial) Round() Axial {
@@ -59,5 +71,5 @@ func (a Axial) ToHex() Hex {
 	parity := float32(int32(axial.X) & 1)
 	col := axial.X
 	row := axial.Y + (axial.X-parity)/2
-	return Hex{X: int32(col), Y: int32(row)}
+	return NewHex(int32(col), int32(row))
 }

@@ -1,14 +1,11 @@
 package game
 
-type Map struct {
-	Seed     int64    `json:"seed"`
-	Grid     [][]Cell `json:"grid"`
-	GridSize GridSize `json:"grid_size"`
-}
+import "github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 
-type GridSize struct {
-	X int32 `json:"x"`
-	Y int32 `json:"y"`
+type Map struct {
+	Seed     int64     `json:"seed"`
+	Grid     [][]Cell  `json:"grid"`
+	GridSize vec.Vec2i `json:"grid_size"`
 }
 
 type Cell struct {
@@ -27,8 +24,8 @@ type Neighbors struct {
 }
 
 func (m *Map) Generate() {
-	if m.GridSize == (GridSize{}) {
-		m.GridSize = GridSize{X: 96, Y: 96}
+	if m.GridSize == (vec.Vec2i{}) {
+		m.GridSize = vec.Vec2i{X: 96, Y: 96}
 	}
 
 	m.Grid = generateMap(m.GridSize, m.Seed)
@@ -38,22 +35,22 @@ func (m *Map) Generate() {
 func (m *Map) GetNeighbors(pos Hex) Neighbors {
 	if pos.X%2 == 0 {
 		return Neighbors{
-			NW: m.GetCell(pos.Add(Hex{X: -1, Y: -1})),
-			N:  m.GetCell(pos.Add(Hex{X: 0, Y: -1})),
-			NE: m.GetCell(pos.Add(Hex{X: 1, Y: -1})),
-			SW: m.GetCell(pos.Add(Hex{X: -1, Y: 0})),
-			S:  m.GetCell(pos.Add(Hex{X: 0, Y: 1})),
-			SE: m.GetCell(pos.Add(Hex{X: 1, Y: 0})),
+			NW: m.GetCell(pos.Add(NewHex(-1, -1))),
+			N:  m.GetCell(pos.Add(NewHex(0, -1))),
+			NE: m.GetCell(pos.Add(NewHex(1, -1))),
+			SW: m.GetCell(pos.Add(NewHex(-1, 0))),
+			S:  m.GetCell(pos.Add(NewHex(0, 1))),
+			SE: m.GetCell(pos.Add(NewHex(1, 0))),
 		}
 	}
 
 	return Neighbors{
-		NW: m.GetCell(pos.Add(Hex{X: -1, Y: 0})),
-		N:  m.GetCell(pos.Add(Hex{X: 0, Y: -1})),
-		NE: m.GetCell(pos.Add(Hex{X: 1, Y: 0})),
-		SW: m.GetCell(pos.Add(Hex{X: -1, Y: 1})),
-		S:  m.GetCell(pos.Add(Hex{X: 0, Y: 1})),
-		SE: m.GetCell(pos.Add(Hex{X: 1, Y: 1})),
+		NW: m.GetCell(pos.Add(NewHex(-1, 0))),
+		N:  m.GetCell(pos.Add(NewHex(0, -1))),
+		NE: m.GetCell(pos.Add(NewHex(1, 0))),
+		SW: m.GetCell(pos.Add(NewHex(-1, 1))),
+		S:  m.GetCell(pos.Add(NewHex(0, 1))),
+		SE: m.GetCell(pos.Add(NewHex(1, 1))),
 	}
 }
 

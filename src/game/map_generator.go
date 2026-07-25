@@ -5,9 +5,10 @@ import (
 	"math/rand"
 
 	"github.com/aquilax/go-perlin"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-func generateMap(size GridSize, seed int64) [][]Cell {
+func generateMap(size vec.Vec2i, seed int64) [][]Cell {
 	noise := perlin.NewPerlin(2, 3, 2, seed)
 
 	sampleNoise := func(x, y float64) float64 {
@@ -70,7 +71,7 @@ func spreadResources(m *Map, seed int64) {
 	for x := range m.Grid {
 		for y := range m.Grid[x] {
 			if m.Grid[x][y].Tile == TileRock {
-				rock = append(rock, Hex{X: int32(x), Y: int32(y)})
+				rock = append(rock, NewHex(int32(x), int32(y)))
 			}
 		}
 	}
