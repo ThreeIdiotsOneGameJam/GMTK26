@@ -8,6 +8,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -43,11 +44,11 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithVisibleDynamic(func(_ *ui.GroupElement) bool {
 			return !escShowingSettings
 		}).
-		AddChild(menuButton("Resume", menuStartY, HideEscScreen)).
-		AddChild(menuButton("Settings", menuStartY+btnStride, func() {
+		AddChild(uiutil.MenuButton("Resume", menuStartY, HideEscScreen)).
+		AddChild(uiutil.MenuButton("Settings", menuStartY+btnStride, func() {
 			escShowingSettings = true
 		})).
-		AddChild(menuButton("Leave Game", menuStartY+btnStride*2, func() {
+		AddChild(uiutil.MenuButton("Leave Game", menuStartY+btnStride*2, func() {
 			LeaveCurrentGame()
 			HideEscScreen()
 			GoToPreviousScreen(previousScreen)
@@ -99,7 +100,7 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	)
 
 	settingsPanel.AddChild(
-		menuButton("Back", 200, func() {
+		uiutil.MenuButton("Back", 200, func() {
 			escShowingSettings = false
 		}),
 	)
@@ -110,13 +111,4 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		AddChild(escBlur).
 		AddChild(menuPanel).
 		AddChild(settingsPanel)
-}
-
-func menuButton(text string, y int32, click func()) *ui.ButtonElement {
-	return ui.Button().
-		WithText(text).
-		WithSize(vec.Vec2i{X: 340, Y: 62}).
-		WithAnchors(anchor.Center, anchor.Center).
-		WithRelativePos(vec.Vec2i{Y: y}).
-		WithClick(click)
 }

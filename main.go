@@ -28,7 +28,7 @@ func update() {
 
 func tick() {
 	if rl.IsKeyPressed(rl.KeyEscape) {
-		screens.ToggleEscScreen()
+		screens.HandleEscape()
 	}
 
 	if rl.IsKeyPressed(rl.KeyF11) {

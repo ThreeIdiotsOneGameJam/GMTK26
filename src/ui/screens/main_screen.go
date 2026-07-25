@@ -4,7 +4,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -26,59 +26,13 @@ func NewMainScreen() *ui.ScreenElement {
 					}
 				}),
 		).
-		AddChild(
-			ui.Button().
-				WithText("Play").
-				WithTextSize(48).
-				WithPadding(8).
-				WithOutlineWidth(4).
-				WithForegroundColors(ui.ColorSet{
-					Default: &rl.DarkGray,
-				}).
-				WithBackgroundColors(ui.ColorSet{
-					Default: &rl.LightGray,
-					Hover:   util.ColorAdd(rl.LightGray, 25),
-					Click:   util.ColorAdd(rl.LightGray, 40),
-				}).
-				WithOutlineColors(ui.ColorSet{
-					Default: &rl.Gray,
-				}).
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{}).
-				WithClick(func() {
-					SetActiveScreen(NewPlayScreen(screen))
-				}),
-		).
-		AddChild(
-			ui.Button().
-				WithText("Settings").
-				WithTextSize(48).
-				WithPadding(8).
-				WithOutlineWidth(4).
-				WithForegroundColors(ui.ColorSet{
-					Default: &rl.DarkGray,
-				}).
-				WithBackgroundColors(ui.ColorSet{
-					Default: &rl.LightGray,
-					Hover:   util.ColorAdd(rl.LightGray, 25),
-					Click:   util.ColorAdd(rl.LightGray, 40),
-				}).
-				WithOutlineColors(ui.ColorSet{
-					Default: &rl.Gray,
-				}).
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{X: 0, Y: 80}).
-				WithClick(func() {
-					SetActiveScreen(NewSettingsScreen(screen))
-				}),
-		).
-		AddChild(
-			ui.Button().
-				WithText("Exit").
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{Y: 160}).
-				WithClick(global.CloseWindow),
-		).
+		AddChild(uiutil.MenuButton("Play", 0, func() {
+			SetActiveScreen(NewPlayScreen(screen))
+		})).
+		AddChild(uiutil.MenuButton("Settings", 80, func() {
+			SetActiveScreen(NewSettingsScreen(screen))
+		})).
+		AddChild(uiutil.MenuButton("Exit", 160, global.CloseWindow)).
 		AddChild(
 			ui.Vignette(),
 		)

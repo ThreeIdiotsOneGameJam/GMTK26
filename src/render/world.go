@@ -125,6 +125,14 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
+	if global.UIBlocksWorldInput {
+		r.PanVelocity = v.Vec2{}
+		r.clampCameraToMap(m)
+		mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+		r.updateBuildingPlacement(m, r.PixelToHex(mousePos))
+		return
+	}
+
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		r.PanStart = r.MousePosition
 		r.PanVelocity = v.Vec2{}
@@ -229,7 +237,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	r.updateBuildingPlacement(m, hex)
-	if !global.UIBlocksWorldInput && rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
 	}
 }

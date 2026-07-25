@@ -11,7 +11,6 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -70,6 +69,14 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		if joinCodeButton != nil {
 			joinCodeButton.Text = "Join with Game Code"
 		}
+	}
+
+	goBack := func() {
+		if joinPanelOpen || joinPanelProgress > 0 {
+			resetJoinPanel()
+			return
+		}
+		GoToPreviousScreen(previousScreen)
 	}
 
 	sendGameRequest := func(packet packets.C2SPacket) {
@@ -326,12 +333,11 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}).
 				WithClick(gameNet.RetryConnection),
 		).
-		AddChild(backButton(func() {
-			GoToPreviousScreen(previousScreen)
-		})).
+		AddChild(backButton(goBack)).
 		AddChild(
 			ui.Vignette(),
 		).
+		WithBack(goBack).
 		WithExit(resetJoinPanel)
 
 	playScreen = screen
@@ -354,17 +360,6 @@ func backButton(click func()) *ui.ButtonElement {
 		WithTextSize(40).
 		WithPadding(8).
 		WithOutlineWidth(4).
-		WithForegroundColors(ui.ColorSet{
-			Default: &rl.DarkGray,
-		}).
-		WithBackgroundColors(ui.ColorSet{
-			Default: &rl.LightGray,
-			Hover:   util.ColorAdd(rl.LightGray, 25),
-			Click:   util.ColorAdd(rl.LightGray, 40),
-		}).
-		WithOutlineColors(ui.ColorSet{
-			Default: &rl.Gray,
-		}).
 		WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
 		WithRelativePos(vec.Vec2i{X: 20, Y: -20}).
 		WithClick(click)

@@ -36,11 +36,17 @@ func (el *ScreenElement) WithExit(exit func()) *ScreenElement {
 	return el
 }
 
+func (el *ScreenElement) WithBack(back func()) *ScreenElement {
+	el.OnBack = back
+	return el
+}
+
 type ScreenElement struct {
 	BaseElement[*ScreenElement]
 	BackgroundColor color.RGBA
 	OnEnter         func()
 	OnExit          func()
+	OnBack          func()
 }
 
 func (el *ScreenElement) Enter() {

@@ -158,11 +158,33 @@ func smoothstep(value float32) float32 {
 	return value * value * (3 - 2*value)
 }
 
+func HandleEscape() {
+	if activeScreen == gameScreen {
+		if pendingScreen != nil {
+			pendingScreen = nil
+			return
+		}
+		ToggleEscScreen()
+		return
+	}
+	if activeScreen != nil && activeScreen.OnBack != nil {
+		activeScreen.OnBack()
+		return
+	}
+	if pendingScreen != nil {
+		pendingScreen = nil
+	}
+}
+
 func ToggleEscScreen() {
 	if activeScreen != gameScreen || escScreen == nil {
 		return
 	}
 	if escScreen.Visible() {
+		if escShowingSettings {
+			escShowingSettings = false
+			return
+		}
 		HideEscScreen()
 		return
 	}

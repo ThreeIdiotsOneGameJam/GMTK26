@@ -253,6 +253,13 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		screen.AddChild(button)
 	}
 
+	goBack := func() {
+		if creationSubmitting {
+			return
+		}
+		GoToPreviousScreen(previousScreen)
+	}
+
 	return screen.
 		AddChild(creationVisibility).
 		AddChild(creationSubmit).
@@ -268,13 +275,12 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}),
 		).
 		AddChild(
-			backButton(func() {
-				GoToPreviousScreen(previousScreen)
-			}).WithEnabledDynamic(func(el *ui.ButtonElement) bool {
+			backButton(goBack).WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 				return !creationSubmitting
 			}),
 		).
 		AddChild(ui.Vignette()).
+		WithBack(goBack).
 		WithExit(func() {
 			creationSeedInput.Blur()
 		})

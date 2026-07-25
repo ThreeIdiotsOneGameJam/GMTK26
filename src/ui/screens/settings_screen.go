@@ -2,13 +2,13 @@ package screens
 
 import (
 	"fmt"
+	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -25,7 +25,12 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		}
 	}
 
+	goBack := func() {
+		GoToPreviousScreen(previousScreen)
+	}
+
 	screen := ui.Screen().
+		WithBack(goBack).
 		AddChild(
 			ui.Text().
 				WithText("Settings").
@@ -74,25 +79,12 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithTextSize(48).
 				WithPadding(8).
 				WithOutlineWidth(4).
-				WithForegroundColors(ui.ColorSet{
-					Default: &rl.DarkGray,
-				}).
-				WithBackgroundColors(ui.ColorSet{
-					Default: &rl.LightGray,
-					Hover:   util.ColorAdd(rl.LightGray, 25),
-					Click:   util.ColorAdd(rl.LightGray, 40),
-				}).
-				WithOutlineColors(ui.ColorSet{
-					Default: &rl.Gray,
-				}).
 				WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
 				WithRelativePos(vec.Vec2i{
 					X: 20,
 					Y: -20,
 				}).
-				WithClick(func() {
-					GoToPreviousScreen(previousScreen)
-				}),
+				WithClick(goBack),
 		).
 		AddChild(
 			ui.Vignette(),
@@ -108,38 +100,58 @@ func addVolumeRow(
 	set func(float32),
 	commit func(),
 ) {
+	addVolumeRowStyled(screen, label, centerY, sliderWidth, rl.Black, rl.DarkGray, nil, get, set, commit)
+}
+
+func addVolumeRowStyled(
+	screen *ui.ScreenElement,
+	label string,
+	centerY int32,
+	sliderWidth int32,
+	labelColor color.RGBA,
+	valueColor color.RGBA,
+	shadow *color.RGBA,
+	get func() float32,
+	set func(float32),
+	commit func(),
+) {
+	labelText := ui.Text().
+		WithText(label).
+		WithTextSize(36).
+		WithTextColor(labelColor).
+		WithAnchors(anchor.Right, anchor.Center).
+		WithRelativePos(vec.Vec2i{
+			X: -sliderWidth/2 - 24,
+			Y: centerY,
+		})
+	valueText := ui.Text().
+		WithTextDynamic(func() string {
+			return fmt.Sprintf("%d%%", int(get()*100+0.5))
+		}).
+		WithTextSize(32).
+		WithTextColor(valueColor).
+		WithAnchors(anchor.Left, anchor.Center).
+		WithRelativePos(vec.Vec2i{
+			X: sliderWidth/2 + 24,
+			Y: centerY,
+		})
+	if shadow != nil {
+		offset := vec.Vec2i{X: 2, Y: 2}
+		labelText.WithTextShadow(*shadow, offset)
+		valueText.WithTextShadow(*shadow, offset)
+	}
+
 	screen.
-		AddChild(
-			ui.Text().
-				WithText(label).
-				WithTextSize(36).
-				WithTextColor(rl.Black).
-				WithAnchors(anchor.Right, anchor.Center).
-				WithRelativePos(vec.Vec2i{
-					X: -sliderWidth/2 - 24,
-					Y: centerY,
-				}),
-		).
+		AddChild(labelText).
 		AddChild(
 			ui.Slider().
 				WithSize(vec.Vec2i{X: sliderWidth, Y: 36}).
 				WithValueDynamic(get).
+				WithDefaultValue(1).
 				WithCallback(set).
 				WithCommit(func(float32) { commit() }).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{Y: centerY}),
 		).
-		AddChild(
-			ui.Text().
-				WithTextDynamic(func() string {
-					return fmt.Sprintf("%d%%", int(get()*100+0.5))
-				}).
-				WithTextSize(32).
-				WithTextColor(rl.DarkGray).
-				WithAnchors(anchor.Left, anchor.Center).
-				WithRelativePos(vec.Vec2i{
-					X: sliderWidth/2 + 24,
-					Y: centerY,
-				}),
-		)
+		AddChild(valueText)
 }

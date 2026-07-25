@@ -124,7 +124,8 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithRelativePos(vec.Vec2i{X: 0, Y: 120}).
 				WithClick(CancelMatchmaking),
 		).
-		AddChild(ui.Vignette())
+		AddChild(ui.Vignette()).
+		WithBack(CancelMatchmaking)
 
 	matchmakingScreen = screen
 	return screen
