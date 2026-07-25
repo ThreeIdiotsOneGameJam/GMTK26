@@ -144,6 +144,28 @@ func (el *InputElement) WithSubmit(submit func(text string)) *InputElement {
 	return el
 }
 
+func (el *InputElement) WithDefaultText(text string) *InputElement {
+	el.defaultText = text
+	el.hasDefault = true
+	return el
+}
+
+func (el *InputElement) HasDefault() bool {
+	return el.hasDefault
+}
+
+func (el *InputElement) ResetToDefault() {
+	if !el.hasDefault {
+		return
+	}
+
+	el.applyEdit(func() {
+		el.runes = []rune(el.Text)
+		el.replaceRange(0, len(el.runes), el.prepareInput(el.defaultText))
+	})
+	el.Focus()
+}
+
 func (el *InputElement) Focus() {
 	el.clicked = true
 	el.cursorPos = len([]rune(el.Text))
@@ -172,6 +194,9 @@ type InputElement struct {
 	OutlineColors         ColorSet
 	Callback              func(text string)
 	Submit                func(text string)
+
+	defaultText string
+	hasDefault  bool
 
 	x, y, cx, cy, w, h, textWidth int32
 
@@ -405,6 +430,11 @@ func (el *InputElement) update(deltaNano int64) {
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorIBeam
 		global.UIBlocksWorldInput = true
+	}
+
+	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && el.hovered && el.hasDefault {
+		el.ResetToDefault()
+		return
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {

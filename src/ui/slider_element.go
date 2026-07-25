@@ -116,6 +116,28 @@ func (el *SliderElement) WithCommit(commit func(value float32)) *SliderElement {
 	return el
 }
 
+func (el *SliderElement) WithDefaultValue(value float32) *SliderElement {
+	el.defaultValue = value
+	el.hasDefault = true
+	return el
+}
+
+func (el *SliderElement) HasDefault() bool {
+	return el.hasDefault
+}
+
+func (el *SliderElement) ResetToDefault() {
+	if !el.hasDefault {
+		return
+	}
+
+	el.dragging = false
+	el.setValue(el.defaultValue)
+	if el.Commit != nil {
+		el.Commit(el.Value)
+	}
+}
+
 type SliderElement struct {
 	BaseElement[*SliderElement]
 	Value         float32
@@ -131,6 +153,9 @@ type SliderElement struct {
 	OutlineColors ColorSet
 	Callback      func(value float32)
 	Commit        func(value float32)
+
+	defaultValue float32
+	hasDefault   bool
 
 	x, y, w, h int32
 	trackY     int32
@@ -225,6 +250,11 @@ func (el *SliderElement) update(deltaNano int64) {
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorPointingHand
 		global.UIBlocksWorldInput = true
+	}
+
+	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && (inBounds || inThumb) && el.hasDefault {
+		el.ResetToDefault()
+		return
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && (inBounds || inThumb) {

@@ -393,7 +393,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithPadding(8).
 						WithTextSize(24).
 						WithSize(vec.Vec2i{X: 320, Y: 0}).
-						WithPlaceholderText("Seed"),
+						WithPlaceholderText("Seed").
+						WithDefaultText(""),
 				).
 				AddChild(
 					gameRegenerateButton.

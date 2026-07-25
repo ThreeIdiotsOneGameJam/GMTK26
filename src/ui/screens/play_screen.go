@@ -152,6 +152,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithMaxTextLength(gameCodeLength).
 		WithCharset(gameCodeCharset).
 		WithInputTransformer(strings.ToUpper).
+		WithDefaultText("").
 		WithTextSize(34).
 		WithPadding(10).
 		WithSize(vec.Vec2i{X: 280, Y: 58}).

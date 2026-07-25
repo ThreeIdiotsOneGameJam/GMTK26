@@ -103,6 +103,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	creationSeedInput = ui.Input().
 		WithPlaceholderText("Seed or phrase").
 		WithMaxTextLength(48).
+		WithDefaultText("").
 		WithTextSize(30).
 		WithPadding(10).
 		WithSize(vec.Vec2i{X: 360, Y: 54}).

@@ -25,6 +25,11 @@ type Element interface {
 	Opacity() float32
 }
 
+type Resettable interface {
+	HasDefault() bool
+	ResetToDefault()
+}
+
 type ElementBase struct {
 	Parent   Element
 	Children []Element
