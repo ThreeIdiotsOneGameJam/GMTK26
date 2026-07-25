@@ -205,13 +205,15 @@ func (gi *GameInstance) assignStartingCells() {
 	spacing := float64(min(m.GridSize.X, m.GridSize.Y)) / 4.0
 	claimed := make([]game.Hex, 0, len(gi.clients))
 
-	for i, c := range gi.clients {
-		if c == nil {
+	for i := range gi.game.Factions {
+		if i >= len(gi.clients) {
 			continue
 		}
 		hex := pickStartingHex(candidates, claimed, spacing)
 		claimed = append(claimed, hex)
-		m.GetCell(hex).Owner = int8(i)
+		cell := m.GetCell(hex)
+		cell.Owner = int8(i)
+		cell.Building = game.BuildingTownhall
 	}
 }
 
@@ -257,6 +259,7 @@ func (gi *GameInstance) processAutoActions() {
 					for resType, amount := range produced {
 						gi.game.Factions[i].Resources[resType] += amount
 					}
+					gi.game.Factions[i].Coins += game.BuildingCoinsProduces(cell.Building)
 				}
 			}
 		}
@@ -350,7 +353,8 @@ func (gi *GameInstance) checkAlive() int {
 		alive := false
 		for x := range gi.game.Map.Grid {
 			for y := range gi.game.Map.Grid[x] {
-				if gi.game.Map.Grid[x][y].Owner == int8(i) {
+				if gi.game.Map.Grid[x][y].Owner == int8(i) &&
+					gi.game.Map.Grid[x][y].Building == game.BuildingTownhall {
 					alive = true
 					break
 				}

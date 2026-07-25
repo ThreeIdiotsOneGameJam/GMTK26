@@ -92,8 +92,7 @@ func (el *BuildingDetailsPanelElement) draw() {
 
 	hoveredCell := m.GetCell(r.HoveredHex)
 
-	showHover := hoveredCell != nil && hoveredCell.Building != game.BuildingUnknown &&
-		(r.SelectedHex == nil || *r.SelectedHex != r.HoveredHex)
+	showHover := hoveredCell != nil && hoveredCell.Building != game.BuildingUnknown
 
 	if showHover {
 		el.drawHover()
@@ -248,6 +247,8 @@ func (el *BuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildingDe
 
 func buildingLabel(b game.BuildingType) string {
 	switch b {
+	case game.BuildingTownhall:
+		return "Townhall"
 	case game.BuildingForester:
 		return "Forester"
 	case game.BuildingMine:

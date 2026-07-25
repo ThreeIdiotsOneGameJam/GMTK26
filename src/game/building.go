@@ -10,9 +10,14 @@ const (
 	BuildingMine
 	BuildingBarracks
 	BuildingFarm
+	BuildingTownhall
 )
 
 func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
+	if building == BuildingTownhall {
+		return false
+	}
+
 	if !m.HexInsideBounds(hex) {
 		return false
 	}
