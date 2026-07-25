@@ -7,6 +7,7 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net"
@@ -80,6 +81,8 @@ func frame() {
 		fps = float64(time.Second) / float64(deltaTime)
 	}
 
+	audio.Update()
+
 	rl.BeginDrawing()
 
 	rl.ClearBackground(rl.RayWhite)
@@ -136,6 +139,9 @@ func main() {
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)
+
+	audio.Init()
+	defer audio.Terminate()
 
 	mainLoop()
 }
