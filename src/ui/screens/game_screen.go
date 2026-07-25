@@ -251,12 +251,13 @@ func setBuildingClick(building game.BuildingType) func() {
 
 var GameScreen = ui.Screen().
 	WithEnter(func() {
-		EscScreen.WithVisible(false)
+		HideEscScreen()
 
 		audio.StartMusic()
 		audio.StartAmbience()
 	}).
 	WithExit(func() {
+		HideEscScreen()
 		audio.StopMusic()
 		audio.StopAmbience()
 	}).
@@ -470,7 +471,8 @@ var GameScreen = ui.Screen().
 			),
 	).
 	AddChild(
-		EscScreen).
-	AddChild(
 		ui.Vignette().WithAlpha(120),
+	).
+	AddChild(
+		EscScreen,
 	)

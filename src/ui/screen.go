@@ -81,7 +81,16 @@ func (el *ScreenElement) Draw() {
 	}
 }
 
+// draw renders the screen background when this element is nested under another
+// screen (e.g. the pause overlay). Top-level screens use Draw() instead.
+func (el *ScreenElement) draw() {
+	el.Clear()
+}
+
 func (el *ScreenElement) Clear() {
+	if el.BackgroundColor.A == 0 {
+		return
+	}
 	pos, size := el.AbsolutePos(), el.Size()
 	rl.DrawRectangle(pos.X, pos.Y, size.X, size.Y, el.BackgroundColor)
 }
