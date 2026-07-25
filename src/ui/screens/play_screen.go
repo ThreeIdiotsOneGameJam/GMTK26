@@ -6,9 +6,9 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
@@ -32,11 +32,11 @@ func newPlayScreen() *ui.ScreenElement {
 	var joinCodeButton *ui.ButtonElement
 
 	multiplayerEnabled := func() bool {
-		return !global.Offline && gameNet.State() == gameNet.ConnectionConnected
+		return !settings.Offline && gameNet.State() == gameNet.ConnectionConnected
 	}
 
 	connectionWarning := func() string {
-		if global.Offline {
+		if settings.Offline {
 			return "Multiplayer is disabled while offline mode is enabled"
 		}
 		if gameNet.State() == gameNet.ConnectionConnecting {
@@ -280,7 +280,7 @@ func newPlayScreen() *ui.ScreenElement {
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -24}).
 				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
-					return !global.Offline && gameNet.State() == gameNet.ConnectionDisconnected && joinPanelProgress <= 0
+					return !settings.Offline && gameNet.State() == gameNet.ConnectionDisconnected && joinPanelProgress <= 0
 				}).
 				WithClick(gameNet.RetryConnection),
 		).

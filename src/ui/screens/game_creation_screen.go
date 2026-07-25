@@ -8,9 +8,9 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -63,7 +63,7 @@ func newGameCreationScreen() *ui.ScreenElement {
 		return creationMode == gameCreationHost
 	}
 	hostConnected := func() bool {
-		return !global.Offline && gameNet.State() == gameNet.ConnectionConnected
+		return !settings.Offline && gameNet.State() == gameNet.ConnectionConnected
 	}
 
 	controller := ui.Group().WithUpdate(func(deltaNano int64) {
@@ -301,7 +301,7 @@ func submitGameCreation() {
 		return
 	}
 
-	if global.Offline || gameNet.State() != gameNet.ConnectionConnected {
+	if settings.Offline || gameNet.State() != gameNet.ConnectionConnected {
 		creationError = "Connect to the multiplayer server before creating a game"
 		return
 	}
@@ -320,7 +320,7 @@ func gameCreationStatus() string {
 	if creationError != "" {
 		return creationError
 	}
-	if creationMode == gameCreationHost && (global.Offline || gameNet.State() != gameNet.ConnectionConnected) {
+	if creationMode == gameCreationHost && (settings.Offline || gameNet.State() != gameNet.ConnectionConnected) {
 		return "Multiplayer connection required"
 	}
 	return ""

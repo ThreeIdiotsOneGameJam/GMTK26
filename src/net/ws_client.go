@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 )
 
 const (
@@ -215,7 +215,7 @@ func (c *WSClient) dialContext(
 }
 
 func (c *WSClient) waitForRetry(delay time.Duration) bool {
-	if global.Offline {
+	if settings.Offline {
 		return c.waitUntilOnline()
 	}
 
@@ -227,17 +227,17 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 	for {
 		select {
 		case <-timer.C:
-			if global.Offline {
+			if settings.Offline {
 				return c.waitUntilOnline()
 			}
 			return true
 		case <-c.retry:
-			if global.Offline {
+			if settings.Offline {
 				continue
 			}
 			return true
 		case <-offlineTicker.C:
-			if global.Offline {
+			if settings.Offline {
 				return c.waitUntilOnline()
 			}
 		case <-c.ctx.Done():
@@ -247,7 +247,7 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 }
 
 func (c *WSClient) waitUntilOnline() bool {
-	if !global.Offline {
+	if !settings.Offline {
 		return true
 	}
 
@@ -255,7 +255,7 @@ func (c *WSClient) waitUntilOnline() bool {
 	ticker := time.NewTicker(offlinePollPeriod)
 	defer ticker.Stop()
 
-	for global.Offline {
+	for settings.Offline {
 		select {
 		case <-ticker.C:
 		case <-c.retry:
@@ -369,7 +369,7 @@ func (c *WSClient) state() ConnectionState {
 }
 
 func (c *WSClient) retryConnection() {
-	if global.Offline || c.state() != ConnectionDisconnected {
+	if settings.Offline || c.state() != ConnectionDisconnected {
 		return
 	}
 
