@@ -15,15 +15,10 @@ import (
 var gameSeedInput = ui.Input()
 var gameWorld = ui.World()
 var gameRegenerateButton = ui.Button()
-var gameMouseBuilding = ui.Building(gameWorld).
-	WithType(game.BuildingMine).
-	WithPosProvider(func(el *ui.BuildingElement) vec.Vec2 {
-		return el.World.Renderer.MousePosition
-	})
 
 func setBuildingClick(building game.BuildingType) func() {
 	return func() {
-		gameMouseBuilding.Type = building
+		gameWorld.Renderer.BuildingToPlace = building
 	}
 }
 
@@ -82,9 +77,6 @@ var GameScreen = ui.Screen().
 					WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
 					WithClick(setBuildingClick(game.BuildingForester)),
 			),
-	).
-	AddChild(
-		gameMouseBuilding,
 	).
 	AddChild(
 		ui.Group().

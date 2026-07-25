@@ -58,7 +58,8 @@ type WorldRenderer struct {
 	PanVelocity   v.Vec2
 	MousePosition v.Vec2
 
-	ExtraBuildings []ExtraBuilding
+	BuildingToPlace game.BuildingType
+	buildingPreview buildingPreview
 
 	bgShader    rl.Shader
 	bgTimeLoc   int32
@@ -118,12 +119,6 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
-
-	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
-	hex := r.PixelToHex(mousePos)
-	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
-		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
-	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 		r.PanStart = r.MousePosition
@@ -225,6 +220,13 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	}
 
 	r.clampCameraToMap(m)
+
+	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
+	hex := r.PixelToHex(mousePos)
+	r.updateBuildingPlacement(m, hex)
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
+	}
 }
 
 func (r *WorldRenderer) Draw(m *game.Map) {
@@ -251,8 +253,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	rl.BeginMode2D(r.Camera)
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
-	r.drawBuildings(m, visible, r.ExtraBuildings)
-	r.ExtraBuildings = make([]ExtraBuilding, 0)
+	r.drawBuildings(m, visible)
 	rl.EndMode2D()
 
 	rl.EndTextureMode()
