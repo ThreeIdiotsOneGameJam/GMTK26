@@ -498,6 +498,19 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				),
 		).
 		AddChild(
+			ui.Button().
+				WithText("Focus").
+				WithTextSize(18).
+				WithPadding(6).
+				WithOutlineWidth(2).
+				WithAnchors(anchor.BottomRight, anchor.BottomRight).
+				WithRelativePos(vec.Vec2i{X: -20, Y: -20}).
+				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+					return serverGameActive
+				}).
+				WithClick(focusOnTownhall),
+		).
+		AddChild(
 			ui.BuildingDetailsPanel().
 				WithWorld(gameWorld),
 		).

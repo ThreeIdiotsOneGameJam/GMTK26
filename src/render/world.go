@@ -49,6 +49,9 @@ const (
 
 	// Rate at which momentum decays after releasing the mouse.
 	panMomentumDamping = float32(4.0)
+
+	// Smooth camera movement toward focus target.
+	cameraFocusSmoothness float32 = 8.0
 )
 
 type WorldRenderer struct {
@@ -62,6 +65,9 @@ type WorldRenderer struct {
 
 	HoveredHex  game.Hex
 	SelectedHex *game.Hex
+
+	TargetPosition   v.Vec2
+	InterpolateFocus bool
 
 	BuildingToPlace game.BuildingType
 	// OnPlaceBuilding, when set, may take over a placement click. Returning
@@ -101,6 +107,7 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 		Y: float32(m.GridSize.Y),
 	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()))
 	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
+	r.TargetPosition = rlvec.FromRL(r.Camera.Target)
 }
 
 func (r *WorldRenderer) Unload() {
@@ -125,98 +132,95 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
 	if global.UIBlocksWorldInput {
-		r.PanVelocity = v.Vec2{}
 		r.clampCameraToMap(m)
 		mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 		r.updateBuildingPlacement(m, r.PixelToHex(mousePos))
-		return
-	}
-
-	if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
-		r.PanStart = r.MousePosition
-		r.PanVelocity = v.Vec2{}
-	}
-
-	if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-		mouseDelta := r.MousePosition.Sub(r.PanStart)
-		// Convert the screen-space drag to world-space camera movement.
-		panDelta := mouseDelta.Mul(v.Vec2{
-			X: -1.0 / r.Camera.Zoom,
-			Y: -1.0 / r.Camera.Zoom,
-		})
-
-		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
-
-		if deltaSeconds > 0.0 {
-			rawVelocity := panDelta.Mul(v.Vec2{
-				X: 1.0 / deltaSeconds,
-				Y: 1.0 / deltaSeconds,
-			})
-			rawSpeed := rawVelocity.Magnitude()
-
-			if rawSpeed > 0.0 {
-				// Keep momentum feeling similar at every zoom level.
-				midSpeed := panMomentumMidSpeed / r.Camera.Zoom
-				// Pull very slow and fast drags toward the midpoint speed.
-				compressedSpeed := midSpeed * float32(math.Pow(
-					float64(rawSpeed/midSpeed),
-					panSpeedCompressionExponent,
-				))
-				dragVelocity := rawVelocity.Mul(v.Vec2{
-					X: compressedSpeed / rawSpeed,
-					Y: compressedSpeed / rawSpeed,
-				})
-				previousVelocityWeight := 1.0 - panVelocitySampleWeight
-				r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
-					X: previousVelocityWeight,
-					Y: previousVelocityWeight,
-				}).Add(dragVelocity.Mul(v.Vec2{
-					X: panVelocitySampleWeight,
-					Y: panVelocitySampleWeight,
-				}))
-			}
+	} else {
+		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
+			r.PanStart = r.MousePosition
+			r.PanVelocity = v.Vec2{}
+			r.InterpolateFocus = false
 		}
 
-		r.PanStart = r.MousePosition
-	} else {
+		if rl.IsMouseButtonDown(rl.MouseButtonRight) {
+			mouseDelta := r.MousePosition.Sub(r.PanStart)
+			panDelta := mouseDelta.Mul(v.Vec2{
+				X: -1.0 / r.Camera.Zoom,
+				Y: -1.0 / r.Camera.Zoom,
+			})
+
+			r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
+
+			if deltaSeconds > 0.0 {
+				rawVelocity := panDelta.Mul(v.Vec2{
+					X: 1.0 / deltaSeconds,
+					Y: 1.0 / deltaSeconds,
+				})
+				rawSpeed := rawVelocity.Magnitude()
+
+				if rawSpeed > 0.0 {
+					midSpeed := panMomentumMidSpeed / r.Camera.Zoom
+					compressedSpeed := midSpeed * float32(math.Pow(
+						float64(rawSpeed/midSpeed),
+						panSpeedCompressionExponent,
+					))
+					dragVelocity := rawVelocity.Mul(v.Vec2{
+						X: compressedSpeed / rawSpeed,
+						Y: compressedSpeed / rawSpeed,
+					})
+					previousVelocityWeight := 1.0 - panVelocitySampleWeight
+					r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
+						X: previousVelocityWeight,
+						Y: previousVelocityWeight,
+					}).Add(dragVelocity.Mul(v.Vec2{
+						X: panVelocitySampleWeight,
+						Y: panVelocitySampleWeight,
+					}))
+				}
+			}
+
+			r.PanStart = r.MousePosition
+		}
+
+		moveDir := v.Vec2{}
+		if rl.IsKeyDown(rl.KeyW) {
+			moveDir.Y -= 1.0
+		}
+		if rl.IsKeyDown(rl.KeyA) {
+			moveDir.X -= 1.0
+		}
+		if rl.IsKeyDown(rl.KeyS) {
+			moveDir.Y += 1.0
+		}
+		if rl.IsKeyDown(rl.KeyD) {
+			moveDir.X += 1.0
+		}
+
+		if moveDir.X != 0.0 || moveDir.Y != 0.0 {
+			zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
+			moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
+			r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
+				X: moveDistance,
+				Y: moveDistance,
+			})))
+			r.InterpolateFocus = false
+		}
+
+		wheel := rl.GetMouseWheelMove()
+		if wheel != 0.0 {
+			r.ZoomAnchor = r.MousePosition
+			r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
+		}
+	}
+
+	if !rl.IsMouseButtonDown(rl.MouseButtonRight) {
 		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
 			X: deltaSeconds,
 			Y: deltaSeconds,
 		})))
 
-		// Exponential damping keeps momentum frame-rate independent.
 		panDecay := float32(math.Exp(float64(-panMomentumDamping * deltaSeconds)))
 		r.PanVelocity = r.PanVelocity.Mul(v.Vec2{X: panDecay, Y: panDecay})
-	}
-
-	moveDir := v.Vec2{}
-	if rl.IsKeyDown(rl.KeyW) {
-		moveDir.Y -= 1.0
-	}
-	if rl.IsKeyDown(rl.KeyA) {
-		moveDir.X -= 1.0
-	}
-	if rl.IsKeyDown(rl.KeyS) {
-		moveDir.Y += 1.0
-	}
-	if rl.IsKeyDown(rl.KeyD) {
-		moveDir.X += 1.0
-	}
-
-	if moveDir.X != 0.0 || moveDir.Y != 0.0 {
-		zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
-		moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
-		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
-			X: moveDistance,
-			Y: moveDistance,
-		})))
-	}
-
-	wheel := rl.GetMouseWheelMove()
-	if wheel != 0.0 {
-		// Lock the world point beneath the cursor while zooming.
-		r.ZoomAnchor = r.MousePosition
-		r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
 	}
 
 	r.TargetZoom = max(cameraMinZoom, min(r.TargetZoom, cameraMaxZoom))
@@ -229,6 +233,18 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		r.Camera.Zoom = nextZoom
 		zoomAfter := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.ZoomAnchor), r.Camera))
 		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(zoomBefore.Sub(zoomAfter)))
+	}
+
+	if r.InterpolateFocus {
+		currentTarget := rlvec.FromRL(r.Camera.Target)
+		diff := r.TargetPosition.Sub(currentTarget)
+		if diff.MagnitudeSqr() > 0.01 {
+			focusBlend := 1.0 - float32(math.Exp(float64(-cameraFocusSmoothness*deltaSeconds)))
+			r.Camera.Target = rlvec.ToRL(currentTarget.Lerp(r.TargetPosition, focusBlend))
+		} else {
+			r.Camera.Target = rlvec.ToRL(r.TargetPosition)
+			r.InterpolateFocus = false
+		}
 	}
 
 	r.clampCameraToMap(m)
@@ -303,7 +319,8 @@ func (r *WorldRenderer) HexToPixel(hex v.Vec2i) v.Vec2 {
 
 func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
 	pixelPos := r.HexToPixel(hex.Vec2i)
-	r.Camera.Target = rl.Vector2{X: pixelPos.X, Y: pixelPos.Y}
+	r.TargetPosition = pixelPos
+	r.InterpolateFocus = true
 	r.PanVelocity = v.Vec2{}
 }
 
