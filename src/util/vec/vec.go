@@ -8,7 +8,8 @@ import (
 )
 
 type Vec2i struct {
-	X, Y int32
+	X int32 `json:"x"`
+	Y int32 `json:"y"`
 }
 
 // Component-wise integer operations.
@@ -84,7 +85,8 @@ func (v Vec2i) String() string {
 }
 
 type Vec2 struct {
-	X, Y float32
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
 }
 
 // Component-wise floating-point operations.
@@ -225,7 +227,9 @@ func (v Vec2) String() string {
 }
 
 type Vec3i struct {
-	X, Y, Z int32
+	X int32 `json:"x"`
+	Y int32 `json:"y"`
+	Z int32 `json:"z"`
 }
 
 // Component-wise integer operations.
@@ -397,7 +401,9 @@ func (v Vec3i) String() string {
 }
 
 type Vec3 struct {
-	X, Y, Z float32
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+	Z float32 `json:"z"`
 }
 
 // Component-wise floating-point operations.
