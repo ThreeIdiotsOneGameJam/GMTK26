@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/threeidiotsonegamejam/gmtk26/src/storage"
@@ -63,6 +64,11 @@ func (p *Player) UnmarshalJSON(data []byte) error {
 var PlayerData = &Player{}
 
 func LoadOrCreatePlayerData() error {
+	if os.Getenv("NEWUUID") != "" {
+		createPlayerData()
+		return SavePlayerData()
+	}
+
 	var loadedPlayer Player
 	loaded, loadErr := storage.Load("player", &loadedPlayer)
 	if loadErr == nil && loaded {

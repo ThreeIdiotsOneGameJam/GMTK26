@@ -9,7 +9,7 @@ web_replace_on:
 web_replace_off:
 	sed -i 's|^replace github.com/gen2brain/raylib-go/raylib|//replace github.com/gen2brain/raylib-go/raylib|' $(GOMOD)
 
-.PHONY: run_desktop build_desktop build_windows run_web build_web server run_server build_server clean web_replace_on web_replace_off
+.PHONY: run_desktop build_desktop build_windows run_web build_web server run_server build_server run_local clean web_replace_on web_replace_off
 
 ## Windows (cross-compile) ##
 # Requires: mingw-w64 cross-compiler (e.g. x86_64-w64-mingw32-gcc)
@@ -23,6 +23,9 @@ build_desktop: web_replace_off
 
 run_desktop: build_desktop
 	./bin/desktop
+
+run_desktop_anon: build_desktop
+	NEWUUID=1 ./bin/desktop
 
 ## Web (WASM) ##
 build_web: web_replace_on
@@ -45,6 +48,18 @@ build_server:
 
 run_server: build_server
 	./bin/game-server
+
+run_local: build_desktop build_server
+	./bin/game-server &
+	 SERVER_PID=$$!; \
+	sleep 1; \
+	NEWUUID=1 ./bin/desktop & \
+	CLIENT1_PID=$$!; \
+	sleep 0.5; \
+	NEWUUID=1 ./bin/desktop & \
+	CLIENT2_PID=$$!; \
+	trap 'kill $${SERVER_PID} $${CLIENT1_PID} $${CLIENT2_PID} 2>/dev/null' EXIT INT TERM; \
+	wait
 
 clean:
 	rm -rf ./bin $(SERVER_BIN) $(WEB_DIR)/main.wasm $(WEB_DIR)/wasm_exec.js
