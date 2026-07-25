@@ -13,6 +13,7 @@ type ScreenID int
 const (
 	MainScreenID ScreenID = iota
 	PlayScreenID
+	GameCreationScreenID
 	GameScreenID
 	SettingsScreenID
 	EscScreenID
@@ -31,11 +32,12 @@ var transitionColor color.RGBA
 
 func init() {
 	screenMap = map[ScreenID]*ui.ScreenElement{
-		MainScreenID:     MainScreen,
-		PlayScreenID:     PlayScreen,
-		GameScreenID:     GameScreen,
-		SettingsScreenID: SettingsScreen,
-		EscScreenID:      EscScreen,
+		MainScreenID:         MainScreen,
+		PlayScreenID:         PlayScreen,
+		GameCreationScreenID: GameCreationScreen,
+		GameScreenID:         GameScreen,
+		SettingsScreenID:     SettingsScreen,
+		EscScreenID:          EscScreen,
 	}
 	activeScreen = MainScreen
 	activeScreen.Enter()

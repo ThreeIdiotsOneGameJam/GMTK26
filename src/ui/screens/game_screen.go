@@ -1,12 +1,14 @@
 package screens
 
 import (
-	"hash/fnv"
 	"math/rand"
 	"strconv"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
+	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -15,6 +17,70 @@ import (
 var gameSeedInput = ui.Input()
 var gameWorld = ui.World()
 var gameRegenerateButton = ui.Button()
+var currentGame *game.Game
+
+func EnterGame(state game.Game) {
+	applyGameState(state)
+	SetActiveScreen(GameScreenID)
+}
+
+func ApplyGameUpdate(state game.Game) {
+	if currentGame == nil || currentGame.GameID != state.GameID {
+		return
+	}
+	applyGameState(state)
+}
+
+func CloseGame(gameID uint64) {
+	if currentGame == nil || currentGame.GameID != gameID {
+		return
+	}
+	clearCurrentGame()
+	SetActiveScreen(PlayScreenID)
+}
+
+func ResetGameSession() {
+	if currentGame == nil || !currentGame.Multiplayer {
+		return
+	}
+	clearCurrentGame()
+	SetActiveScreen(PlayScreenID)
+}
+
+func LeaveCurrentGame() {
+	if currentGame == nil {
+		return
+	}
+	if currentGame.Multiplayer {
+		if err := gameNet.Send(&packets.C2SLeaveGamePacket{}); err != nil {
+			println("failed to leave game:", err.Error())
+		}
+	}
+	clearCurrentGame()
+}
+
+func applyGameState(state game.Game) {
+	nextMap := state.Map
+	if currentGame != nil &&
+		currentGame.GameID == state.GameID &&
+		gameWorld.Map.Seed == nextMap.Seed &&
+		nextMap.Grid == nil {
+		nextMap = gameWorld.Map
+	}
+	if nextMap.Grid == nil {
+		nextMap.Generate()
+	}
+
+	state.Map = nextMap
+	gameWorld.Map = nextMap
+	gameSeedInput.Text = strconv.FormatInt(nextMap.Seed, 10)
+	currentGame = &state
+}
+
+func clearCurrentGame() {
+	currentGame = nil
+	gameWorld.Map = game.Map{}
+}
 
 func setBuildingClick(building game.BuildingType) func() {
 	return func() {
@@ -23,9 +89,31 @@ func setBuildingClick(building game.BuildingType) func() {
 }
 
 var GameScreen = ui.Screen().
-	WithEnter(func() { EscScreen.WithVisible(false) }).
+	WithEnter(func() {
+		EscScreen.WithVisible(false)
+
+		audio.StartMusic()
+		audio.StartAmbience()
+	}).
+	WithExit(func() {
+		audio.StopMusic()
+		audio.StopAmbience()
+	}).
 	AddChild(
 		gameWorld,
+	).
+	AddChild(
+		ui.Text().
+			WithTextDynamic(func() string {
+				if currentGame == nil || !currentGame.Multiplayer {
+					return ""
+				}
+				return "Game code: " + currentGame.GameCode
+			}).
+			WithTextSize(28).
+			WithTextColor(rl.Black).
+			WithAnchors(anchor.TopRight, anchor.TopRight).
+			WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
 	).
 	AddChild(
 		ui.Group().
@@ -96,14 +184,7 @@ var GameScreen = ui.Screen().
 					WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
 					WithText("Regenerate").
 					WithClick(func() {
-						if gameSeedInput.Text == "0" || gameSeedInput.Text == "" {
-							gameWorld.Map.Seed = 0
-						} else {
-							h := fnv.New64a()
-							h.Write([]byte(gameSeedInput.Text))
-							gameWorld.Map.Seed = int64(h.Sum64())
-						}
-
+						gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Text)
 						gameWorld.Map.Generate()
 					}),
 			).

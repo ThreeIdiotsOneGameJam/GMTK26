@@ -76,7 +76,7 @@ func (gi *GameInstance) Run() {
 				c.LeaveGame()
 			}
 		}
-		GameManager.RemoveGame(gi.ID)
+		GameInstances.RemoveGame(gi.ID)
 	}()
 
 	gi.game.Map.Generate()

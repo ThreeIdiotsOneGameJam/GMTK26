@@ -107,6 +107,13 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 	switch packet := packet.(type) {
 	case *packets.C2SConnectPacket:
 		return c.handleConnectPacket(packet)
+	case *packets.C2SCreateGamePacket:
+		return c.handleCreateGamePacket(packet)
+	case *packets.C2SJoinGamePacket:
+		return c.handleJoinGamePacket(packet)
+	case *packets.C2SLeaveGamePacket:
+		GameLifecycle.LeaveGame(c)
+		return nil, nil
 	case *packets.C2SActionPacket:
 		gi := c.GameInstance()
 		if gi == nil {
@@ -122,6 +129,36 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 			packet,
 		)
 	}
+}
+
+func (c *Client) handleCreateGamePacket(packet *packets.C2SCreateGamePacket) (packets.S2CPacket, error) {
+	if !c.Ready() {
+		return nil, fatalPacketErrorf("handle create game packet: client is not ready")
+	}
+
+	state, err := GameLifecycle.CreateGame(c, packet.Public, packet.MaxPlayers, packet.Seed)
+	if err != nil {
+		return &packets.S2CGameRejectedPacket{
+			Operation: "create",
+			Message:   err.Error(),
+		}, nil
+	}
+	return &packets.S2CGameJoinedPacket{Game: state}, nil
+}
+
+func (c *Client) handleJoinGamePacket(packet *packets.C2SJoinGamePacket) (packets.S2CPacket, error) {
+	if !c.Ready() {
+		return nil, fatalPacketErrorf("handle join game packet: client is not ready")
+	}
+
+	state, err := GameLifecycle.JoinGame(c, packet.GameCode)
+	if err != nil {
+		return &packets.S2CGameRejectedPacket{
+			Operation: "join",
+			Message:   err.Error(),
+		}, nil
+	}
+	return &packets.S2CGameJoinedPacket{Game: state}, nil
 }
 
 func (c *Client) handleConnectPacket(packet *packets.C2SConnectPacket) (packets.S2CPacket, error) {

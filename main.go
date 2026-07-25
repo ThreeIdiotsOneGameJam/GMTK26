@@ -7,10 +7,12 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/screens"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
@@ -42,6 +44,21 @@ func handleServerPacket(packet packets.S2CPacket) {
 	switch p := packet.(type) {
 	case *packets.S2CConnectAcceptedPacket:
 		fmt.Printf("connected as %s (persistent: %t)\n", p.ClientID, p.Persistent)
+		screens.ResetGameSession()
+	case *packets.S2CGameJoinedPacket:
+		fmt.Printf("joined game %d with code %s\n", p.Game.GameID, p.Game.GameCode)
+		screens.ClearGameCodeInput()
+		screens.EnterGame(p.Game)
+	case *packets.S2CGameUpdatePacket:
+		screens.ApplyGameUpdate(p.Game)
+	case *packets.S2CGameRejectedPacket:
+		fmt.Printf("game %s rejected: %s\n", p.Operation, p.Message)
+		if p.Operation == "create" {
+			screens.RejectGameCreation(p.Message)
+		}
+	case *packets.S2CGameClosedPacket:
+		fmt.Printf("game %d closed: %s\n", p.GameID, p.Reason)
+		screens.CloseGame(p.GameID)
 	case *packets.S2CGameStartPacket:
 		net.LocalGameState.ApplyStartPacket(p)
 		fmt.Printf("game started as faction %d, round %d\n", p.FactionIdx, p.Round)
@@ -73,6 +90,8 @@ func frame() {
 	if deltaTime > 0 {
 		fps = float64(time.Second) / float64(deltaTime)
 	}
+
+	audio.Update()
 
 	rl.BeginDrawing()
 
@@ -110,6 +129,10 @@ func frame() {
 var updateFunc = update
 
 func main() {
+	if err := settings.Load(); err != nil {
+		fmt.Printf("failed to load settings, using defaults: %v\n", err)
+	}
+
 	err := game.LoadOrCreatePlayerData()
 	if err != nil {
 		fmt.Println("failed to load or create player data, using ephemeral values")
@@ -130,6 +153,9 @@ func main() {
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)
+
+	audio.Init()
+	defer audio.Terminate()
 
 	mainLoop()
 }

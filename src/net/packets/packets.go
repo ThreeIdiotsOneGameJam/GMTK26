@@ -17,6 +17,13 @@ const (
 	UnknownPacketType PacketType = iota
 	C2SConnectPacketType
 	S2CConnectAcceptedPacketType
+	C2SCreateGamePacketType
+	C2SJoinGamePacketType
+	C2SLeaveGamePacketType
+	S2CGameJoinedPacketType
+	S2CGameUpdatePacketType
+	S2CGameRejectedPacketType
+	S2CGameClosedPacketType
 	C2SActionPacketType
 	S2CGameStartPacketType
 	S2CGameStatePacketType
