@@ -11,12 +11,14 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
 
+//go:generate stringer -type=ConnectionState -trimprefix=Connection
+
 type ConnectionState int32
 
 const (
-	Disconnected ConnectionState = iota
-	Connecting
-	Connected
+	ConnectionDisconnected ConnectionState = iota
+	ConnectionConnecting
+	ConnectionConnected
 )
 
 var client = &WSClient{
@@ -66,11 +68,11 @@ func (c *WSClient) connect(addr string, onPacket func(packets.Packet)) {
 		default:
 		}
 
-		c.setState(Connecting)
+		c.setState(ConnectionConnecting)
 
 		conn, _, err := websocket.DefaultDialer.Dial("ws://"+addr, nil)
 		if err != nil {
-			c.setState(Disconnected)
+			c.setState(ConnectionDisconnected)
 			select {
 			case <-time.After(5 * time.Second):
 			case <-c.stopCh:
@@ -83,7 +85,7 @@ func (c *WSClient) connect(addr string, onPacket func(packets.Packet)) {
 		c.conn = conn
 		c.connMu.Unlock()
 
-		c.setState(Connected)
+		c.setState(ConnectionConnected)
 
 		c.send(&packets.C2SHelloPacket{
 			Player: *game.PlayerData,
@@ -114,7 +116,7 @@ func (c *WSClient) connect(addr string, onPacket func(packets.Packet)) {
 }
 
 func (c *WSClient) closeConn(conn *websocket.Conn) {
-	c.setState(Disconnected)
+	c.setState(ConnectionDisconnected)
 	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	conn.Close()
 	c.connMu.Lock()
@@ -140,7 +142,7 @@ func (c *WSClient) close() {
 	c.conn = nil
 	c.connMu.Unlock()
 
-	c.setState(Disconnected)
+	c.setState(ConnectionDisconnected)
 }
 
 func (c *WSClient) send(packet packets.Packet) error {
@@ -177,17 +179,4 @@ func (c *WSClient) drainEvents(onPacket func(packets.Packet)) {
 func (c *WSClient) setState(s ConnectionState) {
 	c.stateAtomic.Store(int32(s))
 	global.WSState.Store(s.String())
-}
-
-func (s ConnectionState) String() string {
-	switch s {
-	case Disconnected:
-		return "Disconnected"
-	case Connecting:
-		return "Connecting"
-	case Connected:
-		return "Connected"
-	default:
-		return "Unknown"
-	}
 }

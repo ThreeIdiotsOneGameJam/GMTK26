@@ -155,20 +155,20 @@ func (el *ButtonElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := el.OutlineColors.Color(util.DefaultState)
-	bgCol := el.BackgroundColors.Color(util.DefaultState)
-	fgCol := el.ForegroundColors.Color(util.DefaultState)
+	oCol := el.OutlineColors.Color(util.StateDefault)
+	bgCol := el.BackgroundColors.Color(util.StateDefault)
+	fgCol := el.ForegroundColors.Color(util.StateDefault)
 
 	if el.hovered {
-		oCol = el.OutlineColors.Color(util.HoverState)
-		bgCol = el.BackgroundColors.Color(util.HoverState)
-		fgCol = el.ForegroundColors.Color(util.HoverState)
+		oCol = el.OutlineColors.Color(util.StateHover)
+		bgCol = el.BackgroundColors.Color(util.StateHover)
+		fgCol = el.ForegroundColors.Color(util.StateHover)
 	}
 
 	if el.clicked {
-		oCol = el.OutlineColors.Color(util.ClickState)
-		bgCol = el.BackgroundColors.Color(util.ClickState)
-		fgCol = el.ForegroundColors.Color(util.ClickState)
+		oCol = el.OutlineColors.Color(util.StateClick)
+		bgCol = el.BackgroundColors.Color(util.StateClick)
+		fgCol = el.ForegroundColors.Color(util.StateClick)
 	}
 
 	opacity := el.Opacity()

@@ -4,12 +4,14 @@ import (
 	"image/color"
 )
 
-type ColorState int
+//go:generate stringer -type=UIState -trimprefix=State
+
+type UIState int
 
 const (
-	DefaultState ColorState = iota
-	HoverState
-	ClickState
+	StateDefault UIState = iota
+	StateHover
+	StateClick
 )
 
 type ColorSet struct {
@@ -62,19 +64,19 @@ func NewColorSetHoverClick(defaultColor, hoverColor, clickColor *color.RGBA) Col
 	}
 }
 
-func (cs ColorSet) Color(state ColorState) *color.RGBA {
+func (cs ColorSet) Color(state UIState) *color.RGBA {
 	if cs.Default == nil {
 		panic("ColorSet.Default must not be nil")
 	}
 
 	switch state {
-	case ClickState:
+	case StateClick:
 		if cs.Click != nil {
 			return cs.Click
 		}
 		fallthrough
 
-	case HoverState:
+	case StateHover:
 		if cs.Hover != nil {
 			return cs.Hover
 		}
