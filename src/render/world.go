@@ -320,6 +320,7 @@ func (r *WorldRenderer) HexToPixel(hex v.Vec2i) v.Vec2 {
 func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
 	pixelPos := r.HexToPixel(hex.Vec2i)
 	r.TargetPosition = pixelPos
+	r.TargetZoom = cameraDefaultZoom
 	r.InterpolateFocus = true
 	r.PanVelocity = v.Vec2{}
 }
