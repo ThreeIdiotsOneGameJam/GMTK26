@@ -41,3 +41,6 @@ go.work.sum
 
 # I use vim btw
 .ignore
+
+# MacOS bs
+**/.DS_Store

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
@@ -88,7 +89,16 @@ func setBuildingClick(building game.BuildingType) func() {
 }
 
 var GameScreen = ui.Screen().
-	WithEnter(func() { EscScreen.WithVisible(false) }).
+	WithEnter(func() {
+		EscScreen.WithVisible(false)
+
+		audio.StartMusic()
+		audio.StartAmbience()
+	}).
+	WithExit(func() {
+		audio.StopMusic()
+		audio.StopAmbience()
+	}).
 	AddChild(
 		gameWorld,
 	).
