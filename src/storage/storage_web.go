@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"syscall/js"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/jsonutil"
 )
 
 var browserStorage = js.Global().Get("localStorage")
@@ -49,8 +51,8 @@ func Load[T any](key string, destination *T) (found bool, err error) {
 		return false, nil
 	}
 
-	if err := json.Unmarshal([]byte(value.String()), destination); err != nil {
-		return false, fmt.Errorf("decode save data: %w", err)
+	if err := jsonutil.DecodeStrict([]byte(value.String()), destination); err != nil {
+		return false, fmt.Errorf("%w: %v", ErrInvalidData, err)
 	}
 
 	return true, nil
