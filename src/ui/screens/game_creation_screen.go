@@ -6,14 +6,13 @@ import (
 	"math/rand"
 	"strconv"
 
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
-	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -190,10 +189,8 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithClick(submitGameCreation)
 
 	screen := ui.Screen().
-		AddChild(
-			ui.Shader().
-				WithShader(&shaders.MenuBackground),
-		).
+		WithBackgroundColor(uiutil.MenuScreenBackground).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(controller).
 		AddChild(
 			ui.Text().
@@ -204,7 +201,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return "Create Solo Game"
 				}).
 				WithTextSize(76).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 42}),
 		).
@@ -217,7 +214,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return "Choose a world seed before starting"
 				}).
 				WithTextSize(26).
-				WithTextColor(rl.Gray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 122}),
 		).
@@ -225,7 +222,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("World Seed").
 				WithTextSize(25).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -116}),
 		).
@@ -235,7 +232,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("Maximum Players").
 				WithTextSize(25).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -12}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -246,7 +243,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("Play against three AI factions").
 				WithTextSize(26).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 10}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -272,7 +269,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithTextDynamic(gameCreationStatus).
 				WithTextSize(22).
-				WithTextColor(rl.Maroon).
+				WithTextColor(ui.PaletteNegative).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -44}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {

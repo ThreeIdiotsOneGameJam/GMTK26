@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	rl "github.com/gen2brain/raylib-go/raylib"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -222,7 +222,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			return "Enter a 6-character game code"
 		}).
 		WithTextSize(24).
-		WithTextColor(rl.Gray).
+		WithTextColor(uiutil.MenuMutedColor).
 		WithAnchors(anchor.Center, anchor.Center).
 		WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 			progress := panelProgress()
@@ -250,12 +250,14 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		})
 
 	screen = ui.Screen().
+		WithBackgroundColor(uiutil.MenuScreenBackground).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(controller).
 		AddChild(
 			ui.Text().
 				WithText("Play").
 				WithTextSize(88).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 					return vec.Vec2i{X: 0, Y: max(int32(42), el.Parent.Size().Y/8)}
@@ -265,7 +267,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("Choose how to play").
 				WithTextSize(28).
-				WithTextColor(rl.Gray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 					return vec.Vec2i{X: 0, Y: max(int32(136), el.Parent.Size().Y/8+92)}
@@ -304,7 +306,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithTextDynamic(func() string { return playError }).
 				WithTextSize(22).
-				WithTextColor(rl.Maroon).
+				WithTextColor(ui.PaletteNegative).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -104}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -315,7 +317,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithTextDynamic(connectionWarning).
 				WithTextSize(22).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -80}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {

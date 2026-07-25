@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"image/color"
 
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -30,12 +30,14 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	}
 
 	screen := ui.Screen().
+		WithBackgroundColor(uiutil.MenuScreenBackground).
 		WithBack(goBack).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(
 			ui.Text().
 				WithText("Settings").
 				WithTextSize(96).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 					return vec.Vec2i{X: 0, Y: el.Parent.Size().Y / 8}
@@ -69,7 +71,7 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					)
 				}).
 				WithTextSize(24).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 220}),
 		).
@@ -100,7 +102,7 @@ func addVolumeRow(
 	set func(float32),
 	commit func(),
 ) {
-	addVolumeRowStyled(screen, label, centerY, sliderWidth, rl.Black, rl.DarkGray, nil, get, set, commit)
+	addVolumeRowStyled(screen, label, centerY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, nil, get, set, commit)
 }
 
 func addVolumeRowStyled(

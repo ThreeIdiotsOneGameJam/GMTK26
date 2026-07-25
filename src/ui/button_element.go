@@ -16,18 +16,18 @@ func Button() *ButtonElement {
 		Padding:      8,
 		OutlineWidth: 4,
 		ForegroundColors: ColorSet{
-			Default:  &rl.DarkGray,
-			Disabled: util.SimpleGrayscaleColor(145),
+			Default:  ptrColor(PaletteText),
+			Disabled: ptrColor(PaletteTextMuted),
 		},
 		BackgroundColors: ColorSet{
-			Default:  &rl.LightGray,
-			Hover:    util.ColorAdd(rl.LightGray, 25),
-			Click:    util.ColorAdd(rl.LightGray, 40),
-			Disabled: util.SimpleGrayscaleColor(210),
+			Default:  ptrColor(PaletteIndigo),
+			Hover:    ptrColor(PaletteIndigoHover),
+			Click:    ptrColor(PaletteIndigoPress),
+			Disabled: ptrColor(PaletteIndigoDim),
 		},
 		OutlineColors: ColorSet{
-			Default:  &rl.Gray,
-			Disabled: util.SimpleGrayscaleColor(180),
+			Default:  ptrColor(PaletteBorder),
+			Disabled: ptrColor(PaletteSurface),
 		},
 	}
 	el.BaseElement = NewBaseElement(el)

@@ -1,26 +1,24 @@
 package screens
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
-	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
-	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
-
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 func NewMainScreen() *ui.ScreenElement {
 	var screen *ui.ScreenElement
 	screen = ui.Screen().
-		AddChild(ui.Shader().WithShader(&shaders.MenuBackground)).
+		WithBackgroundColor(uiutil.MenuScreenBackground).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(
 			ui.Text().
 				WithText(constants.GameName).
 				WithTextSize(96).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 					return vec.Vec2i{

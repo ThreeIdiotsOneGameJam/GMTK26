@@ -37,21 +37,21 @@ func Input() *InputElement {
 		Padding:         8,
 		OutlineWidth:    4,
 		ForegroundColors: ColorSet{
-			Default:  &rl.DarkGray,
-			Disabled: util.SimpleGrayscaleColor(145),
+			Default:  ptrColor(PaletteText),
+			Disabled: ptrColor(PaletteTextMuted),
 		},
 		PlaceholderColors: ColorSet{
-			Default:  util.ColorSub(rl.LightGray, 10),
-			Disabled: util.SimpleGrayscaleColor(165),
+			Default:  ptrColor(PaletteTextMuted),
+			Disabled: ptrColor(PaletteBorder),
 		},
 		BackgroundColors: ColorSet{
-			Default:  util.SimpleGrayscaleColor(220),
-			Click:    util.SimpleGrayscaleColor(240),
-			Disabled: util.SimpleGrayscaleColor(210),
+			Default:  ptrColor(PaletteSurface),
+			Click:    ptrColor(PaletteSurfaceUp),
+			Disabled: ptrColor(PaletteBase),
 		},
 		OutlineColors: ColorSet{
-			Default:  util.ColorAdd(rl.Gray, 40),
-			Disabled: util.SimpleGrayscaleColor(190),
+			Default:  ptrColor(PaletteBorder),
+			Disabled: ptrColor(PaletteBase),
 		},
 		Callback: func(text string) {},
 	}

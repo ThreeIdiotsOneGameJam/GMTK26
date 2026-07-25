@@ -65,7 +65,7 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("Settings").
 				WithTextSize(64).
-				WithTextColor(rl.RayWhite).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithTextShadow(textShadow, vec.Vec2i{X: 3, Y: 3}).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{Y: -180}),
@@ -83,17 +83,17 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		}
 	}
 
-	addVolumeRowStyled(settingsPanel, "Music", rowStartY, sliderWidth, rl.RayWhite, rl.RayWhite, &textShadow,
+	addVolumeRowStyled(settingsPanel, "Music", rowStartY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.MusicVolume },
 		func(v float32) { settings.Current.MusicVolume = v },
 		saveSettings,
 	)
-	addVolumeRowStyled(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth, rl.RayWhite, rl.RayWhite, &textShadow,
+	addVolumeRowStyled(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.SFXVolume },
 		func(v float32) { settings.Current.SFXVolume = v },
 		saveSettings,
 	)
-	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth, rl.RayWhite, rl.RayWhite, &textShadow,
+	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.AmbienceVolume },
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,

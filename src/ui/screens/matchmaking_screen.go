@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	rl "github.com/gen2brain/raylib-go/raylib"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -59,7 +59,9 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	matchmakingPrevious = previousScreen
 
 	screen := ui.Screen().
+		WithBackgroundColor(uiutil.MenuScreenBackground).
 		WithEnter(HideEscScreen).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(
 			ui.Group().WithUpdate(func(deltaNano int64) {
 				if !matchmakingActive {
@@ -76,7 +78,7 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithText("Finding a Game").
 				WithTextSize(72).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 80}),
 		).
@@ -92,7 +94,7 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return "Searching for a public lobby..."
 				}).
 				WithTextSize(28).
-				WithTextColor(rl.DarkGray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -24}),
 		).
@@ -109,7 +111,7 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					}
 				}).
 				WithTextSize(26).
-				WithTextColor(rl.Gray).
+				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
 		).
