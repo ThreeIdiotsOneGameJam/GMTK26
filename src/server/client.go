@@ -60,6 +60,16 @@ func (c *Client) LeaveGame() {
 	c.mu.Unlock()
 }
 
+// LeaveGameInstance detaches the client only if it is still attached to the
+// given instance, so a finished game cannot clobber a newer one.
+func (c *Client) LeaveGameInstance(gi *GameInstance) {
+	c.mu.Lock()
+	if c.game == gi {
+		c.game = nil
+	}
+	c.mu.Unlock()
+}
+
 func (c *Client) GameInstance() *GameInstance {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -112,17 +122,22 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 	case *packets.C2SJoinGamePacket:
 		return c.handleJoinGamePacket(packet)
 	case *packets.C2SLeaveGamePacket:
-		GameLifecycle.LeaveGame(c)
+		Lobbies.LeaveGame(c)
+		c.LeaveGame()
 		return nil, nil
+	case *packets.C2SStartGamePacket:
+		return c.handleStartGamePacket()
 	case *packets.C2SActionPacket:
 		gi := c.GameInstance()
 		if gi == nil {
 			return nil, fatalPacketErrorf("handle action packet: not in a game")
 		}
 		if err := gi.SubmitAction(c, packet.Round, packet.Type, packet.Build, packet.Dispatch); err != nil {
-			return &packets.S2CAckPacket{OK: false}, nil
+			// Late or invalid actions are dropped; the next state broadcast
+			// resynchronizes the client.
+			return nil, fmt.Errorf("handle action packet: %w", err)
 		}
-		return &packets.S2CAckPacket{OK: true}, nil
+		return nil, nil
 	default:
 		return nil, fatalPacketErrorf(
 			"handle client packet: unsupported packet %T",
@@ -136,7 +151,7 @@ func (c *Client) handleCreateGamePacket(packet *packets.C2SCreateGamePacket) (pa
 		return nil, fatalPacketErrorf("handle create game packet: client is not ready")
 	}
 
-	state, err := GameLifecycle.CreateGame(c, packet.Public, packet.MaxPlayers, packet.Seed)
+	state, err := Lobbies.CreateGame(c, packet.Public, packet.MaxPlayers, packet.Seed)
 	if err != nil {
 		return &packets.S2CGameRejectedPacket{
 			Operation: "create",
@@ -151,7 +166,7 @@ func (c *Client) handleJoinGamePacket(packet *packets.C2SJoinGamePacket) (packet
 		return nil, fatalPacketErrorf("handle join game packet: client is not ready")
 	}
 
-	state, err := GameLifecycle.JoinGame(c, packet.GameCode)
+	state, err := Lobbies.JoinGame(c, packet.GameCode)
 	if err != nil {
 		return &packets.S2CGameRejectedPacket{
 			Operation: "join",
@@ -159,6 +174,20 @@ func (c *Client) handleJoinGamePacket(packet *packets.C2SJoinGamePacket) (packet
 		}, nil
 	}
 	return &packets.S2CGameJoinedPacket{Game: state}, nil
+}
+
+func (c *Client) handleStartGamePacket() (packets.S2CPacket, error) {
+	if !c.Ready() {
+		return nil, fatalPacketErrorf("handle start game packet: client is not ready")
+	}
+
+	if err := Lobbies.StartGame(c); err != nil {
+		return &packets.S2CGameRejectedPacket{
+			Operation: "start",
+			Message:   err.Error(),
+		}, nil
+	}
+	return nil, nil
 }
 
 func (c *Client) handleConnectPacket(packet *packets.C2SConnectPacket) (packets.S2CPacket, error) {

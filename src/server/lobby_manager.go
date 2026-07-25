@@ -17,35 +17,43 @@ const (
 )
 
 var (
-	ErrAlreadyInGame = errors.New("client is already in a game")
-	ErrGameNotFound  = errors.New("game not found")
-	ErrGameFull      = errors.New("game is full")
+	ErrAlreadyInGame    = errors.New("client is already in a game")
+	ErrGameNotFound     = errors.New("game not found")
+	ErrGameFull         = errors.New("game is full")
+	ErrNotHost          = errors.New("only the host can start the game")
+	ErrNotEnoughPlayers = errors.New("need at least 2 players to start")
 
-	GameLifecycle = NewGameManager()
+	Lobbies = NewLobbyManager()
 )
 
-type activeGame struct {
+// lobby is a created game waiting to start: players gather here until the
+// host launches it, at which point it is handed over to GameInstances and
+// becomes a running GameInstance.
+type lobby struct {
 	state   game.Game
 	clients []*Client
 }
 
-type GameManager struct {
-	mu          sync.RWMutex
-	nextGameID  uint64
-	games       map[uint64]*activeGame
-	gameCodes   map[string]uint64
-	clientGames map[*Client]uint64
+// LobbyManager tracks lobbies, i.e. games that have not started yet.
+// Running games are owned by GameInstances; the set of all server
+// connections lives in Connections.
+type LobbyManager struct {
+	mu            sync.RWMutex
+	nextGameID    uint64
+	lobbies       map[uint64]*lobby
+	gameCodes     map[string]uint64
+	clientLobbies map[*Client]uint64
 }
 
-func NewGameManager() *GameManager {
-	return &GameManager{
-		games:       make(map[uint64]*activeGame),
-		gameCodes:   make(map[string]uint64),
-		clientGames: make(map[*Client]uint64),
+func NewLobbyManager() *LobbyManager {
+	return &LobbyManager{
+		lobbies:       make(map[uint64]*lobby),
+		gameCodes:     make(map[string]uint64),
+		clientLobbies: make(map[*Client]uint64),
 	}
 }
 
-func (m *GameManager) CreateGame(client *Client, public bool, maxPlayers uint8, seed int64) (game.Game, error) {
+func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8, seed int64) (game.Game, error) {
 	if maxPlayers < 2 || maxPlayers > 4 {
 		return game.Game{}, fmt.Errorf("max players must be 2, 3, or 4")
 	}
@@ -55,8 +63,12 @@ func (m *GameManager) CreateGame(client *Client, public bool, maxPlayers uint8, 
 		return game.Game{}, fmt.Errorf("client is not identified")
 	}
 
+	if client.GameInstance() != nil {
+		return game.Game{}, ErrAlreadyInGame
+	}
+
 	m.mu.Lock()
-	if _, exists := m.clientGames[client]; exists {
+	if _, exists := m.clientLobbies[client]; exists {
 		m.mu.Unlock()
 		return game.Game{}, ErrAlreadyInGame
 	}
@@ -86,32 +98,36 @@ func (m *GameManager) CreateGame(client *Client, public bool, maxPlayers uint8, 
 		state.Factions[i].AI = true
 	}
 
-	m.games[gameID] = &activeGame{
+	m.lobbies[gameID] = &lobby{
 		state:   state,
 		clients: []*Client{client},
 	}
 	m.gameCodes[gameCode] = gameID
-	m.clientGames[client] = gameID
+	m.clientLobbies[client] = gameID
 	m.mu.Unlock()
 
 	return state, nil
 }
 
-func (m *GameManager) JoinGame(client *Client, code string) (game.Game, error) {
+func (m *LobbyManager) JoinGame(client *Client, code string) (game.Game, error) {
 	player, identified := client.Player()
 	if !identified {
 		return game.Game{}, fmt.Errorf("client is not identified")
 	}
 
+	if client.GameInstance() != nil {
+		return game.Game{}, ErrAlreadyInGame
+	}
+
 	code = strings.ToUpper(strings.TrimSpace(code))
 
 	m.mu.Lock()
-	if _, exists := m.clientGames[client]; exists {
+	if _, exists := m.clientLobbies[client]; exists {
 		m.mu.Unlock()
 		return game.Game{}, ErrAlreadyInGame
 	}
 
-	active := m.findJoinableGameLocked(code)
+	active := m.findJoinableLobbyLocked(code)
 	if active == nil {
 		m.mu.Unlock()
 		return game.Game{}, ErrGameNotFound
@@ -125,7 +141,7 @@ func (m *GameManager) JoinGame(client *Client, code string) (game.Game, error) {
 
 	active.state.Factions[factionIndex].Player = playerPointer(player)
 	active.clients = append(active.clients, client)
-	m.clientGames[client] = active.state.GameID
+	m.clientLobbies[client] = active.state.GameID
 	state := active.state
 	existingClients := clientsExcept(active.clients, client)
 	m.mu.Unlock()
@@ -134,35 +150,103 @@ func (m *GameManager) JoinGame(client *Client, code string) (game.Game, error) {
 	return state, nil
 }
 
-func (m *GameManager) LeaveGame(client *Client) {
+// StartGame hands a lobby over to the game loop. Only the host may start,
+// and at least two connected players are required. On success the lobby is
+// dissolved (it can no longer be joined or host-closed); the running
+// GameInstance takes over and notifies every player via S2CGameStartPacket.
+// Connection tracking (server.Connections) is unaffected.
+func (m *LobbyManager) StartGame(client *Client) error {
+	m.mu.Lock()
+	gameID, exists := m.clientLobbies[client]
+	if !exists {
+		m.mu.Unlock()
+		return ErrGameNotFound
+	}
+	active := m.lobbies[gameID]
+	if active == nil {
+		m.mu.Unlock()
+		return ErrGameNotFound
+	}
+
+	player, _ := client.Player()
+	if active.state.HostID != player.ClientID {
+		m.mu.Unlock()
+		return ErrNotHost
+	}
+
+	clients := clientsByFaction(active.state, active.clients)
+	playerCount := 0
+	for _, c := range clients {
+		if c != nil {
+			playerCount++
+		}
+	}
+	if playerCount < 2 {
+		m.mu.Unlock()
+		return ErrNotEnoughPlayers
+	}
+
+	delete(m.lobbies, gameID)
+	delete(m.gameCodes, active.state.GameCode)
+	for _, c := range active.clients {
+		delete(m.clientLobbies, c)
+	}
+	state := active.state
+	m.mu.Unlock()
+
+	GameInstances.StartGame(&state, clients)
+	return nil
+}
+
+// clientsByFaction returns a slice with one slot per faction, holding the
+// client controlling that faction or nil for AI and unfilled slots.
+func clientsByFaction(state game.Game, clients []*Client) []*Client {
+	ordered := make([]*Client, len(state.Factions))
+	for i := range state.Factions {
+		factionPlayer := state.Factions[i].Player
+		if factionPlayer == nil {
+			continue
+		}
+		for _, client := range clients {
+			player, _ := client.Player()
+			if player.ClientID == factionPlayer.ClientID {
+				ordered[i] = client
+				break
+			}
+		}
+	}
+	return ordered
+}
+
+func (m *LobbyManager) LeaveGame(client *Client) {
 	m.removeClient(client, "host left the game")
 }
 
-func (m *GameManager) Disconnect(client *Client) {
+func (m *LobbyManager) Disconnect(client *Client) {
 	m.removeClient(client, "host disconnected")
 }
 
-func (m *GameManager) ActiveGames() []game.Game {
+func (m *LobbyManager) OpenLobbies() []game.Game {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	games := make([]game.Game, 0, len(m.games))
-	for _, active := range m.games {
+	games := make([]game.Game, 0, len(m.lobbies))
+	for _, active := range m.lobbies {
 		games = append(games, active.state)
 	}
 	return games
 }
 
-func (m *GameManager) removeClient(client *Client, hostReason string) {
+func (m *LobbyManager) removeClient(client *Client, hostReason string) {
 	m.mu.Lock()
-	gameID, exists := m.clientGames[client]
+	gameID, exists := m.clientLobbies[client]
 	if !exists {
 		m.mu.Unlock()
 		return
 	}
 
-	active := m.games[gameID]
-	delete(m.clientGames, client)
+	active := m.lobbies[gameID]
+	delete(m.clientLobbies, client)
 	if active == nil {
 		m.mu.Unlock()
 		return
@@ -170,11 +254,11 @@ func (m *GameManager) removeClient(client *Client, hostReason string) {
 
 	player, _ := client.Player()
 	if active.state.HostID == player.ClientID {
-		delete(m.games, gameID)
+		delete(m.lobbies, gameID)
 		delete(m.gameCodes, active.state.GameCode)
 		remainingClients := clientsExcept(active.clients, client)
 		for _, remaining := range remainingClients {
-			delete(m.clientGames, remaining)
+			delete(m.clientLobbies, remaining)
 		}
 		m.mu.Unlock()
 
@@ -200,17 +284,17 @@ func (m *GameManager) removeClient(client *Client, hostReason string) {
 	broadcast(remainingClients, &packets.S2CGameUpdatePacket{Game: state})
 }
 
-func (m *GameManager) findJoinableGameLocked(code string) *activeGame {
+func (m *LobbyManager) findJoinableLobbyLocked(code string) *lobby {
 	if code != "" {
 		gameID, exists := m.gameCodes[code]
 		if !exists {
 			return nil
 		}
-		return m.games[gameID]
+		return m.lobbies[gameID]
 	}
 
-	var selected *activeGame
-	for _, active := range m.games {
+	var selected *lobby
+	for _, active := range m.lobbies {
 		if !active.state.Public || availableFaction(active.state) < 0 {
 			continue
 		}
@@ -221,7 +305,7 @@ func (m *GameManager) findJoinableGameLocked(code string) *activeGame {
 	return selected
 }
 
-func (m *GameManager) newGameCodeLocked() (string, error) {
+func (m *LobbyManager) newGameCodeLocked() (string, error) {
 	for range 100 {
 		bytes := make([]byte, gameCodeLength)
 		if _, err := rand.Read(bytes); err != nil {

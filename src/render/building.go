@@ -24,7 +24,9 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
 
 	canPlace := game.BuildingCanPlace(m, r.BuildingToPlace, hex)
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canPlace {
-		m.GetCell(hex).Building = r.BuildingToPlace
+		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(hex, r.BuildingToPlace) {
+			m.GetCell(hex).Building = r.BuildingToPlace
+		}
 		canPlace = false
 	}
 

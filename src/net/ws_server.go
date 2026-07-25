@@ -27,8 +27,8 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	registered := false
 	defer func() {
 		if registered {
-			server.GameLifecycle.Disconnect(client)
-			server.Lobby.RemoveConnection(client)
+			server.Lobbies.Disconnect(client)
+			server.Connections.Unregister(client)
 			client.LeaveGame()
 		}
 	}()
@@ -57,7 +57,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("client sent %T before connecting", clientPacket)
 		}
 		if newlyRegistered {
-			if err := server.Lobby.AddConnection(client); err != nil {
+			if err := server.Connections.Register(client); err != nil {
 				log.Printf("failed to register client: %v", err)
 				return err
 			}

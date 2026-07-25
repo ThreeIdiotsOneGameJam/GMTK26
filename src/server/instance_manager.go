@@ -6,52 +6,26 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 )
 
-// instanceManager tracks running GameInstances, as opposed to GameManager
-// which handles the pre-game lobby lifecycle.
+// instanceManager tracks running GameInstances, as opposed to LobbyManager
+// which tracks lobbies that have not started yet.
 type instanceManager struct {
-	mu     sync.RWMutex
-	games  map[uint64]*GameInstance
-	nextID uint64
+	mu    sync.RWMutex
+	games map[uint64]*GameInstance
 }
 
 var GameInstances = &instanceManager{
 	games: make(map[uint64]*GameInstance),
 }
 
-func (gm *instanceManager) StartGame(clients []*Client, maxPlayers uint8, seed int64) *GameInstance {
-	gm.mu.Lock()
-	id := gm.nextID
-	gm.nextID++
-	gm.mu.Unlock()
-
-	g := &game.Game{
-		GameID:      id,
-		Multiplayer: maxPlayers > 1,
-		MaxPlayers:  maxPlayers,
-		Map: game.Map{
-			Seed: seed,
-		},
-	}
-
-	for i := uint8(0); i < 4; i++ {
-		if i < maxPlayers {
-			g.Factions[i] = game.Faction{
-				Index:     int(i),
-				Resources: make(game.Resources),
-			}
-		} else {
-			g.Factions[i] = game.Faction{
-				Index:     int(i),
-				AI:        true,
-				Resources: make(game.Resources),
-			}
-		}
-	}
-
-	gi := NewGameInstance(id, g, clients)
+// StartGame launches the game loop for a dissolved lobby. clients must have
+// one slot per faction (nil for AI and unfilled slots), as produced by
+// clientsByFaction. Faction gameplay fields are initialized by the game
+// loop itself; lobby-assigned data such as faction players is preserved.
+func (gm *instanceManager) StartGame(g *game.Game, clients []*Client) *GameInstance {
+	gi := NewGameInstance(g.GameID, g, clients)
 
 	gm.mu.Lock()
-	gm.games[id] = gi
+	gm.games[g.GameID] = gi
 	gm.mu.Unlock()
 
 	for _, c := range clients {
@@ -63,13 +37,6 @@ func (gm *instanceManager) StartGame(clients []*Client, maxPlayers uint8, seed i
 	go gi.Run()
 
 	return gi
-}
-
-func (gm *instanceManager) GameForClient(client *Client) *GameInstance {
-	if client == nil {
-		return nil
-	}
-	return client.GameInstance()
 }
 
 func (gm *instanceManager) RemoveGame(id uint64) {

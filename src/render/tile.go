@@ -16,6 +16,14 @@ type visibleTile struct {
 	tile     game.TileType
 }
 
+// factionColors tint owned cells; indices match faction indices.
+var factionColors = [4]color.RGBA{
+	{R: 220, G: 60, B: 60, A: 255},
+	{R: 60, G: 90, B: 220, A: 255},
+	{R: 235, G: 200, B: 40, A: 255},
+	{R: 170, G: 60, B: 200, A: 255},
+}
+
 func tileColor(tile game.TileType) color.RGBA {
 	switch tile {
 	case game.TileVoid:

@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -63,7 +65,7 @@ func (gi *GameInstance) SubmitAction(c *Client, round int32, actionType game.Act
 }
 
 func (gi *GameInstance) sendToClient(client *Client, packet packets.S2CPacket) {
-	if client == nil {
+	if client == nil || client.GameInstance() != gi {
 		return
 	}
 	_ = client.SendPacket(packet)
@@ -73,7 +75,7 @@ func (gi *GameInstance) Run() {
 	defer func() {
 		for _, c := range gi.clients {
 			if c != nil {
-				c.LeaveGame()
+				c.LeaveGameInstance(gi)
 			}
 		}
 		GameInstances.RemoveGame(gi.ID)
@@ -95,8 +97,12 @@ func (gi *GameInstance) Run() {
 		}
 	}
 
+	gi.assignStartingCells()
+
 	gameEndTime := time.Now().Add(5 * time.Minute)
 	firstDeadline := time.Now().Add(5 * time.Second)
+
+	gi.setRound(1)
 
 	for i, c := range gi.clients {
 		if c == nil {
@@ -114,8 +120,6 @@ func (gi *GameInstance) Run() {
 		}
 		gi.sendToClient(c, startPacket)
 	}
-
-	gi.game.Round = 1
 
 	for {
 		if !gi.hasConnectedPlayers() {
@@ -149,9 +153,8 @@ func (gi *GameInstance) Run() {
 		gi.processAutoActions()
 		gi.processClientActions()
 
-		gi.game.Round++
-
 		gi.mu.Lock()
+		gi.game.Round++
 		gi.actions = make(map[int]*submittedAction)
 		gi.mu.Unlock()
 
@@ -162,6 +165,74 @@ func (gi *GameInstance) Run() {
 			return
 		}
 	}
+}
+
+// setRound updates the round under the same lock SubmitAction uses to
+// validate incoming actions.
+func (gi *GameInstance) setRound(round int32) {
+	gi.mu.Lock()
+	gi.game.Round = round
+	gi.mu.Unlock()
+}
+
+// assignStartingCells claims one spaced-out land cell per player faction so
+// everyone starts with territory; without it checkAlive would eliminate all
+// factions after the first round.
+func (gi *GameInstance) assignStartingCells() {
+	m := &gi.game.Map
+
+	candidates := make([]game.Hex, 0)
+	for x := range m.Grid {
+		for y := range m.Grid[x] {
+			tile := m.Grid[x][y].Tile
+			if tile != game.TileVoid && tile != game.TileWater {
+				candidates = append(candidates, game.NewHex(int32(x), int32(y)))
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return
+	}
+
+	r := rand.New(rand.NewSource(m.Seed))
+	r.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
+
+	spacing := float64(min(m.GridSize.X, m.GridSize.Y)) / 4.0
+	claimed := make([]game.Hex, 0, len(gi.clients))
+
+	for i, c := range gi.clients {
+		if c == nil {
+			continue
+		}
+		hex := pickStartingHex(candidates, claimed, spacing)
+		claimed = append(claimed, hex)
+		m.GetCell(hex).Owner = int8(i)
+	}
+}
+
+// pickStartingHex returns the first candidate at least spacing away from all
+// claimed hexes, halving the requirement until one qualifies.
+func pickStartingHex(candidates, claimed []game.Hex, spacing float64) game.Hex {
+	for spacing >= 1 {
+		for _, hex := range candidates {
+			farEnough := true
+			for _, other := range claimed {
+				dx := float64(hex.X - other.X)
+				dy := float64(hex.Y - other.Y)
+				if math.Hypot(dx, dy) < spacing {
+					farEnough = false
+					break
+				}
+			}
+			if farEnough {
+				return hex
+			}
+		}
+		spacing /= 2
+	}
+	return candidates[0]
 }
 
 func (gi *GameInstance) hasConnectedPlayers() bool {

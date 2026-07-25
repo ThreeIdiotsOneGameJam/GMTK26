@@ -44,6 +44,7 @@ func handleServerPacket(packet packets.S2CPacket) {
 	switch p := packet.(type) {
 	case *packets.S2CConnectAcceptedPacket:
 		fmt.Printf("connected as %s (persistent: %t)\n", p.ClientID, p.Persistent)
+		screens.SetLocalClientID(p.ClientID)
 		screens.ResetGameSession()
 	case *packets.S2CGameJoinedPacket:
 		fmt.Printf("joined game %d with code %s\n", p.Game.GameID, p.Game.GameCode)
@@ -61,11 +62,14 @@ func handleServerPacket(packet packets.S2CPacket) {
 		screens.CloseGame(p.GameID)
 	case *packets.S2CGameStartPacket:
 		net.LocalGameState.ApplyStartPacket(p)
+		screens.ApplyServerGameStart(p)
 		fmt.Printf("game started as faction %d, round %d\n", p.FactionIdx, p.Round)
 	case *packets.S2CGameStatePacket:
 		net.LocalGameState.ApplyStatePacket(p)
+		screens.ApplyServerGameState(p)
 	case *packets.S2CGameEndPacket:
 		net.LocalGameState.ApplyEndPacket()
+		screens.ApplyServerGameEnd(p)
 		fmt.Printf("game ended! winner: %s (faction %d)\n", p.WinnerName, p.WinnerFaction)
 	default:
 		fmt.Printf("received unhandled packet type %T\n", packet)

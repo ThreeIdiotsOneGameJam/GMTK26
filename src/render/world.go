@@ -60,6 +60,10 @@ type WorldRenderer struct {
 	MousePosition v.Vec2
 
 	BuildingToPlace game.BuildingType
+	// OnPlaceBuilding, when set, may take over a placement click. Returning
+	// true means the click was handled externally (e.g. sent to the server)
+	// and the map is not modified locally.
+	OnPlaceBuilding func(hex game.Hex, building game.BuildingType) bool
 	buildingPreview buildingPreview
 
 	bgShader    rl.Shader
@@ -351,6 +355,9 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 
 			hex := game.NewHex(int32(x), int32(y))
 			color := tileColor(cell.Tile)
+			if cell.Owner >= 0 && int(cell.Owner) < len(factionColors) {
+				color = rl.ColorLerp(color, factionColors[cell.Owner], 0.4)
+			}
 			if hex == hoveredHex {
 				color = *util.ColorAdd(color, 30)
 			}

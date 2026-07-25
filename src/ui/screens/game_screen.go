@@ -1,8 +1,10 @@
 package screens
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
@@ -19,7 +21,119 @@ var gameWorld = ui.World()
 var gameRegenerateButton = ui.Button()
 var currentGame *game.Game
 
+// localClientID is the server-assigned identity from the connect handshake,
+// used to decide whether the local player hosts the current game.
+var localClientID game.ClientID
+
+// serverGameActive is true between S2CGameStartPacket and S2CGameEndPacket.
+var serverGameActive bool
+var serverRound int32
+var serverCoins int32
+var serverPoints int32
+var serverDeadline int64
+var gameOverMessage string
+
+func init() {
+	// In a running multiplayer game, building placement goes through the
+	// server instead of mutating the local map; the next state broadcast
+	// carries the result.
+	gameWorld.Renderer.OnPlaceBuilding = func(hex game.Hex, building game.BuildingType) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendBuildAction(serverRound, hex, building); err != nil {
+			fmt.Printf("failed to send build action: %v\n", err)
+		}
+		return true
+	}
+}
+
+func SetLocalClientID(id game.ClientID) {
+	localClientID = id
+}
+
+func isLocalHost() bool {
+	return currentGame != nil && currentGame.HostID == localClientID
+}
+
+// ApplyServerGameStart switches the pre-game session into the running game
+// using the authoritative state from the server.
+func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
+	if currentGame == nil || !currentGame.Multiplayer {
+		return
+	}
+	serverGameActive = true
+	gameOverMessage = ""
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points)
+}
+
+func ApplyServerGameState(p *packets.S2CGameStatePacket) {
+	if !serverGameActive {
+		return
+	}
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points)
+}
+
+func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
+	if !serverGameActive {
+		return
+	}
+	serverGameActive = false
+	if p.WinnerName != "" {
+		gameOverMessage = "Game over! Winner: " + p.WinnerName
+	} else {
+		gameOverMessage = "Game over!"
+	}
+}
+
+func applyServerRound(round int32, deadline int64, m game.Map, coins, points int32) {
+	serverRound = round
+	serverDeadline = deadline
+	serverCoins = coins
+	serverPoints = points
+	currentGame.Round = round
+	currentGame.Map = m
+	gameWorld.Map = m
+	gameSeedInput.Text = strconv.FormatInt(m.Seed, 10)
+}
+
+func multiplayerStatusText() string {
+	if currentGame == nil || !currentGame.Multiplayer {
+		return ""
+	}
+	if gameOverMessage != "" {
+		return gameOverMessage
+	}
+	if serverGameActive {
+		remaining := max(time.Until(time.Unix(0, serverDeadline)), 0)
+		return fmt.Sprintf(
+			"Round %d | Coins: %d | Points: %d | Next round: %ds",
+			serverRound,
+			serverCoins,
+			serverPoints,
+			int(remaining.Seconds()),
+		)
+	}
+
+	players := 0
+	for i := range currentGame.Factions {
+		if currentGame.Factions[i].Player != nil {
+			players++
+		}
+	}
+	if isLocalHost() {
+		return fmt.Sprintf("%d/%d players joined", players, currentGame.MaxPlayers)
+	}
+	return fmt.Sprintf(
+		"%d/%d players | Waiting for the host to start",
+		players,
+		currentGame.MaxPlayers,
+	)
+}
+
 func EnterGame(state game.Game) {
+	serverGameActive = false
+	gameOverMessage = ""
 	applyGameState(state)
 	SetActiveScreen(GameScreenID)
 }
@@ -80,6 +194,8 @@ func applyGameState(state game.Game) {
 func clearCurrentGame() {
 	currentGame = nil
 	gameWorld.Map = game.Map{}
+	serverGameActive = false
+	gameOverMessage = ""
 }
 
 func setBuildingClick(building game.BuildingType) func() {
@@ -114,6 +230,35 @@ var GameScreen = ui.Screen().
 			WithTextColor(rl.Black).
 			WithAnchors(anchor.TopRight, anchor.TopRight).
 			WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
+	).
+	AddChild(
+		ui.Text().
+			WithTextDynamic(multiplayerStatusText).
+			WithTextSize(26).
+			WithTextColor(rl.Black).
+			WithAnchors(anchor.Top, anchor.Top).
+			WithRelativePos(vec.Vec2i{X: 0, Y: 20}).
+			WithVisibleDynamic(func(el *ui.TextElement) bool {
+				return multiplayerStatusText() != ""
+			}),
+	).
+	AddChild(
+		ui.Button().
+			WithText("Start Game").
+			WithTextSize(30).
+			WithPadding(10).
+			WithOutlineWidth(4).
+			WithAnchors(anchor.Top, anchor.Top).
+			WithRelativePos(vec.Vec2i{X: 0, Y: 58}).
+			WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+				return currentGame != nil && currentGame.Multiplayer &&
+					!serverGameActive && gameOverMessage == "" && isLocalHost()
+			}).
+			WithClick(func() {
+				if err := gameNet.Send(&packets.C2SStartGamePacket{}); err != nil {
+					fmt.Printf("failed to request game start: %v\n", err)
+				}
+			}),
 	).
 	AddChild(
 		ui.Group().
@@ -170,6 +315,10 @@ var GameScreen = ui.Screen().
 		ui.Group().
 			WithAnchors(anchor.TopLeft, anchor.TopLeft).
 			WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+			// Local map tools would desync a server-run game.
+			WithVisibleDynamic(func(el *ui.GroupElement) bool {
+				return !serverGameActive
+			}).
 			AddChild(
 				gameSeedInput.
 					WithPadding(8).

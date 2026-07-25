@@ -15,6 +15,11 @@ type C2SJoinGamePacket struct {
 
 type C2SLeaveGamePacket struct{}
 
+// C2SStartGamePacket is sent by the host to start the lobby they created.
+// The server responds with S2CGameRejectedPacket on failure; on success
+// every player receives S2CGameStartPacket from the game instance.
+type C2SStartGamePacket struct{}
+
 type S2CGameJoinedPacket struct {
 	Game game.Game `json:"game"`
 }
@@ -52,6 +57,12 @@ func init() {
 		value, ok := packet.(*C2SLeaveGamePacket)
 		return ok && value != nil
 	})
+	mustRegisterPacket(C2SStartGamePacketType, func() Packet {
+		return &C2SStartGamePacket{}
+	}, func(packet Packet) bool {
+		value, ok := packet.(*C2SStartGamePacket)
+		return ok && value != nil
+	})
 	mustRegisterPacket(S2CGameJoinedPacketType, func() Packet {
 		return &S2CGameJoinedPacket{}
 	}, func(packet Packet) bool {
@@ -86,6 +97,9 @@ func (*C2SJoinGamePacket) isC2S()                 {}
 
 func (*C2SLeaveGamePacket) PacketType() PacketType { return C2SLeaveGamePacketType }
 func (*C2SLeaveGamePacket) isC2S()                 {}
+
+func (*C2SStartGamePacket) PacketType() PacketType { return C2SStartGamePacketType }
+func (*C2SStartGamePacket) isC2S()                 {}
 
 func (*S2CGameJoinedPacket) PacketType() PacketType { return S2CGameJoinedPacketType }
 func (*S2CGameJoinedPacket) isS2C()                 {}
