@@ -58,6 +58,8 @@ type WorldRenderer struct {
 	PanVelocity   v.Vec2
 	MousePosition v.Vec2
 
+	ExtraBuildings []ExtraBuilding
+
 	bgShader    rl.Shader
 	bgTimeLoc   int32
 	voidShader  rl.Shader
@@ -249,6 +251,8 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	rl.BeginMode2D(r.Camera)
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
+	r.drawBuildings(m, visible, r.ExtraBuildings)
+	r.ExtraBuildings = make([]ExtraBuilding, 0)
 	rl.EndMode2D()
 
 	rl.EndTextureMode()
@@ -259,6 +263,16 @@ func (r *WorldRenderer) PixelToHex(position v.Vec2) game.Hex {
 	q := (2.0 * position.X) / (3.0 * r.HexSize.X)
 	axialR := (-position.X)/(3.0*r.HexSize.X) + position.Y/(sqrt3*r.HexSize.Y)
 	return game.NewAxial(q, axialR).ToHex()
+}
+
+func (r *WorldRenderer) HexToPixel(hex v.Vec2i) v.Vec2 {
+	x := hex.X
+	y := hex.Y
+	width := r.HexSize.X * 2.0
+	height := r.HexSize.Y * sqrt3
+
+	yOffset := height / 2.0 * float32(x%2)
+	return v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
 }
 
 func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
