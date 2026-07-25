@@ -13,6 +13,7 @@ type SettingsStore struct {
 	SFXVolume      float32 `json:"sfx_volume"`
 	MusicVolume    float32 `json:"music_volume"`
 	AmbienceVolume float32 `json:"ambience_volume"`
+	ReducedMotion  bool    `json:"reduced_motion"`
 }
 
 var Current = SettingsStore{}

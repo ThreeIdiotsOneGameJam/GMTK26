@@ -59,6 +59,11 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
+	addToggleRow(screen, "Reduced Motion", rowStartY+rowStrideY*3,
+		func() bool { return settings.Current.ReducedMotion },
+		func(v bool) { settings.Current.ReducedMotion = v },
+		saveSettings,
+	)
 
 	return screen.
 		AddChild(
