@@ -222,6 +222,9 @@ func newPlayScreen() *ui.ScreenElement {
 		AddChild(backButton(func() {
 			SetActiveScreen(MainScreenID)
 		})).
+		AddChild(
+			ui.Vignette(),
+		).
 		WithExit(resetJoinPanel)
 }
 

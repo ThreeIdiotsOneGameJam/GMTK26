@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -18,6 +19,13 @@ var GameScreen = ui.Screen().
 	WithEnter(func() { EscScreen.WithVisible(false) }).
 	AddChild(
 		gameWorld,
+	).
+	AddChild(
+		ui.Building(gameWorld).
+			WithType(game.BuildingMine).
+			WithPosProvider(func(el *ui.BuildingElement) vec.Vec2 {
+				return el.World.Renderer.MousePosition
+			}),
 	).
 	AddChild(
 		ui.Group().
@@ -61,4 +69,7 @@ var GameScreen = ui.Screen().
 			),
 	).
 	AddChild(
-		EscScreen)
+		EscScreen).
+	AddChild(
+		ui.Vignette().WithAlpha(120),
+	)

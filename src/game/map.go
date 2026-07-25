@@ -61,3 +61,15 @@ func (m *Map) GetCell(pos Hex) *Cell {
 
 	return &m.Grid[pos.X][pos.Y]
 }
+
+func (m *Map) HexInsideBounds(hex Hex) bool {
+	if hex.X < 0 || hex.X >= m.GridSize.X || hex.Y < 0 || hex.Y >= m.GridSize.Y {
+		return false
+	}
+
+	if m.GetCell(hex).Tile == TileVoid {
+		return false
+	}
+
+	return true
+}

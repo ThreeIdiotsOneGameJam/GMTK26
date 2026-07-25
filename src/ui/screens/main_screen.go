@@ -76,4 +76,7 @@ var MainScreen = ui.Screen().
 			WithAnchors(anchor.Center, anchor.Center).
 			WithRelativePos(vec.Vec2i{Y: 160}).
 			WithClick(global.CloseWindow),
+	).
+	AddChild(
+		ui.Vignette(),
 	)

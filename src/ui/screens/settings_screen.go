@@ -57,4 +57,7 @@ var SettingsScreen = ui.Screen().
 			WithClick(func() {
 				SetActiveScreen(MainScreenID)
 			}),
+	).
+	AddChild(
+		ui.Vignette(),
 	)
