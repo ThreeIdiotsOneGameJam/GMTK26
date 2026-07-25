@@ -277,6 +277,10 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			playMenuButton("Play Solo").
 				WithRelativePosDynamic(menuButtonPos(-100)).
 				WithClick(func() {
+					if ui.DebugQuickActionModifierHeld() {
+						StartSoloWithDefaults()
+						return
+					}
 					OpenSoloGameCreation(screen)
 				}),
 		).
@@ -287,6 +291,13 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return multiplayerEnabled()
 				}).
 				WithClick(func() {
+					if ui.DebugQuickActionModifierHeld() {
+						playError = ""
+						if err := HostGameWithDefaults(); err != nil {
+							playError = err.Error()
+						}
+						return
+					}
 					OpenHostGameCreation(screen)
 				}),
 		).

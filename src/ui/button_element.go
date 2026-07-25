@@ -80,6 +80,15 @@ func (el *ButtonElement) WithClick(click func()) *ButtonElement {
 	return el
 }
 
+func DebugQuickActionModifierHeld() bool {
+	return global.DebugAvailable && (rl.IsKeyDown(rl.KeyLeftShift) ||
+		rl.IsKeyDown(rl.KeyRightShift) ||
+		rl.IsKeyDown(rl.KeyLeftControl) ||
+		rl.IsKeyDown(rl.KeyRightControl) ||
+		rl.IsKeyDown(rl.KeyLeftSuper) ||
+		rl.IsKeyDown(rl.KeyRightSuper))
+}
+
 type ButtonElement struct {
 	BaseElement[*ButtonElement]
 	Text                  string

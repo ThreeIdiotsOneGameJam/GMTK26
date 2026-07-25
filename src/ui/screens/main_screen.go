@@ -28,6 +28,10 @@ func NewMainScreen() *ui.ScreenElement {
 				}),
 		).
 		AddChild(uiutil.MenuButton("Play", 0, func() {
+			if ui.DebugQuickActionModifierHeld() {
+				StartSoloWithDefaults()
+				return
+			}
 			SetActiveScreen(NewPlayScreen(screen))
 		})).
 		AddChild(uiutil.MenuButton("Settings", 80, func() {

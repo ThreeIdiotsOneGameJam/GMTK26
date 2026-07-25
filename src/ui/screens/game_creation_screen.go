@@ -46,6 +46,15 @@ func OpenHostGameCreation(previousScreen *ui.ScreenElement) {
 func RejectGameCreation(message string) {
 	creationSubmitting = false
 	creationError = message
+	SetPlayError(message)
+}
+
+func StartSoloWithDefaults() {
+	startSoloGame(rand.Int63())
+}
+
+func HostGameWithDefaults() error {
+	return sendHostGame(true, 4, rand.Int63())
 }
 
 func openGameCreation(mode gameCreationMode, previousScreen *ui.ScreenElement) {
@@ -293,37 +302,47 @@ func submitGameCreation() {
 	creationError = ""
 
 	if creationMode == gameCreationSolo {
-		player := *game.PlayerData
-		state := game.Game{
-			HostID:      player.ClientID,
-			Multiplayer: false,
-			MaxPlayers:  1,
-			Round:       1,
-			Map: game.Map{
-				Seed: seed,
-			},
-		}
-		state.Factions[0].Player = &player
-		for i := 1; i < len(state.Factions); i++ {
-			state.Factions[i].AI = true
-		}
-		EnterGame(state)
+		startSoloGame(seed)
 		return
 	}
 
-	if settings.Current.Offline || gameNet.State() != gameNet.ConnectionConnected {
-		creationError = "Connect to the multiplayer server before creating a game"
-		return
-	}
-	if err := gameNet.Send(&packets.C2SCreateGamePacket{
-		Public:     creationPublic,
-		MaxPlayers: creationMaxPlayers,
-		Seed:       seed,
-	}); err != nil {
+	if err := sendHostGame(creationPublic, creationMaxPlayers, seed); err != nil {
 		creationError = err.Error()
 		return
 	}
 	creationSubmitting = true
+}
+
+func startSoloGame(seed int64) {
+	player := *game.PlayerData
+	state := game.Game{
+		HostID:      player.ClientID,
+		Multiplayer: false,
+		MaxPlayers:  1,
+		Round:       1,
+		Map: game.Map{
+			Seed: seed,
+		},
+	}
+	state.Factions[0].Player = &player
+	for i := 1; i < len(state.Factions); i++ {
+		state.Factions[i].AI = true
+	}
+	EnterGame(state)
+}
+
+func sendHostGame(public bool, maxPlayers uint8, seed int64) error {
+	if settings.Current.Offline || gameNet.State() != gameNet.ConnectionConnected {
+		return fmt.Errorf("Connect to the multiplayer server before creating a game")
+	}
+	if err := gameNet.Send(&packets.C2SCreateGamePacket{
+		Public:     public,
+		MaxPlayers: maxPlayers,
+		Seed:       seed,
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func gameCreationStatus() string {
