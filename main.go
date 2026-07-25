@@ -36,7 +36,7 @@ func tick() {
 		rl.ToggleFullscreen()
 	}
 
-	if rl.IsKeyPressed(rl.KeyF3) {
+	if global.DebugAvailable && rl.IsKeyPressed(rl.KeyF3) {
 		global.DebugEnabled = !global.DebugEnabled
 	}
 
@@ -146,12 +146,15 @@ var updateFunc = update
 func main() {
 	guest := flag.Bool("guest", false, "use a temporary guest identity (not saved)")
 	uuidFlag := flag.String("uuid", "", `session client ID: "random" or a canonical UUID (not saved)`)
+	debug := flag.Bool("debug", false, "allow toggling the debug overlay with F3")
 	flag.Parse()
 
 	if *guest && *uuidFlag != "" {
 		fmt.Fprintln(os.Stderr, "flags --guest and --uuid are mutually exclusive")
 		os.Exit(2)
 	}
+
+	global.DebugAvailable = *debug
 
 	if err := settings.Load(); err != nil {
 		fmt.Printf("failed to load settings, using defaults: %v\n", err)

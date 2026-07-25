@@ -5,6 +5,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
+var DebugAvailable = false
 var DebugEnabled = false
 
 var MouseCursorState = rl.MouseCursorDefault
