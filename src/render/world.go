@@ -29,8 +29,9 @@ const (
 	// How strongly zoom reduces WASD speed: 0 ignores zoom, 1 scales directly.
 	cameraMoveZoomExponent = 0.5
 
-	cameraMinZoom float32 = 0.08
-	cameraMaxZoom float32 = 1.0
+	cameraMinZoom     float32 = 0.08
+	cameraMaxZoom     float32 = 1.0
+	cameraDefaultZoom float32 = 0.75
 
 	// Zoom change per wheel step and speed of interpolation toward it.
 	cameraZoomStep       float32 = 0.18
@@ -79,23 +80,27 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	}
 	r.initialized = true
 
-	if r.Camera.Zoom == 0.0 {
-		r.Camera.Zoom = 0.75
+	if r.HexSize == (v.Vec2{}) {
+		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
-	if r.TargetZoom == 0.0 {
-		r.TargetZoom = r.Camera.Zoom
-	}
+	r.ResetCamera(m)
+
+	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
+}
+
+func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	if r.HexSize == (v.Vec2{}) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
 
+	r.Camera.Zoom = cameraDefaultZoom
+	r.TargetZoom = cameraDefaultZoom
+	r.PanVelocity = v.Vec2{}
 	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
 		Y: float32(m.GridSize.Y),
 	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()))
 	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
-
-	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
 
 func (r *WorldRenderer) Unload() {
