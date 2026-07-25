@@ -51,7 +51,10 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if response != nil {
-				return client.SendPacket(response)
+				if sendErr := client.SendPacket(response); sendErr != nil {
+					log.Printf("failed to send error response %T: %v", response, sendErr)
+					return sendErr
+				}
 			}
 			return nil
 		}
@@ -71,6 +74,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 		if response != nil {
 			if err := client.SendPacket(response); err != nil {
+				log.Printf("failed to send response %T: %v", response, err)
 				return err
 			}
 			if newlyRegistered {

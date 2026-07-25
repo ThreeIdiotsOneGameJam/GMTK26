@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sync"
@@ -68,7 +69,9 @@ func (gi *GameInstance) sendToClient(client *Client, packet packets.S2CPacket) {
 	if client == nil || client.GameInstance() != gi {
 		return
 	}
-	_ = client.SendPacket(packet)
+	if err := client.SendPacket(packet); err != nil {
+		log.Printf("game %d: failed to send %T: %v", gi.ID, packet, err)
+	}
 }
 
 func (gi *GameInstance) Run() {

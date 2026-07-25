@@ -172,6 +172,13 @@ func (c *WSClient) connect(addr string) {
 		connection.wait()
 
 		wasConnected := c.state() == ConnectionConnected
+		if closeErr := connection.CloseError(); closeErr != nil {
+			if isMessageTooBig(closeErr) {
+				fmt.Printf("disconnected: oversized websocket message: %v\n", closeErr)
+			} else if wasConnected {
+				fmt.Printf("disconnected: %v\n", closeErr)
+			}
+		}
 		c.clearConnection(connection)
 		c.setState(ConnectionDisconnected)
 		if wasConnected {

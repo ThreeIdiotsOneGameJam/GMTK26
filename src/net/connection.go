@@ -3,6 +3,8 @@ package net
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -11,10 +13,11 @@ import (
 )
 
 const (
-	writeWait      = 10 * time.Second // 10s
-	pingPeriod     = 54 * time.Second // 54s (0.9min)
-	// Maps are ~200KB as JSON (96x96 grid); 64KB rejected start/state
-	// packets and dropped the socket, which bounced clients to the menu.
+	writeWait  = 10 * time.Second // 10s
+	pingPeriod = 54 * time.Second // 54s (0.9min)
+	// Maps are ~200KB as JSON (96x96 grid); keep this above that so
+	// start/state packets fit. SendPacket rejects anything larger so we
+	// never push a frame the peer's SetReadLimit will drop the socket for.
 	maxMessageSize  = 1 << 20 // 1 MiB
 	sendQueueLength = 64
 )
@@ -22,6 +25,9 @@ const (
 var (
 	ErrConnectionClosed = errors.New("websocket connection is closed")
 	ErrSendQueueFull    = errors.New("websocket send queue is full")
+	// ErrMessageTooLarge is returned by SendPacket when the serialized
+	// frame would exceed maxMessageSize. The message is not queued.
+	ErrMessageTooLarge = errors.New("websocket message exceeds size limit")
 )
 
 type Connection struct {
@@ -40,6 +46,9 @@ type Connection struct {
 	pumpWG    sync.WaitGroup
 	stateMu   sync.RWMutex
 	closed    bool
+
+	closeErrMu sync.Mutex
+	closeErr   error
 }
 
 func NewConnection(conn *websocket.Conn) *Connection {
@@ -86,6 +95,9 @@ func (c *Connection) SendPacket(packet packets.Packet) error {
 	if err != nil {
 		return err
 	}
+	if err := outboundMessageSizeError(packet, len(message)); err != nil {
+		return err
+	}
 
 	c.stateMu.RLock()
 	defer c.stateMu.RUnlock()
@@ -100,6 +112,13 @@ func (c *Connection) SendPacket(packet packets.Packet) error {
 	default:
 		return ErrSendQueueFull
 	}
+}
+
+// CloseError returns the read/close error that ended the connection, if any.
+func (c *Connection) CloseError() error {
+	c.closeErrMu.Lock()
+	defer c.closeErrMu.Unlock()
+	return c.closeErr
 }
 
 func (c *Connection) Done() <-chan struct{} {
@@ -135,22 +154,46 @@ func (c *Connection) markClosed() {
 	c.stateMu.Unlock()
 }
 
+func (c *Connection) recordCloseErr(err error) {
+	if err == nil {
+		return
+	}
+	c.closeErrMu.Lock()
+	if c.closeErr == nil {
+		c.closeErr = err
+	}
+	c.closeErrMu.Unlock()
+}
+
 func (c *Connection) readPump() {
 	for {
 		_, message, err := c.conn.Read(context.Background())
 		if err != nil {
+			c.recordCloseErr(err)
+			if isMessageTooBig(err) {
+				log.Printf("websocket closed: oversized inbound message: %v", err)
+				c.closeWithStatus(websocket.StatusMessageTooBig, "message too big")
+				return
+			}
 			c.closeOnError()
 			return
 		}
 
 		packet, err := packets.Deserialize(message)
 		if err != nil {
+			c.recordCloseErr(err)
 			c.closeWithStatus(websocket.StatusUnsupportedData, "invalid packet")
 			return
 		}
 
 		if c.onPacket != nil {
 			if err := c.onPacket(packet); err != nil {
+				c.recordCloseErr(err)
+				if errors.Is(err, ErrMessageTooLarge) {
+					log.Printf("websocket closed: oversized outbound response: %v", err)
+					c.closeWithStatus(websocket.StatusInternalError, "outbound message too big")
+					return
+				}
 				c.closeWithStatus(websocket.StatusPolicyViolation, "packet rejected")
 				return
 			}
@@ -166,6 +209,7 @@ func (c *Connection) writePump() {
 			err := c.conn.Write(ctx, websocket.MessageText, message)
 			cancel()
 			if err != nil {
+				c.recordCloseErr(err)
 				c.closeOnError()
 				return
 			}
@@ -189,6 +233,7 @@ func (c *Connection) pingPump() {
 			err := c.conn.Ping(ctx)
 			cancel()
 			if err != nil {
+				c.recordCloseErr(err)
 				c.closeOnError()
 				return
 			}
@@ -196,4 +241,22 @@ func (c *Connection) pingPump() {
 			return
 		}
 	}
+}
+
+func outboundMessageSizeError(packet packets.Packet, size int) error {
+	if size <= maxMessageSize {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: %T is %d bytes (limit %d)",
+		ErrMessageTooLarge,
+		packet,
+		size,
+		maxMessageSize,
+	)
+}
+
+func isMessageTooBig(err error) bool {
+	return errors.Is(err, websocket.ErrMessageTooBig) ||
+		websocket.CloseStatus(err) == websocket.StatusMessageTooBig
 }
