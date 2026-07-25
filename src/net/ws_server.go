@@ -18,7 +18,7 @@ import (
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	socket, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		// Browser clients are served from a different origin than this
-		// server (e.g. localhost:8080 vs localhost:58008), so same-origin
+		// server (e.g. localhost:8080 vs the multiplayer port), so same-origin
 		// verification must be skipped or the upgrade gets a 403.
 		InsecureSkipVerify: true,
 	})

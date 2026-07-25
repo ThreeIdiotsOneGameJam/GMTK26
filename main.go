@@ -11,6 +11,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/google/uuid"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
+	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net"
@@ -186,13 +187,13 @@ func main() {
 
 	rl.SetConfigFlags(configFlags)
 
-	rl.InitWindow(1200, 675, "Game")
+	rl.InitWindow(constants.WindowWidth, constants.WindowHeight, constants.GameName)
 	defer rl.CloseWindow()
 
 	shaders.Load()
 	defer shaders.Unload()
 
-	go net.Connect("localhost:58008")
+	go net.Connect(constants.DefaultServerAddress())
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)

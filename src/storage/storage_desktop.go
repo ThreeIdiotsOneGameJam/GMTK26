@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-)
 
-const appName = "3I1GJ-GMTK26"
+	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
+)
 
 func filePath(key string) (string, error) {
 	configDir, err := os.UserConfigDir()
@@ -18,7 +18,7 @@ func filePath(key string) (string, error) {
 		return "", fmt.Errorf("find user config directory: %w", err)
 	}
 
-	dir := filepath.Join(configDir, appName)
+	dir := filepath.Join(configDir, constants.AppName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create save directory: %w", err)
 	}

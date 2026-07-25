@@ -2,6 +2,7 @@ package global
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -19,7 +20,7 @@ var UIBlocksWorldInput bool
 // so underlying interactive UI clears hover/click instead of freezing mid-state.
 var UIModalBlocksInput bool
 
-var ViewportSize = vec.Vec2i{X: 640, Y: 360}
+var ViewportSize = vec.Vec2i{X: constants.ViewportWidth, Y: constants.ViewportHeight}
 
 var closeWindowRequested bool
 
