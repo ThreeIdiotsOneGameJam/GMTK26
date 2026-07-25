@@ -49,7 +49,7 @@ func clearMatchmaking() {
 
 var MatchmakingScreen = ui.Screen().
 	WithEnter(func() {
-		EscScreen.WithVisible(false)
+		HideEscScreen()
 	}).
 	AddChild(
 		ui.Group().WithUpdate(func(deltaNano int64) {

@@ -17,7 +17,6 @@ const (
 	MatchmakingScreenID
 	GameScreenID
 	SettingsScreenID
-	EscScreenID
 )
 
 const (
@@ -39,7 +38,6 @@ func init() {
 		MatchmakingScreenID:  MatchmakingScreen,
 		GameScreenID:         GameScreen,
 		SettingsScreenID:     SettingsScreen,
-		EscScreenID:          EscScreen,
 	}
 	activeScreen = MainScreen
 	activeScreen.Enter()
@@ -74,7 +72,7 @@ func Update(deltaNano int64) {
 	}
 
 	if !IsTransitioning() {
-		if activeScreen == GameScreen && EscScreen.Visible() {
+		if IsEscScreenOpen() {
 			EscScreen.Update(deltaNano)
 		} else {
 			activeScreen.Update(deltaNano)
@@ -151,5 +149,16 @@ func smoothstep(value float32) float32 {
 }
 
 func ToggleEscScreen() {
-	EscScreen.WithVisible(!EscScreen.Visible())
+	if activeScreen != GameScreen {
+		return
+	}
+	if EscScreen.Visible() {
+		HideEscScreen()
+		return
+	}
+	EscScreen.WithVisible(true)
+}
+
+func IsEscScreenOpen() bool {
+	return activeScreen == GameScreen && EscScreen.Visible()
 }
