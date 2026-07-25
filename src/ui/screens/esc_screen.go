@@ -98,9 +98,14 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
+	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*3, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+		func() bool { return settings.Current.ReducedMotion },
+		func(v bool) { settings.Current.ReducedMotion = v },
+		saveSettings,
+	)
 
 	settingsPanel.AddChild(
-		uiutil.MenuButton("Back", 200, func() {
+		uiutil.MenuButton("Back", 250, func() {
 			escShowingSettings = false
 		}),
 	)

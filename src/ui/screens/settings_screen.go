@@ -3,8 +3,11 @@ package screens
 import (
 	"fmt"
 	"image/color"
+	"strings"
 
+	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
@@ -59,22 +62,13 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
+	addToggleRow(screen, "Reduced Motion", rowStartY+rowStrideY*3,
+		func() bool { return settings.Current.ReducedMotion },
+		func(v bool) { settings.Current.ReducedMotion = v },
+		saveSettings,
+	)
 
 	return screen.
-		AddChild(
-			ui.Text().
-				WithTextDynamic(func() string {
-					p := game.PlayerData
-					return fmt.Sprintf(
-						"Player Data:\n  ClientID: %s\n  PlayerName: %s\n  Color: %d,%d,%d",
-						p.ClientID, p.PlayerName, p.Color[0], p.Color[1], p.Color[2],
-					)
-				}).
-				WithTextSize(24).
-				WithTextColor(uiutil.MenuMutedColor).
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{X: 0, Y: 220}),
-		).
 		AddChild(
 			ui.Button().
 				WithText("Back").
@@ -87,6 +81,34 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					Y: -20,
 				}).
 				WithClick(goBack),
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					p := game.PlayerData
+					return fmt.Sprintf(
+						"Player Data:\n  ClientID: %s\n  PlayerName: %s\n  Color: %d,%d,%d",
+						p.ClientID, p.PlayerName, p.Color[0], p.Color[1], p.Color[2],
+					)
+				}).
+				WithTextSize(24).
+				WithTextColor(uiutil.MenuMutedColor).
+				WithSizeDynamic(func(el *ui.TextElement) vec.Vec2i {
+					lines := strings.Split(el.Text(), "\n")
+					width := int32(0)
+					for _, line := range lines {
+						width = max(width, rl.MeasureText(line, el.TextSize))
+					}
+					return vec.Vec2i{
+						X: width,
+						Y: el.TextSize * int32(len(lines)),
+					}
+				}).
+				WithAnchors(anchor.Bottom, anchor.Bottom).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -20}).
+				WithVisibleDynamic(func(*ui.TextElement) bool {
+					return global.DebugEnabled
+				}),
 		).
 		AddChild(
 			ui.Vignette(),
