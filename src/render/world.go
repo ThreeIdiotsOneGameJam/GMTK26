@@ -51,7 +51,10 @@ const (
 	panMomentumDamping = float32(4.0)
 
 	// Smooth camera movement toward focus target.
-	cameraFocusSmoothness float32 = 8.0
+	cameraFocusSmoothness float32 = 4.0
+
+	// Zoom smoothness used when focusing on a hex (slower than wheel).
+	cameraFocusZoomSmoothness float32 = 2.0
 )
 
 type WorldRenderer struct {
@@ -68,6 +71,7 @@ type WorldRenderer struct {
 
 	TargetPosition   v.Vec2
 	InterpolateFocus bool
+	zoomSmoothness   float32
 
 	BuildingToPlace game.BuildingType
 	// OnPlaceBuilding, when set, may take over a placement click. Returning
@@ -108,6 +112,7 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	}.Mul(r.HexSize).Sub(global.ViewportSize.Vec2()))
 	r.Camera.Offset = rlvec.ToRL(global.ViewportSize.Vec2().Mul(v.Vec2{X: 0.5, Y: 0.5}))
 	r.TargetPosition = rlvec.FromRL(r.Camera.Target)
+	r.zoomSmoothness = cameraZoomSmoothness
 }
 
 func (r *WorldRenderer) Unload() {
@@ -210,6 +215,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		if wheel != 0.0 {
 			r.ZoomAnchor = r.MousePosition
 			r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
+			r.zoomSmoothness = cameraZoomSmoothness
 		}
 	}
 
@@ -224,7 +230,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	}
 
 	r.TargetZoom = max(cameraMinZoom, min(r.TargetZoom, cameraMaxZoom))
-	zoomBlend := 1.0 - float32(math.Exp(float64(-cameraZoomSmoothness*deltaSeconds)))
+	zoomBlend := 1.0 - float32(math.Exp(float64(-r.zoomSmoothness*deltaSeconds)))
 	nextZoom := r.Camera.Zoom + (r.TargetZoom-r.Camera.Zoom)*zoomBlend
 
 	if nextZoom != r.Camera.Zoom {
@@ -321,6 +327,7 @@ func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
 	pixelPos := r.HexToPixel(hex.Vec2i)
 	r.TargetPosition = pixelPos
 	r.TargetZoom = cameraDefaultZoom
+	r.zoomSmoothness = cameraFocusZoomSmoothness
 	r.InterpolateFocus = true
 	r.PanVelocity = v.Vec2{}
 }
