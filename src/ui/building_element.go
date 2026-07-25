@@ -55,13 +55,19 @@ func (el *BuildingElement) update(deltaNano int64) {
 
 	el.visible = true
 
-	if game.BuildingCanPlace(&el.World.Map, el.Type, el.hex) {
+	canPlace := game.BuildingCanPlace(&el.World.Map, el.Type, el.hex)
+
+	if canPlace {
 		el.tint = rl.Green
 	} else {
 		el.tint = rl.Red
 	}
 
 	el.tint.A = 123
+
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canPlace {
+		el.World.Map.GetCell(el.hex).Building = el.Type
+	}
 }
 
 func (el *BuildingElement) draw() {
