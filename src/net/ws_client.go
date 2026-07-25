@@ -3,12 +3,11 @@ package net
 import (
 	"context"
 	"fmt"
-	stdnet "net"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -80,8 +79,6 @@ func Close() {
 type WSClient struct {
 	conn   *Connection
 	connMu sync.Mutex
-	dialMu sync.Mutex
-	dial   stdnet.Conn
 
 	stateAtomic atomic.Int32
 
@@ -133,12 +130,9 @@ func (c *WSClient) connect(addr string) {
 		c.clearRetryRequest()
 		c.setState(ConnectionConnecting)
 
-		dialer := *websocket.DefaultDialer
-		dialer.NetDialContext = c.dialContext
-		conn, _, err := dialer.DialContext(c.ctx, "ws://"+addr, nil)
-		c.dialMu.Lock()
-		c.dial = nil
-		c.dialMu.Unlock()
+		// coder/websocket dials through the browser WebSocket API on
+		// js/wasm; canceling c.ctx aborts an in-flight dial.
+		conn, _, err := websocket.Dial(c.ctx, "ws://"+addr, nil)
 		if err != nil {
 			c.setState(ConnectionDisconnected)
 			if !c.waitForRetry(retryDelay) {
@@ -189,29 +183,6 @@ func (c *WSClient) connect(addr string) {
 		}
 		retryDelay = nextReconnectDelay(retryDelay)
 	}
-}
-
-func (c *WSClient) dialContext(
-	ctx context.Context,
-	network string,
-	address string,
-) (stdnet.Conn, error) {
-	var dialer stdnet.Dialer
-	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return nil, err
-	}
-
-	c.dialMu.Lock()
-	if c.ctx.Err() != nil {
-		c.dialMu.Unlock()
-		_ = conn.Close()
-		return nil, c.ctx.Err()
-	}
-	c.dial = conn
-	c.dialMu.Unlock()
-
-	return conn, nil
 }
 
 func (c *WSClient) waitForRetry(delay time.Duration) bool {
@@ -292,14 +263,6 @@ func (c *WSClient) close() {
 		c.cancel()
 		waitForRun := c.running
 		c.lifecycleMu.Unlock()
-
-		c.dialMu.Lock()
-		dial := c.dial
-		c.dial = nil
-		c.dialMu.Unlock()
-		if dial != nil {
-			_ = dial.Close()
-		}
 
 		c.connMu.Lock()
 		conn := c.conn
