@@ -37,14 +37,21 @@ func Input() *InputElement {
 		Padding:         8,
 		OutlineWidth:    4,
 		ForegroundColors: ColorSet{
-			Default: &rl.DarkGray,
+			Default:  &rl.DarkGray,
+			Disabled: util.SimpleGrayscaleColor(145),
 		},
 		PlaceholderColors: ColorSet{
-			Default: util.ColorSub(rl.LightGray, 10),
+			Default:  util.ColorSub(rl.LightGray, 10),
+			Disabled: util.SimpleGrayscaleColor(165),
 		},
-		BackgroundColors: NewColorSetClick(util.SimpleGrayscaleColor(220), util.SimpleGrayscaleColor(240)),
+		BackgroundColors: ColorSet{
+			Default:  util.SimpleGrayscaleColor(220),
+			Click:    util.SimpleGrayscaleColor(240),
+			Disabled: util.SimpleGrayscaleColor(210),
+		},
 		OutlineColors: ColorSet{
-			Default: util.ColorAdd(rl.Gray, 40),
+			Default:  util.ColorAdd(rl.Gray, 40),
+			Disabled: util.SimpleGrayscaleColor(190),
 		},
 		Callback: func(text string) {},
 	}
@@ -504,24 +511,20 @@ func (el *InputElement) draw() {
 	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
 	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
 
-	oCol := el.OutlineColors.Color(StateDefault)
-	pCol := el.PlaceholderColors.Color(StateDefault)
-	bgCol := el.BackgroundColors.Color(StateDefault)
-	fgCol := el.ForegroundColors.Color(StateDefault)
-
-	if el.hovered {
-		oCol = el.OutlineColors.Color(StateHover)
-		pCol = el.PlaceholderColors.Color(StateHover)
-		bgCol = el.BackgroundColors.Color(StateHover)
-		fgCol = el.ForegroundColors.Color(StateHover)
+	state := StateDefault
+	switch {
+	case !el.Enabled():
+		state = StateDisabled
+	case el.clicked:
+		state = StateClick
+	case el.hovered:
+		state = StateHover
 	}
 
-	if el.clicked {
-		oCol = el.OutlineColors.Color(StateClick)
-		pCol = el.PlaceholderColors.Color(StateClick)
-		bgCol = el.BackgroundColors.Color(StateClick)
-		fgCol = el.ForegroundColors.Color(StateClick)
-	}
+	oCol := el.OutlineColors.Color(state)
+	pCol := el.PlaceholderColors.Color(state)
+	bgCol := el.BackgroundColors.Color(state)
+	fgCol := el.ForegroundColors.Color(state)
 
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*oCol, opacity)
