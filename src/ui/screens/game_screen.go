@@ -13,6 +13,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
@@ -373,9 +374,8 @@ var GameScreen = ui.Screen().
 		ui.Group().
 			WithAnchors(anchor.TopLeft, anchor.TopLeft).
 			WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
-			// Local map tools would desync a server-run game.
 			WithVisibleDynamic(func(el *ui.GroupElement) bool {
-				return !serverGameActive
+				return !serverGameActive && global.DebugEnabled
 			}).
 			AddChild(
 				gameSeedInput.
