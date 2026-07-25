@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 )
 
 func Vignette() *VignetteElement {
@@ -42,26 +43,26 @@ func (el *VignetteElement) draw() {
 	rl.BeginShaderMode(vignetteShader)
 	rl.Begin(rl.Triangles)
 
-	rl.Color4ub(el.Color.R, el.Color.G, el.Color.B, el.Color.A)
+	rlutil.Color4ub(el.Color.R, el.Color.G, el.Color.B, el.Color.A)
 	rl.Normal3f(el.Radius, 0.0, 1.0)
 
 	rl.TexCoord2f(0.0, 0.0)
-	rl.Vertex2f(p.X, p.Y)
+	rlutil.Vertex2f(p.X, p.Y)
 
 	rl.TexCoord2f(1.0, 1.0)
-	rl.Vertex2f(p.X+s.X, p.Y+s.Y)
+	rlutil.Vertex2f(p.X+s.X, p.Y+s.Y)
 
 	rl.TexCoord2f(1.0, 0.0)
-	rl.Vertex2f(p.X+s.X, p.Y)
+	rlutil.Vertex2f(p.X+s.X, p.Y)
 
 	rl.TexCoord2f(0.0, 1.0)
-	rl.Vertex2f(p.X, p.Y+s.Y)
+	rlutil.Vertex2f(p.X, p.Y+s.Y)
 
 	rl.TexCoord2f(1.0, 1.0)
-	rl.Vertex2f(p.X+s.X, p.Y+s.Y)
+	rlutil.Vertex2f(p.X+s.X, p.Y+s.Y)
 
 	rl.TexCoord2f(0.0, 0.0)
-	rl.Vertex2f(p.X, p.Y)
+	rlutil.Vertex2f(p.X, p.Y)
 
 	rl.End()
 	rl.EndShaderMode()
