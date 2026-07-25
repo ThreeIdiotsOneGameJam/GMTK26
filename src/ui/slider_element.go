@@ -173,7 +173,15 @@ func (el *SliderElement) setValue(value float32) {
 	}
 }
 
+func (el *SliderElement) syncValueFromProvider() {
+	if el.ValueProvider != nil && !el.dragging {
+		el.Value = el.clampValue(el.ValueProvider())
+	}
+}
+
 func (el *SliderElement) prepare() {
+	el.syncValueFromProvider()
+
 	size := el.Size()
 	el.w = max(size.X, 1)
 	el.h = max(size.Y, el.ThumbHeight)
@@ -198,9 +206,7 @@ func (el *SliderElement) update(deltaNano int64) {
 		return
 	}
 
-	if el.ValueProvider != nil && !el.dragging {
-		el.Value = el.clampValue(el.ValueProvider())
-	}
+	el.syncValueFromProvider()
 
 	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
 
