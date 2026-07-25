@@ -2,9 +2,13 @@ package screens
 
 import (
 	"fmt"
+	"image/color"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
@@ -142,7 +146,19 @@ func EnterGame(state game.Game) {
 }
 
 func RejectGameStart(message string) {
-	gameActionError = message
+	gameActionError = capitalizeSentence(message)
+}
+
+func capitalizeSentence(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }
 
 func RejectGameJoin(message string) {
@@ -282,7 +298,7 @@ var GameScreen = ui.Screen().
 			WithClick(func() {
 				gameActionError = ""
 				if err := gameNet.Send(&packets.C2SStartGamePacket{}); err != nil {
-					gameActionError = err.Error()
+					gameActionError = capitalizeSentence(err.Error())
 					fmt.Printf("failed to request game start: %v\n", err)
 				}
 			}),
@@ -291,9 +307,10 @@ var GameScreen = ui.Screen().
 		ui.Text().
 			WithTextDynamic(func() string { return gameActionError }).
 			WithTextSize(22).
-			WithTextColor(rl.Maroon).
+			WithTextColor(color.RGBA{R: 255, G: 96, B: 96, A: 255}).
+			WithTextShadow(color.RGBA{R: 0, G: 0, B: 0, A: 200}, vec.Vec2i{X: 2, Y: 2}).
 			WithAnchors(anchor.Top, anchor.Top).
-			WithRelativePos(vec.Vec2i{X: 0, Y: 110}).
+			WithRelativePos(vec.Vec2i{X: 0, Y: 122}).
 			WithVisibleDynamic(func(el *ui.TextElement) bool {
 				return gameActionError != ""
 			}),
