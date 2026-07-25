@@ -9,38 +9,24 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 )
 
-type ScreenID int
-
-const (
-	MainScreenID ScreenID = iota
-	PlayScreenID
-	GameCreationScreenID
-	MatchmakingScreenID
-	GameScreenID
-	SettingsScreenID
-)
-
 const (
 	screenFadeOutDuration = 110 * time.Millisecond
 	screenFadeInDuration  = 160 * time.Millisecond
 )
 
-var screenMap map[ScreenID]*ui.ScreenElement
 var activeScreen *ui.ScreenElement
 var pendingScreen *ui.ScreenElement
 var transitionAlpha float32
 var transitionColor color.RGBA
 
+// Retained instances needed for overlays and return navigation.
+var playScreen *ui.ScreenElement
+var gameScreen *ui.ScreenElement
+var escScreen *ui.ScreenElement
+var matchmakingScreen *ui.ScreenElement
+
 func init() {
-	screenMap = map[ScreenID]*ui.ScreenElement{
-		MainScreenID:         MainScreen,
-		PlayScreenID:         PlayScreen,
-		GameCreationScreenID: GameCreationScreen,
-		MatchmakingScreenID:  MatchmakingScreen,
-		GameScreenID:         GameScreen,
-		SettingsScreenID:     SettingsScreen,
-	}
-	activeScreen = MainScreen
+	activeScreen = NewMainScreen()
 	activeScreen.Enter()
 	transitionColor = activeScreen.BackgroundColor
 }
@@ -49,10 +35,9 @@ func GetActiveScreen() *ui.ScreenElement {
 	return activeScreen
 }
 
-func SetActiveScreen(screenID ScreenID) {
-	screen, ok := screenMap[screenID]
-	if !ok {
-		panic("invalid screen ID")
+func SetActiveScreen(screen *ui.ScreenElement) {
+	if screen == nil {
+		panic("active screen must not be nil")
 	}
 
 	if screen == activeScreen && pendingScreen == nil {
@@ -61,6 +46,22 @@ func SetActiveScreen(screenID ScreenID) {
 
 	transitionColor = blendScreenColors(activeScreen.BackgroundColor, screen.BackgroundColor)
 	pendingScreen = screen
+}
+
+// GoToPreviousScreen activates previousScreen, or Main when previous is nil.
+func GoToPreviousScreen(previousScreen *ui.ScreenElement) {
+	if previousScreen == nil {
+		SetActiveScreen(NewMainScreen())
+		return
+	}
+	SetActiveScreen(previousScreen)
+}
+
+func playScreenOrNew() *ui.ScreenElement {
+	if playScreen != nil {
+		return playScreen
+	}
+	return NewPlayScreen(NewMainScreen())
 }
 
 func IsTransitioning() bool {
@@ -78,10 +79,10 @@ func Update(deltaNano int64) {
 			// state clears instead of freezing, then give the overlay a pass.
 			global.UIModalBlocksInput = true
 			global.UIBlocksWorldInput = true
-			GameScreen.UpdateExcept(deltaNano, EscScreen)
+			gameScreen.UpdateExcept(deltaNano, escScreen)
 			global.UIModalBlocksInput = false
 			global.UIBlocksWorldInput = false
-			EscScreen.Update(deltaNano)
+			escScreen.Update(deltaNano)
 			global.UIBlocksWorldInput = true
 		} else {
 			activeScreen.Update(deltaNano)
@@ -158,16 +159,16 @@ func smoothstep(value float32) float32 {
 }
 
 func ToggleEscScreen() {
-	if activeScreen != GameScreen {
+	if activeScreen != gameScreen || escScreen == nil {
 		return
 	}
-	if EscScreen.Visible() {
+	if escScreen.Visible() {
 		HideEscScreen()
 		return
 	}
-	EscScreen.WithVisible(true)
+	escScreen.WithVisible(true)
 }
 
 func IsEscScreenOpen() bool {
-	return activeScreen == GameScreen && EscScreen.Visible()
+	return activeScreen == gameScreen && escScreen != nil && escScreen.Visible()
 }

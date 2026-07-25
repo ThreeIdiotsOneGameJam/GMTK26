@@ -35,12 +35,12 @@ var (
 	creationPlayerCount [3]*ui.ButtonElement
 )
 
-func OpenSoloGameCreation() {
-	openGameCreation(gameCreationSolo)
+func OpenSoloGameCreation(previousScreen *ui.ScreenElement) {
+	openGameCreation(gameCreationSolo, previousScreen)
 }
 
-func OpenHostGameCreation() {
-	openGameCreation(gameCreationHost)
+func OpenHostGameCreation(previousScreen *ui.ScreenElement) {
+	openGameCreation(gameCreationHost, previousScreen)
 }
 
 func RejectGameCreation(message string) {
@@ -48,17 +48,18 @@ func RejectGameCreation(message string) {
 	creationError = message
 }
 
-func openGameCreation(mode gameCreationMode) {
+func openGameCreation(mode gameCreationMode, previousScreen *ui.ScreenElement) {
 	creationMode = mode
 	creationMaxPlayers = 4
 	creationPublic = true
 	creationSubmitting = false
 	creationError = ""
+	screen := NewGameCreationScreen(previousScreen)
 	creationSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
-	SetActiveScreen(GameCreationScreenID)
+	SetActiveScreen(screen)
 }
 
-func newGameCreationScreen() *ui.ScreenElement {
+func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	hostMode := func() bool {
 		return creationMode == gameCreationHost
 	}
@@ -267,7 +268,7 @@ func newGameCreationScreen() *ui.ScreenElement {
 		).
 		AddChild(
 			backButton(func() {
-				SetActiveScreen(PlayScreenID)
+				GoToPreviousScreen(previousScreen)
 			}).WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 				return !creationSubmitting
 			}),
@@ -338,5 +339,3 @@ func gameSeedFromText(text string) int64 {
 	_, _ = hash.Write([]byte(text))
 	return int64(hash.Sum64())
 }
-
-var GameCreationScreen = newGameCreationScreen()

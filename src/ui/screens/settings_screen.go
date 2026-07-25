@@ -12,9 +12,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-var SettingsScreen = newSettingsScreen()
-
-func newSettingsScreen() *ui.ScreenElement {
+func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	const (
 		sliderWidth = 360
 		rowStartY   = -40
@@ -93,7 +91,7 @@ func newSettingsScreen() *ui.ScreenElement {
 					Y: -20,
 				}).
 				WithClick(func() {
-					SetActiveScreen(MainScreenID)
+					GoToPreviousScreen(previousScreen)
 				}),
 		).
 		AddChild(

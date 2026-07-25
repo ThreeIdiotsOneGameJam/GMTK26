@@ -25,6 +25,7 @@ var gameSeedInput = ui.Input()
 var gameWorld = ui.World()
 var gameRegenerateButton = ui.Button()
 var currentGame *game.Game
+var gamePreviousScreen *ui.ScreenElement
 
 // localClientID is the server-assigned identity from the connect handshake,
 // used to decide whether the local player hosts the current game.
@@ -145,7 +146,11 @@ func EnterGame(state game.Game) {
 	gameOverMessage = ""
 	gameActionError = ""
 	applyGameState(state)
-	SetActiveScreen(GameScreenID)
+	if GetActiveScreen() == gameScreen {
+		return
+	}
+	// Return to the play menu on close, not intermediate creation/matchmaking screens.
+	SetActiveScreen(NewGameScreen(playScreenOrNew()))
 }
 
 func RejectGameStart(message string) {
@@ -167,7 +172,7 @@ func capitalizeSentence(s string) string {
 func RejectGameJoin(message string) {
 	clearMatchmaking()
 	SetPlayError(message)
-	SetActiveScreen(PlayScreenID)
+	SetActiveScreen(playScreenOrNew())
 }
 
 func ApplyGameUpdate(state game.Game) {
@@ -182,7 +187,7 @@ func CloseGame(gameID uint64) {
 		return
 	}
 	clearCurrentGame()
-	SetActiveScreen(PlayScreenID)
+	GoToPreviousScreen(gamePreviousScreen)
 }
 
 func ResetGameSession() {
@@ -190,12 +195,12 @@ func ResetGameSession() {
 	clearMatchmaking()
 	if currentGame == nil || !currentGame.Multiplayer {
 		if wasMatchmaking {
-			SetActiveScreen(PlayScreenID)
+			SetActiveScreen(playScreenOrNew())
 		}
 		return
 	}
 	clearCurrentGame()
-	SetActiveScreen(PlayScreenID)
+	GoToPreviousScreen(gamePreviousScreen)
 }
 
 func LeaveCurrentGame() {
@@ -249,230 +254,239 @@ func setBuildingClick(building game.BuildingType) func() {
 	}
 }
 
-var GameScreen = ui.Screen().
-	WithEnter(func() {
-		HideEscScreen()
+func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
+	gamePreviousScreen = previousScreen
+	// nil previousScreen → Leave Game creates a fresh main screen.
+	escScreen = NewEscScreen(nil)
 
-		audio.StartMusic()
-		audio.StartAmbience()
-	}).
-	WithExit(func() {
-		HideEscScreen()
-		audio.StopMusic()
-		audio.StopAmbience()
-	}).
-	AddChild(
-		gameWorld,
-	).
-	AddChild(
-		ui.Text().
-			WithTextDynamic(func() string {
-				if currentGame == nil || !currentGame.Multiplayer {
-					return ""
-				}
-				return "Game code: " + currentGame.GameCode
-			}).
-			WithTextSize(28).
-			WithTextColor(rl.Black).
-			WithAnchors(anchor.TopRight, anchor.TopRight).
-			WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
-	).
-	AddChild(
-		ui.Text().
-			WithTextDynamic(multiplayerStatusText).
-			WithTextSize(26).
-			WithTextColor(rl.Black).
-			WithAnchors(anchor.Top, anchor.Top).
-			WithRelativePos(vec.Vec2i{X: 0, Y: 20}).
-			WithVisibleDynamic(func(el *ui.TextElement) bool {
-				return multiplayerStatusText() != ""
-			}),
-	).
-	AddChild(
-		ui.Button().
-			WithText("Start Game").
-			WithTextSize(30).
-			WithPadding(10).
-			WithOutlineWidth(4).
-			WithAnchors(anchor.Top, anchor.Top).
-			WithRelativePos(vec.Vec2i{X: 0, Y: 58}).
-			WithVisibleDynamic(func(el *ui.ButtonElement) bool {
-				return currentGame != nil && currentGame.Multiplayer &&
-					!serverGameActive && gameOverMessage == "" && isLocalHost()
-			}).
-			WithClick(func() {
-				gameActionError = ""
-				if err := gameNet.Send(&packets.C2SStartGamePacket{}); err != nil {
-					gameActionError = capitalizeSentence(err.Error())
-					fmt.Printf("failed to request game start: %v\n", err)
-				}
-			}),
-	).
-	AddChild(
-		ui.Text().
-			WithTextDynamic(func() string { return gameActionError }).
-			WithTextSize(22).
-			WithTextColor(color.RGBA{R: 255, G: 96, B: 96, A: 255}).
-			WithTextShadow(color.RGBA{R: 0, G: 0, B: 0, A: 200}, vec.Vec2i{X: 2, Y: 2}).
-			WithAnchors(anchor.Top, anchor.Top).
-			WithRelativePos(vec.Vec2i{X: 0, Y: 122}).
-			WithVisibleDynamic(func(el *ui.TextElement) bool {
-				return gameActionError != ""
-			}),
-	).
-	AddChild(
-		ui.Group().
-			WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
-			WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
-			AddChild(
-				ui.Text().
-					WithTextSize(24).
-					WithRelativePos(vec.Vec2i{X: 0, Y: -32}).
-					WithTextColor(rl.Black).
-					WithText("Buildings:"),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithText("None").
-					WithClick(setBuildingClick(game.BuildingUnknown)),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithText("Barracks").
-					WithRelativePos(vec.Vec2i{X: 84, Y: 0}).
-					WithClick(setBuildingClick(game.BuildingBarracks)),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithText("Farm").
-					WithRelativePos(vec.Vec2i{X: 224, Y: 0}).
-					WithClick(setBuildingClick(game.BuildingFarm)),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithText("Mine").
-					WithRelativePos(vec.Vec2i{X: 308, Y: 0}).
-					WithClick(setBuildingClick(game.BuildingMine)),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithText("Forester").
-					WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
-					WithClick(setBuildingClick(game.BuildingForester)),
-			),
-	).
-	AddChild(
-		ui.Group().
-			WithAnchors(anchor.TopLeft, anchor.TopLeft).
-			WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
-			WithVisibleDynamic(func(el *ui.GroupElement) bool {
-				return !serverGameActive && global.DebugEnabled
-			}).
-			AddChild(
-				gameSeedInput.
-					WithPadding(8).
-					WithTextSize(24).
-					WithSize(vec.Vec2i{X: 320, Y: 0}).
-					WithPlaceholderText("Seed"),
-			).
-			AddChild(
-				gameRegenerateButton.
-					WithPadding(8).
-					WithTextSize(24).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
-					WithText("Regenerate").
-					WithClick(func() {
-						gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Text)
-						gameWorld.Map.Generate()
-					}),
-			).
-			AddChild(
-				ui.Button().
-					WithPadding(8).
-					WithTextSize(24).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
-					WithText("Random").
-					WithClick(func() {
-						gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
-						gameRegenerateButton.Click()
-					}),
-			),
-	).
-	AddChild(
-		ui.Group().
-			WithAnchors(anchor.TopLeft, anchor.TopLeft).
-			WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
-			WithVisibleDynamic(func(el *ui.GroupElement) bool {
-				return serverGameActive
-			}).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Wood: %d", serverResources[game.ResourceWood])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
-			).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Stone: %d", serverResources[game.ResourceStone])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 48}),
-			).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Coal: %d", serverResources[game.ResourceCoal])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 72}),
-			).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Iron: %d", serverResources[game.ResourceIron])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 96}),
-			).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Steel: %d", serverResources[game.ResourceSteel])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 120}),
-			).
-			AddChild(
-				ui.Text().
-					WithTextDynamic(func() string {
-						return fmt.Sprintf("Gold: %d", serverResources[game.ResourceGold])
-					}).
-					WithTextSize(20).
-					WithTextColor(rl.Black).
-					WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
-			),
-	).
-	AddChild(
-		ui.Vignette().WithAlpha(120),
-	).
-	AddChild(
-		EscScreen,
-	)
+	screen := ui.Screen().
+		WithEnter(func() {
+			HideEscScreen()
+
+			audio.StartMusic()
+			audio.StartAmbience()
+		}).
+		WithExit(func() {
+			HideEscScreen()
+			audio.StopMusic()
+			audio.StopAmbience()
+		}).
+		AddChild(
+			gameWorld,
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					if currentGame == nil || !currentGame.Multiplayer {
+						return ""
+					}
+					return "Game code: " + currentGame.GameCode
+				}).
+				WithTextSize(28).
+				WithTextColor(rl.Black).
+				WithAnchors(anchor.TopRight, anchor.TopRight).
+				WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(multiplayerStatusText).
+				WithTextSize(26).
+				WithTextColor(rl.Black).
+				WithAnchors(anchor.Top, anchor.Top).
+				WithRelativePos(vec.Vec2i{X: 0, Y: 20}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return multiplayerStatusText() != ""
+				}),
+		).
+		AddChild(
+			ui.Button().
+				WithText("Start Game").
+				WithTextSize(30).
+				WithPadding(10).
+				WithOutlineWidth(4).
+				WithAnchors(anchor.Top, anchor.Top).
+				WithRelativePos(vec.Vec2i{X: 0, Y: 58}).
+				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+					return currentGame != nil && currentGame.Multiplayer &&
+						!serverGameActive && gameOverMessage == "" && isLocalHost()
+				}).
+				WithClick(func() {
+					gameActionError = ""
+					if err := gameNet.Send(&packets.C2SStartGamePacket{}); err != nil {
+						gameActionError = capitalizeSentence(err.Error())
+						fmt.Printf("failed to request game start: %v\n", err)
+					}
+				}),
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string { return gameActionError }).
+				WithTextSize(22).
+				WithTextColor(color.RGBA{R: 255, G: 96, B: 96, A: 255}).
+				WithTextShadow(color.RGBA{R: 0, G: 0, B: 0, A: 200}, vec.Vec2i{X: 2, Y: 2}).
+				WithAnchors(anchor.Top, anchor.Top).
+				WithRelativePos(vec.Vec2i{X: 0, Y: 122}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return gameActionError != ""
+				}),
+		).
+		AddChild(
+			ui.Group().
+				WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
+				WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
+				AddChild(
+					ui.Text().
+						WithTextSize(24).
+						WithRelativePos(vec.Vec2i{X: 0, Y: -32}).
+						WithTextColor(rl.Black).
+						WithText("Buildings:"),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithText("None").
+						WithClick(setBuildingClick(game.BuildingUnknown)),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithText("Barracks").
+						WithRelativePos(vec.Vec2i{X: 84, Y: 0}).
+						WithClick(setBuildingClick(game.BuildingBarracks)),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithText("Farm").
+						WithRelativePos(vec.Vec2i{X: 224, Y: 0}).
+						WithClick(setBuildingClick(game.BuildingFarm)),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithText("Mine").
+						WithRelativePos(vec.Vec2i{X: 308, Y: 0}).
+						WithClick(setBuildingClick(game.BuildingMine)),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithText("Forester").
+						WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
+						WithClick(setBuildingClick(game.BuildingForester)),
+				),
+		).
+		AddChild(
+			ui.Group().
+				WithAnchors(anchor.TopLeft, anchor.TopLeft).
+				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+				WithVisibleDynamic(func(el *ui.GroupElement) bool {
+					return !serverGameActive && global.DebugEnabled
+				}).
+				AddChild(
+					gameSeedInput.
+						WithPadding(8).
+						WithTextSize(24).
+						WithSize(vec.Vec2i{X: 320, Y: 0}).
+						WithPlaceholderText("Seed"),
+				).
+				AddChild(
+					gameRegenerateButton.
+						WithPadding(8).
+						WithTextSize(24).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
+						WithText("Regenerate").
+						WithClick(func() {
+							gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Text)
+							gameWorld.Map.Generate()
+						}),
+				).
+				AddChild(
+					ui.Button().
+						WithPadding(8).
+						WithTextSize(24).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
+						WithText("Random").
+						WithClick(func() {
+							gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
+							gameRegenerateButton.Click()
+						}),
+				),
+		).
+		AddChild(
+			ui.Group().
+				WithAnchors(anchor.TopLeft, anchor.TopLeft).
+				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+				WithVisibleDynamic(func(el *ui.GroupElement) bool {
+					return serverGameActive
+				}).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Wood: %d", serverResources[game.ResourceWood])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Stone: %d", serverResources[game.ResourceStone])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 48}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Coal: %d", serverResources[game.ResourceCoal])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 72}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Iron: %d", serverResources[game.ResourceIron])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 96}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Steel: %d", serverResources[game.ResourceSteel])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 120}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Gold: %d", serverResources[game.ResourceGold])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.Black).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
+				),
+		).
+		AddChild(
+			ui.Vignette().WithAlpha(120),
+		).
+		AddChild(
+			escScreen,
+		)
+
+	gameScreen = screen
+	return screen
+}

@@ -23,7 +23,6 @@ const (
 
 var playGameCodeInput *ui.InputElement
 var playError string
-var PlayScreen = newPlayScreen()
 
 func ClearGameCodeInput() {
 	if playGameCodeInput == nil {
@@ -37,7 +36,8 @@ func SetPlayError(message string) {
 	playError = message
 }
 
-func newPlayScreen() *ui.ScreenElement {
+func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
+	var screen *ui.ScreenElement
 	var joinPanelOpen bool
 	var joinPanelProgress float32
 	var focusCodeInput bool
@@ -86,11 +86,11 @@ func newPlayScreen() *ui.ScreenElement {
 
 	joinRandom := func() {
 		playError = ""
-		EnterMatchmakingWaiting()
+		EnterMatchmakingWaiting(screen)
 		if err := gameNet.Send(&packets.C2SJoinGamePacket{GameCode: ""}); err != nil {
 			clearMatchmaking()
 			playError = err.Error()
-			SetActiveScreen(PlayScreenID)
+			SetActiveScreen(screen)
 			fmt.Printf("failed to start matchmaking: %v\n", err)
 		}
 	}
@@ -241,7 +241,7 @@ func newPlayScreen() *ui.ScreenElement {
 			}
 		})
 
-	return ui.Screen().
+	screen = ui.Screen().
 		AddChild(controller).
 		AddChild(
 			ui.Text().
@@ -266,7 +266,9 @@ func newPlayScreen() *ui.ScreenElement {
 		AddChild(
 			playMenuButton("Play Solo").
 				WithRelativePosDynamic(menuButtonPos(-100)).
-				WithClick(OpenSoloGameCreation),
+				WithClick(func() {
+					OpenSoloGameCreation(screen)
+				}),
 		).
 		AddChild(
 			playMenuButton("Host a Game").
@@ -274,7 +276,9 @@ func newPlayScreen() *ui.ScreenElement {
 				WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 					return multiplayerEnabled()
 				}).
-				WithClick(OpenHostGameCreation),
+				WithClick(func() {
+					OpenHostGameCreation(screen)
+				}),
 		).
 		AddChild(
 			playMenuButton("Join Random Game").
@@ -322,12 +326,15 @@ func newPlayScreen() *ui.ScreenElement {
 				WithClick(gameNet.RetryConnection),
 		).
 		AddChild(backButton(func() {
-			SetActiveScreen(MainScreenID)
+			GoToPreviousScreen(previousScreen)
 		})).
 		AddChild(
 			ui.Vignette(),
 		).
 		WithExit(resetJoinPanel)
+
+	playScreen = screen
+	return screen
 }
 
 func playMenuButton(text string) *ui.ButtonElement {
