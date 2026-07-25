@@ -263,23 +263,23 @@ func buildingLabel(b game.BuildingType) string {
 }
 
 func buildingProductionText(b game.BuildingType, tile game.TileType) string {
-	produces := game.BuildingProduces(b, tile)
-	if produces == nil {
-		return ""
-	}
-	resTypes := []game.ResourceType{game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
-	first := true
+	coinOutput := game.BuildingCoinsProduces(b)
 	text := ""
+	if coinOutput > 0 {
+		text = fmt.Sprintf("Coin +%d", coinOutput)
+	}
+
+	produces := game.BuildingProduces(b, tile)
+	resTypes := []game.ResourceType{game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
 	for _, resType := range resTypes {
 		amount := produces[resType]
 		if amount == 0 {
 			continue
 		}
-		if !first {
+		if text != "" {
 			text += ", "
 		}
 		text += fmt.Sprintf("%s +%d", resType.String(), amount)
-		first = false
 	}
 	return text
 }
