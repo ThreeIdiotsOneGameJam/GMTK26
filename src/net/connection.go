@@ -1,18 +1,18 @@
 package net
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
 
 const (
 	writeWait       = 10 * time.Second    // 10s
-	pongWait        = 60 * time.Second    // 60s
-	pingPeriod      = (pongWait * 9) / 10 // 54s (0.9min)
+	pingPeriod      = 54 * time.Second    // 54s (0.9min)
 	maxMessageSize  = 64 * 1024
 	sendQueueLength = 64
 )
@@ -27,6 +27,11 @@ type Connection struct {
 	onPacket func(packets.Packet) error
 	send     chan []byte
 	done     chan struct{}
+
+	// pings enables periodic liveness pings. Only the server sends them:
+	// the browser WebSocket API cannot send pings, so the wasm client
+	// relies on the server pinging instead.
+	pings bool
 
 	startOnce sync.Once
 	closeOnce sync.Once
@@ -43,9 +48,17 @@ func NewConnection(conn *websocket.Conn) *Connection {
 	}
 }
 
+func NewServerConnection(conn *websocket.Conn) *Connection {
+	c := NewConnection(conn)
+	c.pings = true
+	return c
+}
+
 func (c *Connection) Start(onPacket func(packets.Packet) error) {
 	c.startOnce.Do(func() {
 		c.onPacket = onPacket
+		c.conn.SetReadLimit(maxMessageSize)
+
 		c.pumpWG.Add(2)
 		go func() {
 			defer c.pumpWG.Done()
@@ -55,6 +68,14 @@ func (c *Connection) Start(onPacket func(packets.Packet) error) {
 			defer c.pumpWG.Done()
 			c.readPump()
 		}()
+
+		if c.pings {
+			c.pumpWG.Add(1)
+			go func() {
+				defer c.pumpWG.Done()
+				c.pingPump()
+			}()
+		}
 	})
 }
 
@@ -88,25 +109,20 @@ func (c *Connection) wait() {
 }
 
 func (c *Connection) Close() {
-	c.closeWithStatus(websocket.CloseNormalClosure, "")
+	c.closeWithStatus(websocket.StatusNormalClosure, "")
 }
 
-func (c *Connection) closeWithStatus(code int, reason string) {
+func (c *Connection) closeWithStatus(code websocket.StatusCode, reason string) {
 	c.closeOnce.Do(func() {
 		c.markClosed()
-		_ = c.conn.WriteControl(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(code, reason),
-			time.Now().Add(writeWait),
-		)
-		_ = c.conn.Close()
+		_ = c.conn.Close(code, reason)
 	})
 }
 
 func (c *Connection) closeOnError() {
 	c.closeOnce.Do(func() {
 		c.markClosed()
-		_ = c.conn.Close()
+		_ = c.conn.CloseNow()
 	})
 }
 
@@ -118,14 +134,8 @@ func (c *Connection) markClosed() {
 }
 
 func (c *Connection) readPump() {
-	c.conn.SetReadLimit(maxMessageSize)
-	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	})
-
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, message, err := c.conn.Read(context.Background())
 		if err != nil {
 			c.closeOnError()
 			return
@@ -133,13 +143,13 @@ func (c *Connection) readPump() {
 
 		packet, err := packets.Deserialize(message)
 		if err != nil {
-			c.closeWithStatus(websocket.CloseUnsupportedData, "invalid packet")
+			c.closeWithStatus(websocket.StatusUnsupportedData, "invalid packet")
 			return
 		}
 
 		if c.onPacket != nil {
 			if err := c.onPacket(packet); err != nil {
-				c.closeWithStatus(websocket.ClosePolicyViolation, "packet rejected")
+				c.closeWithStatus(websocket.StatusPolicyViolation, "packet rejected")
 				return
 			}
 		}
@@ -147,20 +157,36 @@ func (c *Connection) readPump() {
 }
 
 func (c *Connection) writePump() {
+	for {
+		select {
+		case message := <-c.send:
+			ctx, cancel := context.WithTimeout(context.Background(), writeWait)
+			err := c.conn.Write(ctx, websocket.MessageText, message)
+			cancel()
+			if err != nil {
+				c.closeOnError()
+				return
+			}
+		case <-c.done:
+			return
+		}
+	}
+}
+
+// pingPump detects dead peers: Ping sends a ping frame and waits for the
+// pong, so a peer that went away gets the connection closed within
+// pingPeriod+writeWait.
+func (c *Connection) pingPump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case message := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				c.closeOnError()
-				return
-			}
 		case <-ticker.C:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), writeWait)
+			err := c.conn.Ping(ctx)
+			cancel()
+			if err != nil {
 				c.closeOnError()
 				return
 			}

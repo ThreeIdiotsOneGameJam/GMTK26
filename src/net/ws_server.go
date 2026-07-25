@@ -1,3 +1,8 @@
+// coder/websocket only provides the client API on js/wasm, so the server
+// endpoint is excluded from web builds.
+
+//go:build !js
+
 package net
 
 import (
@@ -5,24 +10,24 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/server"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 func websocketHandler(w http.ResponseWriter, r *http.Request) {
-	socket, err := upgrader.Upgrade(w, r, nil)
+	socket, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		// Browser clients are served from a different origin than this
+		// server (e.g. localhost:8080 vs localhost:58008), so same-origin
+		// verification must be skipped or the upgrade gets a 403.
+		InsecureSkipVerify: true,
+	})
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	connection := NewConnection(socket)
+	connection := NewServerConnection(socket)
 	client := server.NewClient(connection)
 	registered := false
 	defer func() {
