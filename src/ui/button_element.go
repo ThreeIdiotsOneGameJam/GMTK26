@@ -106,7 +106,7 @@ func (el *ButtonElement) prepare() {
 }
 
 func (el *ButtonElement) update(deltaNano int64) {
-	if !el.Enabled() {
+	if !el.Enabled() || global.UIModalBlocksInput {
 		el.hovered = false
 		el.clicked = false
 		el.hoveredPrevious = false

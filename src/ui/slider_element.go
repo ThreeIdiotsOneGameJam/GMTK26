@@ -187,7 +187,7 @@ func (el *SliderElement) prepare() {
 }
 
 func (el *SliderElement) update(deltaNano int64) {
-	if !el.Enabled() {
+	if !el.Enabled() || global.UIModalBlocksInput {
 		if el.dragging {
 			el.dragging = false
 			if el.Commit != nil {

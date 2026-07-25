@@ -5,6 +5,7 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 )
 
@@ -73,7 +74,15 @@ func Update(deltaNano int64) {
 
 	if !IsTransitioning() {
 		if IsEscScreenOpen() {
+			// Update the game under the modal with input blocked so hover/click
+			// state clears instead of freezing, then give the overlay a pass.
+			global.UIModalBlocksInput = true
+			global.UIBlocksWorldInput = true
+			GameScreen.UpdateExcept(deltaNano, EscScreen)
+			global.UIModalBlocksInput = false
+			global.UIBlocksWorldInput = false
 			EscScreen.Update(deltaNano)
+			global.UIBlocksWorldInput = true
 		} else {
 			activeScreen.Update(deltaNano)
 		}

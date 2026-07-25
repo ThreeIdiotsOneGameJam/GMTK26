@@ -114,6 +114,7 @@ func frame() {
 
 	global.MouseCursorState = rl.MouseCursorDefault
 	global.UIBlocksWorldInput = false
+	global.UIModalBlocksInput = false
 
 	screens.Update(deltaTime.Nanoseconds())
 	screens.Draw()

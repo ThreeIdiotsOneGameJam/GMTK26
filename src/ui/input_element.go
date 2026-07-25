@@ -390,7 +390,7 @@ func (el *InputElement) prepare() {
 }
 
 func (el *InputElement) update(deltaNano int64) {
-	if !el.Enabled() {
+	if !el.Enabled() || global.UIModalBlocksInput {
 		el.hovered = false
 		el.Blur()
 		return

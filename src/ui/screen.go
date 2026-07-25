@@ -63,6 +63,18 @@ func (el *ScreenElement) Update(deltaNano int64) {
 	}
 }
 
+// UpdateExcept updates children front-to-back, skipping except (e.g. a modal
+// overlay that is updated separately so it can own the pointer).
+func (el *ScreenElement) UpdateExcept(deltaNano int64, except Element) {
+	for i := len(el.Children) - 1; i >= 0; i-- {
+		child := el.Children[i]
+		if child == except {
+			continue
+		}
+		child.updateTree(deltaNano)
+	}
+}
+
 // Prepare recalculates render data without processing input or advancing state.
 // Draw calls this automatically so a newly activated screen is laid out before
 // its first frame is rendered.
