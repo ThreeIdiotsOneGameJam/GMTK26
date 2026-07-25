@@ -294,7 +294,7 @@ func newPlayScreen() *ui.ScreenElement {
 				WithTextSize(22).
 				WithTextColor(rl.Maroon).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
-				WithRelativePos(vec.Vec2i{X: 0, Y: -128}).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -104}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
 					return playError != ""
 				}),
@@ -305,7 +305,7 @@ func newPlayScreen() *ui.ScreenElement {
 				WithTextSize(22).
 				WithTextColor(rl.DarkGray).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
-				WithRelativePos(vec.Vec2i{X: 0, Y: -96}).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -80}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
 					return playError == "" && !multiplayerEnabled() && joinPanelProgress <= 0
 				}),
