@@ -45,6 +45,7 @@ func handleServerPacket(packet packets.S2CPacket) {
 		screens.ResetGameSession()
 	case *packets.S2CGameJoinedPacket:
 		fmt.Printf("joined game %d with code %s\n", p.Game.GameID, p.Game.GameCode)
+		screens.ClearGameCodeInput()
 		screens.EnterGame(p.Game)
 	case *packets.S2CGameUpdatePacket:
 		screens.ApplyGameUpdate(p.Game)

@@ -21,7 +21,16 @@ const (
 	joinPanelTransition = 220 * time.Millisecond
 )
 
+var playGameCodeInput *ui.InputElement
 var PlayScreen = newPlayScreen()
+
+func ClearGameCodeInput() {
+	if playGameCodeInput == nil {
+		return
+	}
+	playGameCodeInput.Text = ""
+	playGameCodeInput.Blur()
+}
 
 func newPlayScreen() *ui.ScreenElement {
 	var joinPanelOpen bool
@@ -150,6 +159,7 @@ func newPlayScreen() *ui.ScreenElement {
 				joinGame(text)
 			}
 		})
+	playGameCodeInput = codeInput
 
 	joinButton := playMenuButton("Join").
 		WithTextSize(34).
