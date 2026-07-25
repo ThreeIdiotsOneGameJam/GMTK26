@@ -14,6 +14,7 @@ const (
 	MainScreenID ScreenID = iota
 	PlayScreenID
 	GameCreationScreenID
+	MatchmakingScreenID
 	GameScreenID
 	SettingsScreenID
 	EscScreenID
@@ -35,6 +36,7 @@ func init() {
 		MainScreenID:         MainScreen,
 		PlayScreenID:         PlayScreen,
 		GameCreationScreenID: GameCreationScreen,
+		MatchmakingScreenID:  MatchmakingScreen,
 		GameScreenID:         GameScreen,
 		SettingsScreenID:     SettingsScreen,
 		EscScreenID:          EscScreen,

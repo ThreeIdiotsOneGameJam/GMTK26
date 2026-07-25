@@ -9,7 +9,8 @@ type C2SCreateGamePacket struct {
 }
 
 type C2SJoinGamePacket struct {
-	// An empty code requests any available public game.
+	// An empty code joins any available public game, or enters the
+	// matchmaking queue when none are open (see S2CMatchmakingWaitingPacket).
 	GameCode string `json:"game_code"`
 }
 
@@ -36,6 +37,11 @@ type S2CGameRejectedPacket struct {
 type S2CGameClosedPacket struct {
 	GameID uint64 `json:"game_id"`
 	Reason string `json:"reason"`
+}
+
+// S2CMatchmakingWaitingPacket means the client is queued for a public lobby.
+type S2CMatchmakingWaitingPacket struct {
+	QueuePosition int `json:"queue_position"`
 }
 
 func init() {
@@ -87,6 +93,12 @@ func init() {
 		value, ok := packet.(*S2CGameClosedPacket)
 		return ok && value != nil
 	})
+	mustRegisterPacket(S2CMatchmakingWaitingPacketType, func() Packet {
+		return &S2CMatchmakingWaitingPacket{}
+	}, func(packet Packet) bool {
+		value, ok := packet.(*S2CMatchmakingWaitingPacket)
+		return ok && value != nil
+	})
 }
 
 func (*C2SCreateGamePacket) PacketType() PacketType { return C2SCreateGamePacketType }
@@ -112,3 +124,8 @@ func (*S2CGameRejectedPacket) isS2C()                 {}
 
 func (*S2CGameClosedPacket) PacketType() PacketType { return S2CGameClosedPacketType }
 func (*S2CGameClosedPacket) isS2C()                 {}
+
+func (*S2CMatchmakingWaitingPacket) PacketType() PacketType {
+	return S2CMatchmakingWaitingPacketType
+}
+func (*S2CMatchmakingWaitingPacket) isS2C() {}

@@ -32,6 +32,7 @@ var serverCoins int32
 var serverPoints int32
 var serverDeadline int64
 var gameOverMessage string
+var gameActionError string
 
 func init() {
 	// In a running multiplayer game, building placement goes through the
@@ -132,10 +133,22 @@ func multiplayerStatusText() string {
 }
 
 func EnterGame(state game.Game) {
+	clearMatchmaking()
 	serverGameActive = false
 	gameOverMessage = ""
+	gameActionError = ""
 	applyGameState(state)
 	SetActiveScreen(GameScreenID)
+}
+
+func RejectGameStart(message string) {
+	gameActionError = message
+}
+
+func RejectGameJoin(message string) {
+	clearMatchmaking()
+	SetPlayError(message)
+	SetActiveScreen(PlayScreenID)
 }
 
 func ApplyGameUpdate(state game.Game) {
@@ -154,7 +167,12 @@ func CloseGame(gameID uint64) {
 }
 
 func ResetGameSession() {
+	wasMatchmaking := matchmakingActive
+	clearMatchmaking()
 	if currentGame == nil || !currentGame.Multiplayer {
+		if wasMatchmaking {
+			SetActiveScreen(PlayScreenID)
+		}
 		return
 	}
 	clearCurrentGame()
@@ -162,6 +180,12 @@ func ResetGameSession() {
 }
 
 func LeaveCurrentGame() {
+	if matchmakingActive {
+		if err := gameNet.Send(&packets.C2SLeaveGamePacket{}); err != nil {
+			fmt.Printf("failed to cancel matchmaking: %v\n", err)
+		}
+		clearMatchmaking()
+	}
 	if currentGame == nil {
 		return
 	}
@@ -196,6 +220,7 @@ func clearCurrentGame() {
 	gameWorld.Map = game.Map{}
 	serverGameActive = false
 	gameOverMessage = ""
+	gameActionError = ""
 }
 
 func setBuildingClick(building game.BuildingType) func() {
@@ -255,9 +280,22 @@ var GameScreen = ui.Screen().
 					!serverGameActive && gameOverMessage == "" && isLocalHost()
 			}).
 			WithClick(func() {
+				gameActionError = ""
 				if err := gameNet.Send(&packets.C2SStartGamePacket{}); err != nil {
+					gameActionError = err.Error()
 					fmt.Printf("failed to request game start: %v\n", err)
 				}
+			}),
+	).
+	AddChild(
+		ui.Text().
+			WithTextDynamic(func() string { return gameActionError }).
+			WithTextSize(22).
+			WithTextColor(rl.Maroon).
+			WithAnchors(anchor.Top, anchor.Top).
+			WithRelativePos(vec.Vec2i{X: 0, Y: 110}).
+			WithVisibleDynamic(func(el *ui.TextElement) bool {
+				return gameActionError != ""
 			}),
 	).
 	AddChild(

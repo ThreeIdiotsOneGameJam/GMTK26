@@ -17,14 +17,23 @@ const (
 )
 
 var (
-	ErrAlreadyInGame    = errors.New("client is already in a game")
-	ErrGameNotFound     = errors.New("game not found")
-	ErrGameFull         = errors.New("game is full")
-	ErrNotHost          = errors.New("only the host can start the game")
-	ErrNotEnoughPlayers = errors.New("need at least 2 players to start")
+	ErrAlreadyInGame      = errors.New("client is already in a game")
+	ErrAlreadyMatchmaking = errors.New("client is already searching for a game")
+	ErrGameNotFound       = errors.New("game not found")
+	ErrGameFull           = errors.New("game is full")
+	ErrNotHost            = errors.New("only the host can start the game")
+	ErrNotEnoughPlayers   = errors.New("need at least 2 players to start")
 
 	Lobbies = NewLobbyManager()
 )
+
+// JoinOutcome is the result of JoinGame: either an immediate lobby join or
+// placement into the random-matchmaking queue.
+type JoinOutcome struct {
+	Game          game.Game
+	Waiting       bool
+	QueuePosition int
+}
 
 // lobby is a created game waiting to start: players gather here until the
 // host launches it, at which point it is handed over to GameInstances and
@@ -36,13 +45,15 @@ type lobby struct {
 
 // LobbyManager tracks lobbies, i.e. games that have not started yet.
 // Running games are owned by GameInstances; the set of all server
-// connections lives in Connections.
+// connections lives in Connections. Clients waiting for a public lobby
+// sit in the matchmaking queue.
 type LobbyManager struct {
 	mu            sync.RWMutex
 	nextGameID    uint64
 	lobbies       map[uint64]*lobby
 	gameCodes     map[string]uint64
 	clientLobbies map[*Client]uint64
+	matchmaking   []*Client
 }
 
 func NewLobbyManager() *LobbyManager {
@@ -63,14 +74,10 @@ func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8,
 		return game.Game{}, fmt.Errorf("client is not identified")
 	}
 
-	if client.GameInstance() != nil {
-		return game.Game{}, ErrAlreadyInGame
-	}
-
 	m.mu.Lock()
-	if _, exists := m.clientLobbies[client]; exists {
+	if err := m.ensureAvailableLocked(client); err != nil {
 		m.mu.Unlock()
-		return game.Game{}, ErrAlreadyInGame
+		return game.Game{}, err
 	}
 
 	gameCode, err := m.newGameCodeLocked()
@@ -104,39 +111,50 @@ func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8,
 	}
 	m.gameCodes[gameCode] = gameID
 	m.clientLobbies[client] = gameID
+
+	var matched []joinNotification
+	if public {
+		matched = m.fillMatchmakingLocked()
+		state = m.lobbies[gameID].state
+	}
 	m.mu.Unlock()
 
+	flushJoinNotifications(matched)
 	return state, nil
 }
 
-func (m *LobbyManager) JoinGame(client *Client, code string) (game.Game, error) {
+func (m *LobbyManager) JoinGame(client *Client, code string) (JoinOutcome, error) {
 	player, identified := client.Player()
 	if !identified {
-		return game.Game{}, fmt.Errorf("client is not identified")
-	}
-
-	if client.GameInstance() != nil {
-		return game.Game{}, ErrAlreadyInGame
+		return JoinOutcome{}, fmt.Errorf("client is not identified")
 	}
 
 	code = strings.ToUpper(strings.TrimSpace(code))
+	randomJoin := code == ""
 
 	m.mu.Lock()
-	if _, exists := m.clientLobbies[client]; exists {
+	if err := m.ensureAvailableLocked(client); err != nil {
 		m.mu.Unlock()
-		return game.Game{}, ErrAlreadyInGame
+		return JoinOutcome{}, err
 	}
 
 	active := m.findJoinableLobbyLocked(code)
 	if active == nil {
+		if !randomJoin {
+			m.mu.Unlock()
+			return JoinOutcome{}, ErrGameNotFound
+		}
+
+		m.matchmaking = append(m.matchmaking, client)
+		position := len(m.matchmaking)
 		m.mu.Unlock()
-		return game.Game{}, ErrGameNotFound
+		return JoinOutcome{Waiting: true, QueuePosition: position}, nil
 	}
 
 	factionIndex := availableFaction(active.state)
 	if factionIndex < 0 {
 		m.mu.Unlock()
-		return game.Game{}, ErrGameFull
+		return JoinOutcome{}, ErrGameFull
 	}
 
 	active.state.Factions[factionIndex].Player = playerPointer(player)
@@ -147,14 +165,13 @@ func (m *LobbyManager) JoinGame(client *Client, code string) (game.Game, error) 
 	m.mu.Unlock()
 
 	broadcast(existingClients, &packets.S2CGameUpdatePacket{Game: state})
-	return state, nil
+	return JoinOutcome{Game: state}, nil
 }
 
 // StartGame hands a lobby over to the game loop. Only the host may start,
-// and at least two connected players are required. On success the lobby is
-// dissolved (it can no longer be joined or host-closed); the running
-// GameInstance takes over and notifies every player via S2CGameStartPacket.
-// Connection tracking (server.Connections) is unaffected.
+// and at least two connected players are required. Clients are attached to
+// the GameInstance before the lobby lock is released so a concurrent leave
+// cannot miss the handoff.
 func (m *LobbyManager) StartGame(client *Client) error {
 	m.mu.Lock()
 	gameID, exists := m.clientLobbies[client]
@@ -192,9 +209,13 @@ func (m *LobbyManager) StartGame(client *Client) error {
 		delete(m.clientLobbies, c)
 	}
 	state := active.state
+
+	// Attach under the lobby lock so LeaveGame/CreateGame see GameInstance
+	// before this handoff becomes visible as "not in a lobby".
+	gi := GameInstances.Prepare(&state, clients)
 	m.mu.Unlock()
 
-	GameInstances.StartGame(&state, clients)
+	go gi.Run()
 	return nil
 }
 
@@ -239,6 +260,8 @@ func (m *LobbyManager) OpenLobbies() []game.Game {
 
 func (m *LobbyManager) removeClient(client *Client, hostReason string) {
 	m.mu.Lock()
+	m.removeFromMatchmakingLocked(client)
+
 	gameID, exists := m.clientLobbies[client]
 	if !exists {
 		m.mu.Unlock()
@@ -277,11 +300,13 @@ func (m *LobbyManager) removeClient(client *Client, hostReason string) {
 		}
 	}
 	active.clients = clientsExcept(active.clients, client)
+	matched := m.fillMatchmakingLocked()
 	state := active.state
-	remainingClients := append([]*Client(nil), active.clients...)
+	lobbyClients := append([]*Client(nil), active.clients...)
 	m.mu.Unlock()
 
-	broadcast(remainingClients, &packets.S2CGameUpdatePacket{Game: state})
+	broadcast(lobbyClients, &packets.S2CGameUpdatePacket{Game: state})
+	flushJoinNotifications(matched)
 }
 
 func (m *LobbyManager) findJoinableLobbyLocked(code string) *lobby {
@@ -303,6 +328,106 @@ func (m *LobbyManager) findJoinableLobbyLocked(code string) *lobby {
 		}
 	}
 	return selected
+}
+
+type joinNotification struct {
+	client *Client
+	state  game.Game
+}
+
+// fillMatchmakingLocked pulls queued clients into public lobbies with free
+// seats. Caller must hold m.mu. Returned notifications must be flushed after
+// unlock so sends do not run under the lobby lock. Each notification carries
+// the lobby state after every successful dequeue in this pass.
+func (m *LobbyManager) fillMatchmakingLocked() []joinNotification {
+	if len(m.matchmaking) == 0 {
+		return nil
+	}
+
+	joined := make([]*Client, 0, len(m.matchmaking))
+	remaining := make([]*Client, 0, len(m.matchmaking))
+
+	for i := 0; i < len(m.matchmaking); i++ {
+		client := m.matchmaking[i]
+		if client.GameInstance() != nil {
+			continue
+		}
+		if _, exists := m.clientLobbies[client]; exists {
+			continue
+		}
+
+		active := m.findJoinableLobbyLocked("")
+		if active == nil {
+			remaining = append(remaining, m.matchmaking[i:]...)
+			break
+		}
+
+		player, identified := client.Player()
+		if !identified {
+			continue
+		}
+		factionIndex := availableFaction(active.state)
+		if factionIndex < 0 {
+			remaining = append(remaining, m.matchmaking[i:]...)
+			break
+		}
+
+		active.state.Factions[factionIndex].Player = playerPointer(player)
+		active.clients = append(active.clients, client)
+		m.clientLobbies[client] = active.state.GameID
+		joined = append(joined, client)
+	}
+	m.matchmaking = remaining
+
+	matched := make([]joinNotification, 0, len(joined))
+	for _, client := range joined {
+		gameID := m.clientLobbies[client]
+		matched = append(matched, joinNotification{
+			client: client,
+			state:  m.lobbies[gameID].state,
+		})
+	}
+	return matched
+}
+
+func flushJoinNotifications(matched []joinNotification) {
+	for _, note := range matched {
+		_ = note.client.SendPacket(&packets.S2CGameJoinedPacket{Game: note.state})
+	}
+}
+
+func (m *LobbyManager) ensureAvailableLocked(client *Client) error {
+	if client.GameInstance() != nil {
+		return ErrAlreadyInGame
+	}
+	if _, exists := m.clientLobbies[client]; exists {
+		return ErrAlreadyInGame
+	}
+	if m.isMatchmakingLocked(client) {
+		return ErrAlreadyMatchmaking
+	}
+	return nil
+}
+
+func (m *LobbyManager) isMatchmakingLocked(client *Client) bool {
+	for _, queued := range m.matchmaking {
+		if queued == client {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *LobbyManager) removeFromMatchmakingLocked(client *Client) {
+	for i, queued := range m.matchmaking {
+		if queued != client {
+			continue
+		}
+		copy(m.matchmaking[i:], m.matchmaking[i+1:])
+		m.matchmaking[len(m.matchmaking)-1] = nil
+		m.matchmaking = m.matchmaking[:len(m.matchmaking)-1]
+		return
+	}
 }
 
 func (m *LobbyManager) newGameCodeLocked() (string, error) {

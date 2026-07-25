@@ -29,6 +29,7 @@ const (
 	S2CGameStatePacketType
 	S2CGameEndPacketType
 	C2SStartGamePacketType
+	S2CMatchmakingWaitingPacketType
 )
 
 type Packet interface {

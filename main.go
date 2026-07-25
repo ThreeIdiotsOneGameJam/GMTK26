@@ -50,12 +50,20 @@ func handleServerPacket(packet packets.S2CPacket) {
 		fmt.Printf("joined game %d with code %s\n", p.Game.GameID, p.Game.GameCode)
 		screens.ClearGameCodeInput()
 		screens.EnterGame(p.Game)
+	case *packets.S2CMatchmakingWaitingPacket:
+		fmt.Printf("matchmaking queue position %d\n", p.QueuePosition)
+		screens.ApplyMatchmakingWaiting(p.QueuePosition)
 	case *packets.S2CGameUpdatePacket:
 		screens.ApplyGameUpdate(p.Game)
 	case *packets.S2CGameRejectedPacket:
 		fmt.Printf("game %s rejected: %s\n", p.Operation, p.Message)
-		if p.Operation == "create" {
+		switch p.Operation {
+		case "create":
 			screens.RejectGameCreation(p.Message)
+		case "join":
+			screens.RejectGameJoin(p.Message)
+		case "start":
+			screens.RejectGameStart(p.Message)
 		}
 	case *packets.S2CGameClosedPacket:
 		fmt.Printf("game %d closed: %s\n", p.GameID, p.Reason)
