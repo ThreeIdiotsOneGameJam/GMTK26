@@ -5,6 +5,7 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -18,7 +19,9 @@ type buildingPreview struct {
 func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
 	r.buildingPreview.Visible = false
 
-	if r.BuildingToPlace == game.BuildingUnknown || !m.HexInsideBounds(hex) {
+	if global.UIBlocksWorldInput ||
+		r.BuildingToPlace == game.BuildingUnknown ||
+		!m.HexInsideBounds(hex) {
 		return
 	}
 

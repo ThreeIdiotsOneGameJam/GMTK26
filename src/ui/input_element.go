@@ -404,6 +404,7 @@ func (el *InputElement) update(deltaNano int64) {
 
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorIBeam
+		global.UIBlocksWorldInput = true
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
@@ -414,6 +415,10 @@ func (el *InputElement) update(deltaNano int64) {
 		} else if prevClicked && !el.clicked {
 			el.clearSelection()
 		}
+	}
+
+	if el.clicked {
+		global.UIBlocksWorldInput = true
 	}
 
 	if el.clicked {

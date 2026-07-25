@@ -218,6 +218,7 @@ func (el *SliderElement) update(deltaNano int64) {
 
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorPointingHand
+		global.UIBlocksWorldInput = true
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && (inBounds || inThumb) {
@@ -226,6 +227,7 @@ func (el *SliderElement) update(deltaNano int64) {
 	}
 
 	if el.dragging {
+		global.UIBlocksWorldInput = true
 		if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
 			el.setValue(el.valueFromMouseX(mouseX))
 		} else {

@@ -122,6 +122,7 @@ func (el *ButtonElement) update(deltaNano int64) {
 
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorPointingHand
+		global.UIBlocksWorldInput = true
 	}
 
 	// Click state machine: track clicked across frames (clickedPrevious -> clicked)
@@ -148,6 +149,10 @@ func (el *ButtonElement) update(deltaNano int64) {
 		//	b.Click()
 		//  // play clickup sound
 		//}
+	}
+
+	if el.clicked {
+		global.UIBlocksWorldInput = true
 	}
 
 	// needs to be at the end of the update function

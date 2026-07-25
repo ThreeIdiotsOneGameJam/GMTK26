@@ -229,7 +229,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	r.updateBuildingPlacement(m, hex)
-	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+	if !global.UIBlocksWorldInput && rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 		fmt.Printf("Clicked cell: x=%d, y=%d\n", hex.X, hex.Y)
 	}
 }
@@ -341,7 +341,11 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 
 	width := r.HexSize.X * 2.0
 	height := r.HexSize.Y * sqrt3
-	hoveredHex := r.PixelToHex(mousePos)
+	var hoveredHex game.Hex
+	hoverWorld := !global.UIBlocksWorldInput
+	if hoverWorld {
+		hoveredHex = r.PixelToHex(mousePos)
+	}
 	visible := make([]visibleTile, 0)
 
 	rl.Begin(rl.Triangles)
@@ -358,7 +362,7 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 			if cell.Owner >= 0 && int(cell.Owner) < len(factionColors) {
 				color = rl.ColorLerp(color, factionColors[cell.Owner], 0.4)
 			}
-			if hex == hoveredHex {
+			if hoverWorld && hex == hoveredHex {
 				color = *util.ColorAdd(color, 30)
 			}
 			if x%2 == 1 {

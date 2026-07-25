@@ -56,8 +56,10 @@ func (el *ScreenElement) Exit() {
 }
 
 func (el *ScreenElement) Update(deltaNano int64) {
-	for _, child := range el.Children {
-		child.updateTree(deltaNano)
+	// Front-to-back: later children are drawn on top, so they get input first
+	// and can set UIBlocksWorldInput before the world processes the click.
+	for i := len(el.Children) - 1; i >= 0; i-- {
+		el.Children[i].updateTree(deltaNano)
 	}
 }
 
