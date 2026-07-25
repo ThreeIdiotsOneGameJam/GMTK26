@@ -162,3 +162,77 @@ func addVolumeRowStyled(
 		).
 		AddChild(valueText)
 }
+
+func addToggleRow(
+	screen *ui.ScreenElement,
+	label string,
+	centerY int32,
+	get func() bool,
+	set func(bool),
+	commit func(),
+) {
+	addToggleRowStyled(screen, label, centerY, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, nil, get, set, commit)
+}
+
+func addToggleRowStyled(
+	screen *ui.ScreenElement,
+	label string,
+	centerY int32,
+	labelColor color.RGBA,
+	valueColor color.RGBA,
+	shadow *color.RGBA,
+	get func() bool,
+	set func(bool),
+	commit func(),
+) {
+	const (
+		splitGap    int32 = 24
+		toggleWidth int32 = 64
+	)
+
+	labelText := ui.Text().
+		WithText(label).
+		WithTextSize(36).
+		WithTextColor(labelColor).
+		WithAnchors(anchor.Right, anchor.Center).
+		WithRelativePos(vec.Vec2i{
+			X: -splitGap,
+			Y: centerY,
+		})
+	valueText := ui.Text().
+		WithTextDynamic(func() string {
+			if get() {
+				return "On"
+			}
+			return "Off"
+		}).
+		WithTextSize(32).
+		WithTextColor(valueColor).
+		WithAnchors(anchor.Left, anchor.Center).
+		WithRelativePos(vec.Vec2i{
+			X: splitGap + toggleWidth + 24,
+			Y: centerY,
+		})
+	if shadow != nil {
+		offset := vec.Vec2i{X: 2, Y: 2}
+		labelText.WithTextShadow(*shadow, offset)
+		valueText.WithTextShadow(*shadow, offset)
+	}
+
+	screen.
+		AddChild(labelText).
+		AddChild(
+			ui.Toggle().
+				WithSize(vec.Vec2i{X: toggleWidth, Y: 36}).
+				WithValueDynamic(get).
+				WithDefaultValue(false).
+				WithCallback(set).
+				WithCommit(func(bool) { commit() }).
+				WithAnchors(anchor.Left, anchor.Center).
+				WithRelativePos(vec.Vec2i{
+					X: splitGap,
+					Y: centerY,
+				}),
+		).
+		AddChild(valueText)
+}
