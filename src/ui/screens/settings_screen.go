@@ -14,7 +14,7 @@ import (
 
 func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	const (
-		sliderWidth = 360
+		sliderWidth = 180
 		rowStartY   = -40
 		rowStrideY  = 72
 	)
@@ -117,13 +117,15 @@ func addVolumeRowStyled(
 	set func(float32),
 	commit func(),
 ) {
+	const splitGap int32 = 24
+
 	labelText := ui.Text().
 		WithText(label).
 		WithTextSize(36).
 		WithTextColor(labelColor).
 		WithAnchors(anchor.Right, anchor.Center).
 		WithRelativePos(vec.Vec2i{
-			X: -sliderWidth/2 - 24,
+			X: -splitGap,
 			Y: centerY,
 		})
 	valueText := ui.Text().
@@ -134,7 +136,7 @@ func addVolumeRowStyled(
 		WithTextColor(valueColor).
 		WithAnchors(anchor.Left, anchor.Center).
 		WithRelativePos(vec.Vec2i{
-			X: sliderWidth/2 + 24,
+			X: splitGap + sliderWidth + 24,
 			Y: centerY,
 		})
 	if shadow != nil {
@@ -152,8 +154,11 @@ func addVolumeRowStyled(
 				WithDefaultValue(1).
 				WithCallback(set).
 				WithCommit(func(float32) { commit() }).
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{Y: centerY}),
+				WithAnchors(anchor.Left, anchor.Center).
+				WithRelativePos(vec.Vec2i{
+					X: splitGap,
+					Y: centerY,
+				}),
 		).
 		AddChild(valueText)
 }

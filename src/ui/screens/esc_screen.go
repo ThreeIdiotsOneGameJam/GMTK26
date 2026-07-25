@@ -72,7 +72,7 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		)
 
 	const (
-		sliderWidth = 320
+		sliderWidth = 160
 		rowStartY   = -40
 		rowStrideY  = 68
 	)
