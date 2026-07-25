@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -472,6 +473,8 @@ func playerPointer(player game.Player) *game.Player {
 
 func broadcast(clients []*Client, packet packets.S2CPacket) {
 	for _, client := range clients {
-		_ = client.SendPacket(packet)
+		if err := client.SendPacket(packet); err != nil {
+			log.Printf("lobby broadcast failed for %T: %v", packet, err)
+		}
 	}
 }
