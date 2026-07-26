@@ -27,6 +27,7 @@ func DefaultServerAddrs() []ServerAddr {
 	return []ServerAddr{
 		{Host: "gmtk26.ndmh.xyz", Secure: true},
 		{Host: "132.145.12.10", Secure: true},
+		{Host: "141.11.62.108", Secure: true},
 		{Host: "localhost", Secure: false},
 	}
 }
