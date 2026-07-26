@@ -264,7 +264,7 @@ func (r *WorldRenderer) drawUnitAnimations() {
 		trailColor.A = uint8(float32(180) * alpha)
 		r.drawPartialTrail(trail, position, trailColor)
 		if animation.elapsed <= moveDuration {
-			drawUnitMarker(position, r.HexSize, event.Unit, factionColor(event.Owner))
+			r.drawUnit(position, event.Unit, factionColor(event.Owner))
 		}
 	}
 }

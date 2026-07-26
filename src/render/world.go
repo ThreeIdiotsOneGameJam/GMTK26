@@ -129,6 +129,7 @@ type WorldRenderer struct {
 	queuedBuilding   buildingPreview
 
 	buildingsTexture rl.Texture2D
+	unitsTexture     rl.Texture2D
 
 	viewport    rl.RenderTexture2D
 	initialized bool
@@ -144,6 +145,7 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	r.initialized = true
 
 	r.buildingsTexture = rl.LoadTexture("assets/textures/buildings.png")
+	r.unitsTexture = rl.LoadTexture("assets/textures/units.png")
 
 	if r.HexSize == (v.Vec2{}) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
@@ -199,6 +201,7 @@ func (r *WorldRenderer) Unload() {
 	}
 	rl.UnloadRenderTexture(r.viewport)
 	rl.UnloadTexture(r.buildingsTexture)
+	rl.UnloadTexture(r.unitsTexture)
 	r.initialized = false
 }
 
