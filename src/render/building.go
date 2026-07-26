@@ -50,6 +50,12 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 		}
 		canPlace = false
 	}
+	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && canPlace {
+		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(hex, game.BuildingUnknown) {
+			m.GetCell(hex).Building = game.BuildingUnknown
+		}
+		canPlace = true
+	}
 
 	tint := rl.Red
 	if canPlace {
