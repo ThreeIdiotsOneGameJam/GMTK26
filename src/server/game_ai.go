@@ -195,12 +195,8 @@ func (gi *GameInstance) applyAIPlanLocked(
 			}
 		}
 	case game.ActionAttack:
-		if action.Attack != nil && game.HexAdjacent(action.Attack.From, action.Attack.To) {
-			payload := *action.Attack
-			gi.actions[factionIdx] = &submittedAction{
-				Type:   game.ActionAttack,
-				Attack: &payload,
-			}
+		if action.Attack != nil {
+			_ = gi.setAttackOrderLocked(factionIdx, *action.Attack)
 		}
 	}
 }

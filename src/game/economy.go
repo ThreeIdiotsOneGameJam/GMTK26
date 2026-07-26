@@ -212,9 +212,6 @@ func BuildingCoinsProduces(b BuildingType, tile TileType) int32 {
 	if b == BuildingBank {
 		return 5
 	}
-	if b == BuildingMine && tile == TileGold {
-		return 1
-	}
 	return 0
 }
 

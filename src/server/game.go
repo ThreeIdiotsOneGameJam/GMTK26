@@ -100,9 +100,7 @@ func (gi *GameInstance) SubmitAction(
 		if attack == nil {
 			return fmt.Errorf("attack payload was missing")
 		}
-		if !game.HexAdjacent(attack.From, attack.To) {
-			return gi.setAttackOrderLocked(factionIdx, *attack)
-		}
+		return gi.setAttackOrderLocked(factionIdx, *attack)
 	}
 
 	if actionType == game.ActionMove {
@@ -164,15 +162,13 @@ func (gi *GameInstance) setAttackOrderLocked(
 	if gi.game.Map.GetCell(attack.To) == nil {
 		return fmt.Errorf("attack target cell does not exist")
 	}
-	if game.HexAdjacent(attack.From, attack.To) {
-		return fmt.Errorf("persistent attack target must not be adjacent")
-	}
-
 	gi.movementOrders[factionIdx] = removeMovementOrder(
 		gi.movementOrders[factionIdx],
 		attack.From,
 	)
-	gi.routePriorities[factionIdx] = attack.From
+	if !game.HexAdjacent(attack.From, attack.To) {
+		gi.routePriorities[factionIdx] = attack.From
+	}
 	gi.attackOrders[factionIdx] = removeAttackOrder(
 		gi.attackOrders[factionIdx],
 		attack.From,

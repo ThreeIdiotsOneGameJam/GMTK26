@@ -6,6 +6,7 @@ type roundIntent struct {
 	faction      int
 	action       game.ActionType
 	automatic    bool
+	attackRoute  bool
 	from         game.Hex
 	to           game.Hex
 	destination  game.Hex
@@ -19,34 +20,60 @@ type roundIntent struct {
 	result       game.ActionResult
 }
 
+type pendingAttack struct {
+	faction        int
+	from           game.Hex
+	to             game.Hex
+	unit           game.UnitType
+	attackPower    int8
+	targetUnit     bool
+	targetOwner    int8
+	targetType     game.UnitType
+	targetBuilding game.BuildingType
+}
+
 func (gi *GameInstance) processClientActions() {
 	gi.actionResults = make(map[int]*game.ActionResult)
 	gi.movementEvents = nil
 	gi.attackEvents = nil
 
-	// Phase 1: auto-attacks from persistent AttackOrders (no contest)
+	// Phase 1: snapshot every adjacent attacker before applying damage. This
+	// lets all ordered units strike even if another attack kills them this round.
+	attacks := make([]pendingAttack, 0)
 	for factionIdx := range gi.game.Factions {
 		if !gi.game.Factions[factionIdx].Alive {
 			delete(gi.attackOrders, factionIdx)
 			continue
 		}
-		allOrders := gi.attackOrders[factionIdx]
-		remaining := allOrders[:0]
-		for _, order := range allOrders {
+		for _, order := range gi.attackOrders[factionIdx] {
 			source := gi.game.Map.GetCell(order.From)
 			target := gi.game.Map.GetCell(order.TargetTile)
 			if source == nil || target == nil || !source.HasUnits() ||
-				source.Units[0].Owner != int8(factionIdx) {
+				source.Units[0].Owner != int8(factionIdx) ||
+				source.Units[0].Type == game.UnitScout ||
+				!game.HexAdjacent(order.From, order.TargetTile) {
 				continue
 			}
-			if !game.HexAdjacent(order.From, order.TargetTile) {
-				remaining = append(remaining, order)
+			attack, ok := snapshotAttack(factionIdx, order, source, target)
+			if !ok {
 				continue
 			}
-			if !gi.resolveAttack(factionIdx, order.From, order.TargetTile) {
-				continue
-			}
-			if hasEnemies(target, int8(factionIdx)) {
+			attacks = append(attacks, attack)
+		}
+	}
+	for _, attack := range attacks {
+		gi.applyPendingAttack(attack)
+	}
+	for factionIdx := range gi.game.Factions {
+		orders := gi.attackOrders[factionIdx]
+		remaining := orders[:0]
+		for _, order := range orders {
+			source := gi.game.Map.GetCell(order.From)
+			target := gi.game.Map.GetCell(order.TargetTile)
+			if source != nil && target != nil && source.HasUnits() &&
+				source.Units[0].Owner == int8(factionIdx) &&
+				source.Units[0].Type != game.UnitScout &&
+				hasEnemies(target, int8(factionIdx)) {
 				remaining = append(remaining, order)
 			}
 		}
@@ -91,7 +118,7 @@ func (gi *GameInstance) processClientActions() {
 		if contested[intent.to] && intent.targetsTile {
 			intent.result.Status = game.ActionResultContested
 			intent.result.Message = "Action cancelled: destination was contested"
-			if intent.action == game.ActionMove {
+			if intent.action == game.ActionMove && !intent.attackRoute {
 				gi.movementOrders[intent.faction] = removeMovementOrder(
 					gi.movementOrders[intent.faction], intent.from,
 				)
@@ -103,6 +130,78 @@ func (gi *GameInstance) processClientActions() {
 		gi.recordResult(intent)
 	}
 	gi.routePriorities = make(map[int]game.Hex)
+}
+
+func snapshotAttack(
+	factionIdx int,
+	order game.AttackOrder,
+	source, target *game.Cell,
+) (pendingAttack, bool) {
+	attack := pendingAttack{
+		faction:     factionIdx,
+		from:        order.From,
+		to:          order.TargetTile,
+		unit:        source.Units[0].Type,
+		attackPower: game.GetUnitStats(source.Units[0].Type).Attack,
+	}
+	owner := int8(factionIdx)
+	for _, unit := range target.Units {
+		if unit.Owner == owner {
+			continue
+		}
+		attack.targetUnit = true
+		attack.targetOwner = unit.Owner
+		attack.targetType = unit.Type
+		return attack, true
+	}
+	if target.HasBuilding() && target.Owner >= 0 && target.Owner != owner {
+		attack.targetOwner = target.Owner
+		attack.targetBuilding = target.BuildingType()
+		return attack, true
+	}
+	return pendingAttack{}, false
+}
+
+func (gi *GameInstance) applyPendingAttack(attack pendingAttack) {
+	target := gi.game.Map.GetCell(attack.to)
+	if target == nil {
+		return
+	}
+	gi.attackEvents = append(gi.attackEvents, game.AttackEvent{
+		Unit: attack.unit, Owner: int8(attack.faction), From: attack.from, Target: attack.to,
+	})
+
+	if attack.targetUnit {
+		for i := range target.Units {
+			unit := &target.Units[i]
+			if unit.Owner != attack.targetOwner || unit.Type != attack.targetType {
+				continue
+			}
+			unit.HP -= attack.attackPower
+			if unit.HP <= 0 {
+				destroyed := unit.Type
+				copy(target.Units[i:], target.Units[i+1:])
+				target.Units = target.Units[:len(target.Units)-1]
+				gi.game.Factions[attack.faction].Points += game.UnitDestructionScore(destroyed)
+			}
+			return
+		}
+		return
+	}
+
+	if !target.HasBuilding() || target.Owner != attack.targetOwner ||
+		target.BuildingType() != attack.targetBuilding {
+		return
+	}
+	target.Building.HP -= attack.attackPower
+	if target.Building.HP <= 0 {
+		gi.game.Factions[attack.faction].Points += game.BuildingDestructionScore(
+			attack.targetBuilding,
+			target.Tile,
+		)
+		target.Building = nil
+		target.Owner = -1
+	}
 }
 
 func hasEnemies(cell *game.Cell, factionOwner int8) bool {
@@ -219,7 +318,9 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 
 	for _, order := range allAttacks {
 		source := gi.game.Map.GetCell(order.From)
-		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner {
+		target := gi.game.Map.GetCell(order.TargetTile)
+		if source == nil || target == nil || !source.HasUnits() ||
+			source.Units[0].Owner != factionOwner || !hasEnemies(target, factionOwner) {
 			continue
 		}
 		if game.HexAdjacent(order.From, order.TargetTile) {
@@ -292,16 +393,8 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 			if len(traversed) < 2 {
 				continue
 			}
-			gi.attackOrders[factionIdx] = removeAttackOrder(
-				gi.attackOrders[factionIdx], cand.from,
-			)
-			gi.attackOrders[factionIdx] = append(
-				gi.attackOrders[factionIdx], game.AttackOrder{
-					From:       traversed[len(traversed)-1],
-					TargetTile: cand.dest,
-				},
-			)
 			intent := gi.newIntent(factionIdx, game.ActionMove, true)
+			intent.attackRoute = true
 			intent.from = cand.from
 			intent.destination = cand.dest
 			intent.to = traversed[len(traversed)-1]
@@ -366,7 +459,15 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 		stats := game.GetUnitStats(intent.unit)
 		target.Units = []game.UnitData{{Type: intent.unit, Owner: owner, HP: stats.MaxHP}}
 
-		if intent.destination != intent.to {
+		if intent.attackRoute {
+			gi.attackOrders[intent.faction] = removeAttackOrder(
+				gi.attackOrders[intent.faction], intent.from,
+			)
+			gi.attackOrders[intent.faction] = append(
+				gi.attackOrders[intent.faction],
+				game.AttackOrder{From: intent.to, TargetTile: intent.destination},
+			)
+		} else if intent.destination != intent.to {
 			gi.movementOrders[intent.faction] = append(
 				gi.movementOrders[intent.faction],
 				game.MovementOrder{Current: intent.to, Destination: intent.destination},

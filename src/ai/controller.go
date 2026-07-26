@@ -22,10 +22,12 @@ type Controller struct {
 	targetSince int32
 	hasTarget   bool
 
-	opponents     [4]opponentMemory
-	previousOwned map[game.Hex]bool
-	cooldowns     map[game.Hex]int32
-	recentActions []string
+	opponents         [4]opponentMemory
+	previousOwned     map[game.Hex]bool
+	cooldowns         map[game.Hex]int32
+	recentActions     []string
+	retaliationTarget targetRef
+	retaliationUntil  int32
 
 	// combatAdvanceDebt reserves future action-free rounds after development
 	// so building and recruitment cannot indefinitely freeze an active army.
@@ -94,10 +96,24 @@ func (controller *Controller) Plan(world *WorldSnapshot, own OwnState) Plan {
 		controller.opponents,
 		controller.config.ForecastRounds,
 	)
-	controller.selectTarget(world, analysis)
+	retaliationTarget, retaliating := controller.activeRetaliationTarget(world)
+	if retaliating {
+		controller.target = retaliationTarget
+		controller.targetSince = controller.decisionCount
+		controller.hasTarget = true
+	} else {
+		controller.selectTarget(world, analysis)
+	}
 
 	scores := goalScores(analysis, controller.personality)
 	goal, goalUtility := controller.selectGoal(scores, analysis)
+	if retaliating {
+		goal = GoalDefend
+		goalUtility = 1
+		controller.currentGoal = GoalDefend
+		controller.goalSince = controller.decisionCount
+		controller.hasGoal = true
+	}
 	oracle := newPathOracle(world, own.Owner, controller.config.MaxPathQueries)
 	orders, routeValue := planRoutes(
 		world,
@@ -106,6 +122,7 @@ func (controller *Controller) Plan(world *WorldSnapshot, own OwnState) Plan {
 		goal,
 		controller.target,
 		controller.hasTarget,
+		retaliating,
 		oracle,
 		controller.config,
 	)
@@ -347,10 +364,20 @@ func (controller *Controller) observe(world *WorldSnapshot, own OwnState) {
 		if attack.Owner == controller.owner || !validOwner(attack.Owner) {
 			continue
 		}
-		if controller.previousOwned[attack.Target] {
+		if controller.previousOwned[attack.Target] ||
+			cellOwnedBy(world.Map.GetCell(attack.Target), controller.owner) {
 			controller.opponents[attack.Owner].Retaliation = clamp01(
 				controller.opponents[attack.Owner].Retaliation + 0.3,
 			)
+			source := world.Map.GetCell(attack.From)
+			if source != nil && source.HasUnits() && source.Units[0].Owner == attack.Owner {
+				controller.retaliationTarget = targetRef{
+					Position: attack.From,
+					Owner:    attack.Owner,
+					Score:    1,
+				}
+				controller.retaliationUntil = world.Round + 3
+			}
 		}
 	}
 	if own.LastResult != nil &&
@@ -363,6 +390,39 @@ func (controller *Controller) observe(world *WorldSnapshot, own OwnState) {
 			delete(controller.cooldowns, position)
 		}
 	}
+}
+
+func (controller *Controller) activeRetaliationTarget(world *WorldSnapshot) (targetRef, bool) {
+	target := controller.retaliationTarget
+	if controller.retaliationUntil < world.Round || !validOwner(target.Owner) ||
+		!world.Factions[target.Owner].Alive {
+		return targetRef{}, false
+	}
+	cell := world.Map.GetCell(target.Position)
+	if cell == nil {
+		return targetRef{}, false
+	}
+	for _, unit := range cell.Units {
+		if unit.Owner == target.Owner {
+			return target, true
+		}
+	}
+	return targetRef{}, false
+}
+
+func cellOwnedBy(cell *game.Cell, owner int8) bool {
+	if cell == nil {
+		return false
+	}
+	if cell.HasBuilding() && cell.Owner == owner {
+		return true
+	}
+	for _, unit := range cell.Units {
+		if unit.Owner == owner {
+			return true
+		}
+	}
+	return false
 }
 
 func (controller *Controller) rememberOwned(analysis worldAnalysis) {

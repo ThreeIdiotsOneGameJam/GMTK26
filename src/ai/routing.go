@@ -81,6 +81,7 @@ func planRoutes(
 	goal Goal,
 	target targetRef,
 	hasTarget bool,
+	urgentTarget bool,
 	oracle *pathOracle,
 	config Config,
 ) ([]OrderCommand, float64) {
@@ -107,6 +108,7 @@ func planRoutes(
 			goal,
 			target,
 			hasTarget,
+			urgentTarget,
 			config,
 		) {
 			if order, ok := attacks[unit.Position]; ok &&
@@ -138,8 +140,26 @@ func planRoutes(
 			continue
 		}
 
-		combatTarget, ok := selectCombatTarget(unit, analysis, goal, target, hasTarget)
-		if !ok || game.HexAdjacent(unit.Position, combatTarget.Position) {
+		combatTarget, ok := selectCombatTarget(
+			unit,
+			analysis,
+			goal,
+			target,
+			hasTarget,
+			urgentTarget,
+		)
+		if !ok {
+			continue
+		}
+		if game.HexAdjacent(unit.Position, combatTarget.Position) {
+			proposals = append(proposals, routeProposal{
+				command: OrderCommand{
+					Kind: OrderAttack,
+					From: unit.Position,
+					To:   combatTarget.Position,
+				},
+				utility: combatTarget.Score,
+			})
 			continue
 		}
 		approach, reachable := oracle.attackApproach(unit.Position, combatTarget.Position)
@@ -189,11 +209,15 @@ func existingRouteStillUseful(
 	goal Goal,
 	strategic targetRef,
 	hasStrategic bool,
+	urgentTarget bool,
 	config Config,
 ) bool {
 	if order, ok := attacks[unit.Position]; ok {
 		target := world.Map.GetCell(order.TargetTile)
 		if target == nil || !cellHasEnemy(target, analysis.owner) {
+			return false
+		}
+		if urgentTarget && (!hasStrategic || strategic.Position != order.TargetTile) {
 			return false
 		}
 		if goal == GoalDefend &&
@@ -213,6 +237,9 @@ func existingRouteStillUseful(
 	if order, ok := moves[unit.Position]; ok {
 		target := world.Map.GetCell(order.Destination)
 		if target == nil || target.HasUnits() && order.Destination != unit.Position {
+			return false
+		}
+		if urgentTarget && unit.Data.Type != game.UnitScout {
 			return false
 		}
 		if unit.Data.Type != game.UnitScout &&
@@ -285,7 +312,11 @@ func selectCombatTarget(
 	goal Goal,
 	strategic targetRef,
 	hasStrategic bool,
+	urgentTarget bool,
 ) (targetRef, bool) {
+	if urgentTarget && hasStrategic {
+		return strategic, true
+	}
 	if goal == GoalDefend && analysis.hasTownhall {
 		bestDistance := int32(1<<31 - 1)
 		var best targetRef
