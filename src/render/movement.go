@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	unitAnimationStep                  = 140 * time.Millisecond
-	unitTrailFade                      = 250 * time.Millisecond
-	routeCancelHitRadiusPixels float32 = 8
+	unitAnimationStep                   = 140 * time.Millisecond
+	unitTrailFade                       = 250 * time.Millisecond
+	routeCancelHitRadiusPixels  float32 = 8
+	movementStopMinRadiusPixels         = 1.25
 )
 
 type unitAnimation struct {
@@ -177,7 +178,7 @@ func (r *WorldRenderer) drawMovementStop(hex game.Hex, col color.RGBA, emphasize
 	if emphasized {
 		radius = 7
 	}
-	radius = r.zoomSafeSize(radius, 2.5)
+	radius = r.zoomSafeSize(radius, movementStopMinRadiusPixels)
 	rl.DrawCircleV(rlvec.ToRL(position), radius, col)
 	inner := color.RGBA{R: 28, G: 31, B: 36, A: col.A}
 	rl.DrawCircleV(rlvec.ToRL(position), radius*0.45, inner)

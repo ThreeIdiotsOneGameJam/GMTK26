@@ -62,6 +62,16 @@ func TestZoomSafeSizeOnlyClampsAtDeepZoom(t *testing.T) {
 	}
 }
 
+func TestMovementStopsStaySmallAtMinimumZoom(t *testing.T) {
+	r := WorldRenderer{}
+	r.Camera.Zoom = cameraMinZoom
+
+	screenRadius := r.zoomSafeSize(5, movementStopMinRadiusPixels) * r.Camera.Zoom
+	if screenRadius < 1.249 || screenRadius > 1.251 {
+		t.Fatalf("minimum-zoom stop radius = %fpx, want 1.25px", screenRadius)
+	}
+}
+
 func TestRightClickOnQueuedRouteCancelsIt(t *testing.T) {
 	grid := make([][]game.Cell, 1)
 	grid[0] = []game.Cell{
