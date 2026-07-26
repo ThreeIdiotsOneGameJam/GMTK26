@@ -50,7 +50,6 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		})).
 		AddChild(uiutil.MenuButton("Leave Game", menuStartY+btnStride*2, func() {
 			LeaveCurrentGame()
-			HideEscScreen()
 			GoToPreviousScreen(previousScreen)
 		}))
 

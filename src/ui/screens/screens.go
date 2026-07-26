@@ -31,6 +31,10 @@ func GetActiveScreen() *ui.ScreenElement {
 	return activeScreen
 }
 
+func screenIsActiveOrPending(screen *ui.ScreenElement) bool {
+	return screen != nil && (activeScreen == screen || pendingScreen == screen)
+}
+
 func SetActiveScreen(screen *ui.ScreenElement) {
 	if screen == nil {
 		panic("active screen must not be nil")
@@ -187,6 +191,7 @@ func ensureTransitionSource(w, h int32) bool {
 	}
 
 	releaseTransitionSource()
+	flushTransitionSourceDraws()
 	image := rl.LoadImageFromScreen()
 	if image == nil {
 		return false
@@ -235,6 +240,9 @@ func smoothstep(value float32) float32 {
 
 func HandleEscape() {
 	if pendingScreen != nil {
+		if gameLeaveTransition {
+			return
+		}
 		cancelTransition()
 		return
 	}

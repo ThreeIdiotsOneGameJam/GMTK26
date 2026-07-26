@@ -26,6 +26,7 @@ var gameWorld = ui.World()
 var gameRegenerateButton = ui.Button()
 var currentGame *game.Game
 var gamePreviousScreen *ui.ScreenElement
+var gameLeaveTransition bool
 
 // localClientID is the server-assigned identity from the connect handshake,
 // used to decide whether the local player hosts the current game.
@@ -148,7 +149,7 @@ func EnterGame(state game.Game) {
 	gameActionError = ""
 	applyGameState(state)
 	gameWorld.Renderer.ResetCamera(&gameWorld.Map)
-	if activeScreen == gameScreen || pendingScreen == gameScreen {
+	if screenIsActiveOrPending(gameScreen) {
 		return
 	}
 	// Return to the play menu on close, not intermediate creation/matchmaking screens.
@@ -188,6 +189,11 @@ func CloseGame(gameID uint64) {
 	if currentGame == nil || currentGame.GameID != gameID {
 		return
 	}
+	if gameLeaveTransition && activeScreen == gameScreen && pendingScreen != nil {
+		// The local leave action already owns the transition and destination.
+		// Keep its outgoing game frame intact until the crossfade completes.
+		return
+	}
 	clearCurrentGame()
 	GoToPreviousScreen(gamePreviousScreen)
 }
@@ -215,12 +221,12 @@ func LeaveCurrentGame() {
 	if currentGame == nil {
 		return
 	}
+	gameLeaveTransition = true
 	if currentGame.Multiplayer {
 		if err := gameNet.Send(&packets.C2SLeaveGamePacket{}); err != nil {
 			println("failed to leave game:", err.Error())
 		}
 	}
-	clearCurrentGame()
 }
 
 func applyGameState(state game.Game) {
@@ -244,6 +250,7 @@ func applyGameState(state game.Game) {
 func clearCurrentGame() {
 	currentGame = nil
 	gameWorld.Map = game.Map{}
+	gameLeaveTransition = false
 	serverGameActive = false
 	gameOverMessage = ""
 	gameActionError = ""
@@ -286,6 +293,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 			audio.StopMusic()
 			audio.StopAmbience()
+			clearCurrentGame()
 		}).
 		AddChild(
 			gameWorld,
