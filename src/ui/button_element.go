@@ -7,7 +7,8 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-// Pos and Size do not account for the outline, which is rendered outside this
+// Pos and Size do not account for the outline or shadow, which are rendered
+// outside the element's layout box.
 
 func Button() *ButtonElement {
 	el := &ButtonElement{
@@ -30,7 +31,7 @@ func Button() *ButtonElement {
 			Disabled: ptrColor(PaletteSurface),
 		},
 	}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
 
 	return el.WithSizeDynamic(func(el *ButtonElement) vec.Vec2i {
 		return vec.Vec2i{
@@ -90,7 +91,7 @@ func DebugQuickActionModifierHeld() bool {
 }
 
 type ButtonElement struct {
-	BaseElement[*ButtonElement]
+	DropShadowElement[*ButtonElement]
 	Text                  string
 	TextSize              int32
 	Padding, OutlineWidth int32
@@ -189,9 +190,18 @@ func (el *ButtonElement) draw() {
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*oCol, opacity)
 	backgroundColor := util.ColorOpacity(*bgCol, opacity)
-	foregroundColor := util.ColorOpacity(*fgCol, opacity)
 
+	el.drawRectangleShadow(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, opacity)
 	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
 	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
-	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, foregroundColor)
+	drawTextWithShadow(
+		el.Text,
+		el.cx-el.textWidth/2,
+		el.cy-el.TextSize/2,
+		el.TextSize,
+		*fgCol,
+		el.ShadowColor,
+		fontScaledShadowOffset(el.TextSize),
+		opacity,
+	)
 }

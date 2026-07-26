@@ -26,7 +26,8 @@ FIXME: setting max length does not reverify existing text
 FIXME: WithText can bypass all checks
 */
 
-// Pos and Size do not account for the outline, which is rendered outside this
+// Pos and Size do not account for the outline or shadow, which are rendered
+// outside the element's layout box.
 
 func Input() *InputElement {
 	el := &InputElement{
@@ -55,7 +56,7 @@ func Input() *InputElement {
 		},
 		Callback: func(text string) {},
 	}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
 
 	return el.WithSizeDynamic(func(el *InputElement) vec.Vec2i {
 		displayWidth := max(
@@ -181,7 +182,7 @@ func (el *InputElement) Blur() {
 type InputTransformer func(input string) string
 
 type InputElement struct {
-	BaseElement[*InputElement]
+	DropShadowElement[*InputElement]
 	Text, PlaceholderText string
 	MaxTextLength         int // in runes, NOT []byte len
 	Charset               util.RuneSet
@@ -563,18 +564,27 @@ func (el *InputElement) draw() {
 
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*oCol, opacity)
-	placeholderColor := util.ColorOpacity(*pCol, opacity)
 	backgroundColor := util.ColorOpacity(*bgCol, opacity)
 	foregroundColor := util.ColorOpacity(*fgCol, opacity)
 	selectionColor := util.ColorOpacity(rl.SkyBlue, opacity)
 
+	el.drawRectangleShadow(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, opacity)
 	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
 	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
 
 	textY := el.cy - el.TextSize/2
 
 	if el.Text == "" {
-		rl.DrawText(el.PlaceholderText, el.x+el.Padding, textY, el.TextSize, placeholderColor)
+		drawTextWithShadow(
+			el.PlaceholderText,
+			el.x+el.Padding,
+			textY,
+			el.TextSize,
+			*pCol,
+			el.ShadowColor,
+			fontScaledShadowOffset(el.TextSize),
+			opacity,
+		)
 	} else {
 		if el.selectionStarted && el.selectionStart != el.cursorPos {
 			start := min(el.selectionStart, el.cursorPos)
@@ -586,7 +596,16 @@ func (el *InputElement) draw() {
 			rl.DrawRectangle(el.x+el.Padding+startX, textY, endX-startX, el.TextSize, selectionColor)
 		}
 
-		rl.DrawText(el.Text, el.x+el.Padding, textY, el.TextSize, foregroundColor)
+		drawTextWithShadow(
+			el.Text,
+			el.x+el.Padding,
+			textY,
+			el.TextSize,
+			*fgCol,
+			el.ShadowColor,
+			fontScaledShadowOffset(el.TextSize),
+			opacity,
+		)
 	}
 
 	if el.clicked && int(rl.GetTime()*2)%2 == 0 {

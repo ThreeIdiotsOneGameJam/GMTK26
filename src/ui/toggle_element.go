@@ -7,8 +7,8 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-// Pos and Size do not account for the outline or thumb overhang, which are
-// rendered outside the element's layout box.
+// Pos and Size do not account for the outline, shadow, or thumb overhang, which
+// are rendered outside the element's layout box.
 
 func Toggle() *ToggleElement {
 	el := &ToggleElement{
@@ -41,7 +41,7 @@ func Toggle() *ToggleElement {
 		},
 		Callback: func(bool) {},
 	}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
 
 	return el.WithSize(vec.Vec2i{X: 64, Y: 36})
 }
@@ -128,7 +128,7 @@ func (el *ToggleElement) ResetToDefault() {
 }
 
 type ToggleElement struct {
-	BaseElement[*ToggleElement]
+	DropShadowElement[*ToggleElement]
 	Value         bool
 	ValueProvider func() bool
 	TrackHeight   int32
@@ -276,11 +276,19 @@ func (el *ToggleElement) draw() {
 	trackOuterX := el.x - el.OutlineWidth
 	trackOuterY := el.trackY - el.OutlineWidth
 
+	el.drawRectangleShadow(trackOuterX, trackOuterY, trackOuterW, trackOuterH, opacity)
 	rl.DrawRectangle(trackOuterX, trackOuterY, trackOuterW, trackOuterH, outlineColor)
 	rl.DrawRectangle(el.x, el.trackY, el.w, el.TrackHeight, fillColor)
 
 	thumbOuterW := el.ThumbWidth + el.OutlineWidth*2
 	thumbOuterH := el.ThumbHeight + el.OutlineWidth*2
+	el.drawRectangleShadow(
+		el.thumbX-el.OutlineWidth,
+		el.thumbY-el.OutlineWidth,
+		thumbOuterW,
+		thumbOuterH,
+		opacity,
+	)
 	rl.DrawRectangle(
 		el.thumbX-el.OutlineWidth,
 		el.thumbY-el.OutlineWidth,
