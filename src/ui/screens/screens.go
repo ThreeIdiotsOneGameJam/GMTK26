@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"strings"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -218,10 +219,19 @@ func drawTooltip() {
 		return
 	}
 
+	lines := strings.Split(text, "\n")
 	textSize := int32(18)
+	lineH := textSize + 2
 	pad := int32(6)
-	textW := rl.MeasureText(text, textSize)
-	textH := textSize
+
+	textW := int32(0)
+	for _, line := range lines {
+		w := rl.MeasureText(line, textSize)
+		if w > textW {
+			textW = w
+		}
+	}
+	textH := int32(len(lines)) * lineH
 	bgW := textW + pad*2
 	bgH := textH + pad*2
 	mx := int32(global.MousePosition.X)
@@ -237,7 +247,9 @@ func drawTooltip() {
 	}
 
 	rl.DrawRectangle(x, y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
-	rl.DrawText(text, x+pad, y+pad, textSize, rl.White)
+	for i, line := range lines {
+		rl.DrawText(line, x+pad, y+pad+int32(i)*lineH, textSize, rl.White)
+	}
 }
 
 func ensureTransitionSource(w, h int32) bool {

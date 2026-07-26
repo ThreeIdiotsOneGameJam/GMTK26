@@ -755,7 +755,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Barracks").
 						WithRelativePos(vec.Vec2i{X: 84, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingBarracks)).
-						WithTooltip("Recruits: Peasant, Archer, Knight"),
+						WithTooltip("Recruits: Peasant, Archer, Knight\nPlace on: Plains"),
 				).
 				AddChild(
 					ui.Button().
@@ -764,7 +764,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Farm").
 						WithRelativePos(vec.Vec2i{X: 224, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingFarm)).
-						WithTooltip("Produces: Wood +1"),
+						WithTooltip("Produces: Wood +1\nPlace on: Plains near Water"),
 				).
 				AddChild(
 					ui.Button().
@@ -773,7 +773,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Mine").
 						WithRelativePos(vec.Vec2i{X: 308, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingMine)).
-						WithTooltip("Produces: Stone, Iron, Coal, or Gold"),
+						WithTooltip("Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold"),
 				).
 				AddChild(
 					ui.Button().
@@ -782,7 +782,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Forester").
 						WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingForester)).
-						WithTooltip("Produces: Wood +2"),
+						WithTooltip("Produces: Wood +2\nPlace on: Forest or Jungle"),
 				),
 		).
 		AddChild(
