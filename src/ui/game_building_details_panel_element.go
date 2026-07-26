@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
@@ -97,11 +98,9 @@ func (el *GameBuildingDetailsPanelElement) draw() {
 	m := &el.world.Map
 
 	hoveredCell := m.GetCell(r.HoveredHex)
-
-	showHover := hoveredCell != nil && hoveredCell.Building != game.BuildingUnknown
-
-	if showHover {
-		el.drawHover()
+	hoverLines := tileHoverLines(hoveredCell, r.HoveredHex, global.DebugEnabled)
+	if len(hoverLines) > 0 {
+		el.drawHover(hoverLines)
 	}
 
 	if el.lay.panelH == 0 {
@@ -111,15 +110,18 @@ func (el *GameBuildingDetailsPanelElement) draw() {
 	el.drawPanel()
 }
 
-func (el *GameBuildingDetailsPanelElement) drawHover() {
-	text := el.hoverText()
-	if text == "" {
+func (el *GameBuildingDetailsPanelElement) drawHover(lines []string) {
+	if len(lines) == 0 {
 		return
 	}
 
 	textSize := int32(18)
-	textW := rl.MeasureText(text, textSize)
-	textH := textSize
+	lineH := int32(22)
+	textW := int32(0)
+	for _, line := range lines {
+		textW = max(textW, rl.MeasureText(line, textSize))
+	}
+	textH := textSize + int32(len(lines)-1)*lineH
 	pad := int32(6)
 	bgW := textW + pad*2
 	bgH := textH + pad*2
@@ -131,25 +133,92 @@ func (el *GameBuildingDetailsPanelElement) drawHover() {
 	if x < 0 {
 		x = 0
 	}
+	if maxX := int32(rl.GetRenderWidth()) - bgW; x > maxX {
+		x = max(0, maxX)
+	}
 	if y < 0 {
 		y = my + 10
 	}
 
 	rl.DrawRectangle(x, y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
-	rl.DrawText(text, x+pad, y+pad, textSize, rl.White)
+	for i, line := range lines {
+		rl.DrawText(line, x+pad, y+pad+int32(i)*lineH, textSize, rl.White)
+	}
 }
 
-func (el *GameBuildingDetailsPanelElement) hoverText() string {
-	cell := el.world.Map.GetCell(el.world.Renderer.HoveredHex)
-	if cell == nil || cell.Building == game.BuildingUnknown {
+func tileHoverLines(cell *game.Cell, hex game.Hex, showCoordinates bool) []string {
+	if cell == nil {
+		return nil
+	}
+
+	var lines []string
+	if cell.Tile != game.TileUnknown {
+		lines = append(lines, "Tile: "+cell.Tile.String())
+	}
+	if resource := tileResourceLabel(cell.Tile); resource != "" {
+		lines = append(lines, "Resource: "+resource)
+	}
+	lines = append(lines, "Territory: "+factionLabel(cell.Owner))
+	if showCoordinates {
+		lines = append(lines, fmt.Sprintf("Coordinates: (%d, %d)", hex.X, hex.Y))
+	}
+
+	var contents []string
+	if cell.Building != game.BuildingUnknown {
+		building := "Building: " + buildingLabel(cell.Building)
+		if output := buildingOutputText(cell.Building, cell.Tile); output != "" {
+			building += " - " + output
+		}
+		contents = append(contents, building)
+	}
+	if cell.Unit != game.UnitUnknown {
+		contents = append(contents, fmt.Sprintf("Unit: %s - %s", cell.Unit, factionLabel(cell.UnitOwner)))
+	}
+	if len(lines) > 0 && len(contents) > 0 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, contents...)
+	return lines
+}
+
+func factionLabel(owner int8) string {
+	if owner < 0 {
+		return "Unclaimed"
+	}
+	return fmt.Sprintf("Faction %d", owner+1)
+}
+
+func tileResourceLabel(tile game.TileType) string {
+	switch tile {
+	case game.TileForest, game.TileJungle:
+		return game.ResourceWood.String()
+	case game.TileRock:
+		return game.ResourceStone.String()
+	case game.TileCoal:
+		return game.ResourceCoal.String()
+	case game.TileIron:
+		return game.ResourceIron.String()
+	case game.TileGold:
+		return game.ResourceGold.String()
+	default:
 		return ""
 	}
-	label := buildingLabel(cell.Building)
-	production := buildingProductionText(cell.Building, cell.Tile)
-	if production != "" {
-		return label + ": " + production
+}
+
+func buildingOutputText(building game.BuildingType, tile game.TileType) string {
+	var outputs []string
+	if amount := game.BuildingCoinsProduces(building); amount > 0 {
+		outputs = append(outputs, fmt.Sprintf("Coin x %d", amount))
 	}
-	return label
+
+	produces := game.BuildingProduces(building, tile)
+	resTypes := []game.ResourceType{game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
+	for _, resource := range resTypes {
+		if amount := produces[resource]; amount > 0 {
+			outputs = append(outputs, fmt.Sprintf("%s x %d", resource, amount))
+		}
+	}
+	return strings.Join(outputs, ", ")
 }
 
 func (el *GameBuildingDetailsPanelElement) drawPanel() {

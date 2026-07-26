@@ -1,12 +1,7 @@
 package render
 
 import (
-	"fmt"
-	"image/color"
-
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 type SelectionKind uint8
@@ -17,17 +12,9 @@ const (
 	SelectionBuilding
 )
 
-const (
-	selectionMenuWidth     float32 = 200
-	selectionMenuPadding   float32 = 5
-	selectionMenuRowHeight float32 = 32
-	selectionMenuGap       float32 = 4
-)
-
 type selectionMenu struct {
-	Hex      game.Hex
-	Position vec.Vec2
-	Visible  bool
+	Hex     game.Hex
+	Visible bool
 }
 
 func (r *WorldRenderer) selectAt(hex game.Hex, kind SelectionKind) {
@@ -69,9 +56,8 @@ func (r *WorldRenderer) selectCell(hex game.Hex, cell *game.Cell) {
 	case hasUnit && hasBuilding:
 		r.clearSelection()
 		r.selectionMenu = selectionMenu{
-			Hex:      hex,
-			Position: r.MousePosition.Add(vec.Vec2{X: 10, Y: 10}),
-			Visible:  true,
+			Hex:     hex,
+			Visible: true,
 		}
 	case hasUnit:
 		r.selectAt(hex, SelectionUnit)
@@ -82,102 +68,36 @@ func (r *WorldRenderer) selectCell(hex game.Hex, cell *game.Cell) {
 	}
 }
 
-// updateSelectionMenu returns true only when it consumes a left click. Right
-// mouse input remains exclusively available for map panning.
-func (r *WorldRenderer) updateSelectionMenu(m *game.Map) bool {
+// SelectionMenuHex returns the tile currently waiting for the player to choose
+// between its unit and building.
+func (r *WorldRenderer) SelectionMenuHex() (game.Hex, bool) {
+	return r.selectionMenu.Hex, r.selectionMenu.Visible
+}
+
+// ChooseSelectionMenuOption applies a choice made by the UI layer. The map is
+// checked again because an authoritative state update may have changed the
+// tile while the menu was open.
+func (r *WorldRenderer) ChooseSelectionMenuOption(m *game.Map, kind SelectionKind) {
 	if !r.selectionMenu.Visible {
-		return false
-	}
-	if !rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
-		return false
+		return
 	}
 
 	cell := m.GetCell(r.selectionMenu.Hex)
-	row := r.selectionMenuRowAt(r.MousePosition)
-	switch row {
-	case 0:
+	switch kind {
+	case SelectionUnit:
 		if cell != nil && cell.Unit != game.UnitUnknown {
-			r.selectAt(r.selectionMenu.Hex, SelectionUnit)
-		} else {
-			r.clearSelection()
+			r.selectAt(r.selectionMenu.Hex, kind)
+			return
 		}
-	case 1:
+	case SelectionBuilding:
 		if cell != nil && cell.Building != game.BuildingUnknown {
-			r.selectAt(r.selectionMenu.Hex, SelectionBuilding)
-		} else {
-			r.clearSelection()
+			r.selectAt(r.selectionMenu.Hex, kind)
+			return
 		}
-	default:
-		r.selectionMenu.Visible = false
 	}
-	return true
+	r.clearSelection()
 }
 
-func (r *WorldRenderer) selectionMenuBounds() rl.Rectangle {
-	height := selectionMenuPadding*2 + selectionMenuRowHeight*2 + selectionMenuGap
-	x := r.selectionMenu.Position.X
-	y := r.selectionMenu.Position.Y
-	if r.viewport.Texture.Width > 0 {
-		x = min(x, float32(r.viewport.Texture.Width)-selectionMenuWidth-selectionMenuPadding)
-	}
-	if r.viewport.Texture.Height > 0 {
-		y = min(y, float32(r.viewport.Texture.Height)-height-selectionMenuPadding)
-	}
-	x = max(selectionMenuPadding, x)
-	y = max(selectionMenuPadding, y)
-	return rl.Rectangle{X: x, Y: y, Width: selectionMenuWidth, Height: height}
-}
-
-func (r *WorldRenderer) selectionMenuRowAt(point vec.Vec2) int {
-	bounds := r.selectionMenuBounds()
-	x := point.X
-	y := point.Y
-	if x < bounds.X+selectionMenuPadding ||
-		x > bounds.X+bounds.Width-selectionMenuPadding {
-		return -1
-	}
-	firstY := bounds.Y + selectionMenuPadding
-	if y >= firstY && y <= firstY+selectionMenuRowHeight {
-		return 0
-	}
-	secondY := firstY + selectionMenuRowHeight + selectionMenuGap
-	if y >= secondY && y <= secondY+selectionMenuRowHeight {
-		return 1
-	}
-	return -1
-}
-
-func (r *WorldRenderer) drawSelectionMenu(m *game.Map) {
-	if !r.selectionMenu.Visible {
-		return
-	}
-	cell := m.GetCell(r.selectionMenu.Hex)
-	if cell == nil {
-		return
-	}
-
-	bounds := r.selectionMenuBounds()
-	rl.DrawRectangleRec(bounds, color.RGBA{R: 24, G: 28, B: 34, A: 245})
-	rl.DrawRectangleLinesEx(bounds, 1, color.RGBA{R: 220, G: 225, B: 232, A: 220})
-
-	labels := [2]string{
-		fmt.Sprintf("Unit: %s", cell.Unit),
-		fmt.Sprintf("Building: %s", cell.Building),
-	}
-	firstY := bounds.Y + selectionMenuPadding
-	for i, label := range labels {
-		y := firstY + float32(i)*(selectionMenuRowHeight+selectionMenuGap)
-		row := rl.Rectangle{
-			X:      bounds.X + selectionMenuPadding,
-			Y:      y,
-			Width:  bounds.Width - selectionMenuPadding*2,
-			Height: selectionMenuRowHeight,
-		}
-		fill := color.RGBA{R: 49, G: 57, B: 68, A: 250}
-		if r.selectionMenuRowAt(r.MousePosition) == i {
-			fill = color.RGBA{R: 74, G: 96, B: 118, A: 255}
-		}
-		rl.DrawRectangleRec(row, fill)
-		rl.DrawText(label, int32(row.X+8), int32(row.Y+7), 18, rl.White)
-	}
+func (r *WorldRenderer) DismissSelectionMenu() {
+	r.selectionMenu.Visible = false
 }

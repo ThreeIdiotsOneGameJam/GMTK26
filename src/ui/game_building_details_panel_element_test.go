@@ -1,0 +1,139 @@
+package ui
+
+import (
+	"reflect"
+	"testing"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+)
+
+func TestTileHoverLines(t *testing.T) {
+	tests := []struct {
+		name            string
+		cell            *game.Cell
+		hex             game.Hex
+		showCoordinates bool
+		want            []string
+	}{
+		{
+			name: "nil cell",
+			cell: nil,
+		},
+		{
+			name: "tile without contents",
+			cell: &game.Cell{Tile: game.TilePlains, Owner: -1},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Unclaimed",
+			},
+		},
+		{
+			name:            "coordinates in debug mode",
+			cell:            &game.Cell{Tile: game.TileDesert, Owner: -1},
+			hex:             game.NewHex(12, 34),
+			showCoordinates: true,
+			want: []string{
+				"Tile: Desert",
+				"Territory: Unclaimed",
+				"Coordinates: (12, 34)",
+			},
+		},
+		{
+			name: "building",
+			cell: &game.Cell{
+				Tile:     game.TilePlains,
+				Owner:    1,
+				Building: game.BuildingTownhall,
+			},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Faction 2",
+				"",
+				"Building: Townhall - Coin x 1",
+			},
+		},
+		{
+			name: "resource",
+			cell: &game.Cell{Tile: game.TileRock, Owner: -1},
+			want: []string{
+				"Tile: Rock",
+				"Resource: Stone",
+				"Territory: Unclaimed",
+			},
+		},
+		{
+			name: "unit",
+			cell: &game.Cell{
+				Tile:      game.TilePlains,
+				Owner:     -1,
+				Unit:      game.UnitScout,
+				UnitOwner: 2,
+			},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Unclaimed",
+				"",
+				"Unit: Scout - Faction 3",
+			},
+		},
+		{
+			name: "building without output",
+			cell: &game.Cell{
+				Tile:     game.TilePlains,
+				Owner:    0,
+				Building: game.BuildingBarracks,
+			},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Faction 1",
+				"",
+				"Building: Barracks",
+			},
+		},
+		{
+			name: "building resource and unit",
+			cell: &game.Cell{
+				Tile:      game.TileGold,
+				Owner:     0,
+				Building:  game.BuildingMine,
+				Unit:      game.UnitKnight,
+				UnitOwner: 1,
+			},
+			want: []string{
+				"Tile: Gold",
+				"Resource: Gold",
+				"Territory: Faction 1",
+				"",
+				"Building: Mine - Gold x 1",
+				"Unit: Knight - Faction 2",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := tileHoverLines(test.cell, test.hex, test.showCoordinates); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("tileHoverLines() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestTileResourceLabel(t *testing.T) {
+	tests := map[game.TileType]string{
+		game.TileForest: "Wood",
+		game.TileJungle: "Wood",
+		game.TileRock:   "Stone",
+		game.TileCoal:   "Coal",
+		game.TileIron:   "Iron",
+		game.TileGold:   "Gold",
+		game.TilePlains: "",
+		game.TileWater:  "",
+	}
+
+	for tile, want := range tests {
+		if got := tileResourceLabel(tile); got != want {
+			t.Errorf("tileResourceLabel(%s) = %q, want %q", tile, got, want)
+		}
+	}
+}
