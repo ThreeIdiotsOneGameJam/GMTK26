@@ -177,7 +177,6 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if !validation.Valid {
 			return intent.validationFailed(validation)
 		}
-		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = validation.Status
 		intent.result.Message = validation.Message

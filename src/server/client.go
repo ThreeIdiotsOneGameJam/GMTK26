@@ -172,6 +172,8 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 			return nil, fmt.Errorf("handle cancel build packet: %w", err)
 		}
 		return nil, nil
+	case *packets.C2SUpdatePlayerNamePacket:
+		return c.handleUpdatePlayerNamePacket(packet)
 	default:
 		return nil, fatalPacketErrorf(
 			"handle client packet: unsupported packet %T",
@@ -264,6 +266,13 @@ func (c *Client) handleConnectPacket(packet *packets.C2SConnectPacket) (packets.
 		ClientID:   game.ClientID(clientID.String()),
 		Persistent: persistent,
 	}, nil
+}
+
+func (c *Client) handleUpdatePlayerNamePacket(packet *packets.C2SUpdatePlayerNamePacket) (packets.S2CPacket, error) {
+	c.mu.Lock()
+	c.player.PlayerName = packet.PlayerName
+	c.mu.Unlock()
+	return nil, nil
 }
 
 func newTemporaryClientID() uuid.UUID {

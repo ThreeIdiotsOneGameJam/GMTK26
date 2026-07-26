@@ -11,6 +11,10 @@ const (
 	BuildingBarracks
 	BuildingFarm
 	BuildingTownhall
+	// BuildingBank is retained for protocol compatibility with builds that
+	// briefly exposed it, but the baseline resource model does not make it
+	// player-buildable.
+	BuildingBank
 )
 
 func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
@@ -64,6 +68,8 @@ func BuildingMaxHP(b BuildingType) int8 {
 	case BuildingMine:
 		return 12
 	case BuildingFarm:
+		return 10
+	case BuildingBank:
 		return 10
 	default:
 		return 0

@@ -29,3 +29,21 @@ func TestGetUnitRect(t *testing.T) {
 		t.Fatalf("unknown unit should not have a texture rect: %+v", rect)
 	}
 }
+
+func TestDrawUnitsSkipsNegativeFactionOwner(t *testing.T) {
+	m := game.Map{
+		Grid: [][]game.Cell{{
+			{
+				Units: []game.UnitData{{
+					Type:  game.UnitScout,
+					Owner: -1,
+				}},
+			},
+		}},
+	}
+
+	renderer := WorldRenderer{}
+	renderer.drawUnits(&m, []visibleTile{{
+		hex: game.NewHex(0, 0),
+	}})
+}

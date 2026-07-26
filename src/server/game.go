@@ -43,8 +43,11 @@ type GameInstance struct {
 }
 
 func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
+	clientCount := min(len(clients), len((game.Game{}).Factions))
+	clientSlots := append([]*Client(nil), clients[:clientCount]...)
+
 	factionClients := make(map[*Client]int)
-	for i, c := range clients {
+	for i, c := range clientSlots {
 		if c != nil {
 			factionClients[c] = i
 		}
@@ -53,7 +56,7 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 	return &GameInstance{
 		ID:                 id,
 		game:               g,
-		clients:            clients,
+		clients:            clientSlots,
 		factionClients:     factionClients,
 		actions:            make(map[int]*submittedAction),
 		movementOrders:     make(map[int][]game.MovementOrder),

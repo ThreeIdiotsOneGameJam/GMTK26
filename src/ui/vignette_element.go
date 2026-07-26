@@ -5,7 +5,6 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 )
 
 func Vignette() *VignetteElement {
@@ -33,13 +32,26 @@ func (el *VignetteElement) draw() {
 	s := el.Parent.Size().Vec2()
 	p := el.Parent.AbsolutePos().Vec2()
 
+	colorLoc := rl.GetShaderLocation(shaders.Vignette, "vignetteColor")
+	radiusLoc := rl.GetShaderLocation(shaders.Vignette, "vignetteRadius")
+	vignetteColor := []float32{
+		float32(el.Color.R) / 255,
+		float32(el.Color.G) / 255,
+		float32(el.Color.B) / 255,
+		float32(el.Color.A) / 255,
+	}
+	rl.SetShaderValue(shaders.Vignette, colorLoc, vignetteColor, rl.ShaderUniformVec4)
+	rl.SetShaderValue(
+		shaders.Vignette,
+		radiusLoc,
+		[]float32{el.Radius},
+		rl.ShaderUniformFloat,
+	)
+
 	// The shader writes premultiplied color so the vignette has the same blend
 	// result on the desktop framebuffer and every WebGL canvas implementation.
 	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
-	drawShaderQuad(shaders.Vignette, p, s, func() {
-		rlutil.Color4ub(el.Color.R, el.Color.G, el.Color.B, el.Color.A)
-		rl.Normal3f(el.Radius, 0, 1)
-	})
+	drawShaderQuad(shaders.Vignette, p, s, nil)
 	rl.EndBlendMode()
 }
 

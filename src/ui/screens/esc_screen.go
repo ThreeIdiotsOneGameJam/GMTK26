@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
@@ -66,6 +67,9 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		)
 
 	textShadow := color.RGBA{R: 0, G: 0, B: 0, A: 210}
+	menuPanel.
+		AddChild(newControlsSideColumn(0, textShadow)).
+		AddChild(newControlsSideColumn(1, textShadow))
 
 	settingsPanel := ui.Screen().
 		WithBackgroundColor(color.RGBA{}).
@@ -102,17 +106,12 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.MusicVolume = v },
 		saveSettings,
 	)
-	addVolumeRowStyled(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
-		func() float32 { return settings.Current.SFXVolume },
-		func(v float32) { settings.Current.SFXVolume = v },
-		saveSettings,
-	)
-	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.AmbienceVolume },
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
-	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*3, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*2, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() bool { return settings.Current.ReducedMotion },
 		func(v bool) { settings.Current.ReducedMotion = v },
 		saveSettings,
@@ -121,7 +120,7 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		settingsPanel,
 		"Countdown Overlay",
 		"Configure",
-		rowStartY+rowStrideY*4,
+		rowStartY+rowStrideY*3,
 		uiutil.MenuHeaderColor,
 		&textShadow,
 		func() {
@@ -194,4 +193,105 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		AddChild(settingsPanel).
 		AddChild(countdownPanel).
 		AddChild(countdownPreview)
+}
+
+func newControlsSideColumn(columnIndex int, textShadow color.RGBA) *ui.GroupElement {
+	column := ui.Group().
+		WithSizeDynamic(func(*ui.GroupElement) vec.Vec2i {
+			inline := escControlsInline(columnIndex, int32(rl.GetRenderWidth()))
+			rowStride := int32(46)
+			if inline {
+				rowStride = 38
+			}
+			return vec.Vec2i{
+				X: escControlsSideWidth(int32(rl.GetRenderWidth())),
+				Y: int32(len(gameControlHintColumns[columnIndex])) * rowStride,
+			}
+		})
+	if columnIndex == 0 {
+		column.
+			WithAnchors(anchor.Left, anchor.Left).
+			WithRelativePos(vec.Vec2i{X: 20})
+	} else {
+		column.
+			WithAnchors(anchor.Right, anchor.Right).
+			WithRelativePos(vec.Vec2i{X: -20})
+	}
+
+	for rowIndex, hint := range gameControlHintColumns[columnIndex] {
+		row := int32(rowIndex)
+		visible := func(*ui.TextElement) bool {
+			return hint.control != "F3" || global.DebugAvailable
+		}
+		inline := func() bool {
+			return escControlsInline(columnIndex, int32(rl.GetRenderWidth()))
+		}
+		contentOffset := func() int32 {
+			sideWidth := escControlsSideWidth(int32(rl.GetRenderWidth()))
+			contentWidth := controlsColumnWidth(
+				gameControlHintColumns[columnIndex],
+				17,
+				14,
+				20,
+				inline(),
+			)
+			return max((sideWidth-contentWidth)/2, int32(0))
+		}
+
+		column.
+			AddChild(
+				ui.Text().
+					WithText(hint.control).
+					WithTextSize(17).
+					WithTextColor(uiutil.MenuMutedColor).
+					WithTextShadow(textShadow, vec.Vec2i{X: 2, Y: 2}).
+					WithRelativePosDynamic(func(*ui.TextElement) vec.Vec2i {
+						rowStride := int32(46)
+						if inline() {
+							rowStride = 38
+						}
+						return vec.Vec2i{
+							X: contentOffset(),
+							Y: row * rowStride,
+						}
+					}).
+					WithVisibleDynamic(visible),
+			).
+			AddChild(
+				ui.Text().
+					WithText(hint.action).
+					WithTextSize(14).
+					WithTextColor(uiutil.MenuHeaderColor).
+					WithTextShadow(textShadow, vec.Vec2i{X: 2, Y: 2}).
+					WithRelativePosDynamic(func(*ui.TextElement) vec.Vec2i {
+						if inline() {
+							return vec.Vec2i{
+								X: contentOffset() + ui.MeasureText(hint.control, 17).X + 20,
+								Y: row * 38,
+							}
+						}
+						return vec.Vec2i{
+							X: contentOffset(),
+							Y: row*46 + 21,
+						}
+					}).
+					WithVisibleDynamic(visible),
+			)
+	}
+
+	return column
+}
+
+func escControlsSideWidth(renderWidth int32) int32 {
+	return max((renderWidth-340)/2-44, int32(150))
+}
+
+func escControlsInline(columnIndex int, renderWidth int32) bool {
+	return escControlsSideWidth(renderWidth) >= controlsColumnWidth(
+		gameControlHintColumns[columnIndex],
+		17,
+		14,
+		20,
+		true,
+	)
 }

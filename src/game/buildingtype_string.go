@@ -14,11 +14,12 @@ func _() {
 	_ = x[BuildingBarracks-3]
 	_ = x[BuildingFarm-4]
 	_ = x[BuildingTownhall-5]
+	_ = x[BuildingBank-6]
 }
 
-const _BuildingType_name = "UnknownForesterMineBarracksFarmTownhall"
+const _BuildingType_name = "UnknownForesterMineBarracksFarmTownhallBank"
 
-var _BuildingType_index = [...]uint8{0, 7, 15, 19, 27, 31, 39}
+var _BuildingType_index = [...]uint8{0, 7, 15, 19, 27, 31, 39, 43}
 
 func (i BuildingType) String() string {
 	idx := int(i) - 0

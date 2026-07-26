@@ -8,9 +8,13 @@ const (
 
 	ServerPort            uint16 = 58008
 	ServerBindHost               = "0.0.0.0"
-	DefaultServerHost            = "localhost"
+	DefaultServerHost            = "gmtk26.ndmh.xyz"
 	ClientWebSocketScheme        = "ws"
+)
 
+var FallbackServerHosts = []string{"132.145.12.10", "localhost"}
+
+const (
 	WindowWidth  int32 = 1200
 	WindowHeight int32 = 675
 
@@ -18,6 +22,10 @@ const (
 	ViewportHeight = 360
 )
 
-func DefaultServerAddress() string {
-	return fmt.Sprintf("%s:%d", DefaultServerHost, ServerPort)
+func DefaultServerAddresses() []string {
+	addrs := []string{fmt.Sprintf("%s:%d", DefaultServerHost, ServerPort)}
+	for _, host := range FallbackServerHosts {
+		addrs = append(addrs, fmt.Sprintf("%s:%d", host, ServerPort))
+	}
+	return addrs
 }

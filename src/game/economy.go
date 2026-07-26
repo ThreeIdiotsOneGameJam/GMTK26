@@ -7,6 +7,7 @@ var buildingCoinCosts = [...]int32{
 	BuildingBarracks: 24,
 	BuildingFarm:     12,
 	BuildingTownhall: 0,
+	BuildingBank:     0,
 }
 
 var unitCoinCosts = [...]int32{
@@ -156,4 +157,10 @@ func BuildingCoinsProduces(b BuildingType, tile TileType) int32 {
 		return 2
 	}
 	return 0
+}
+
+// BuildingConsumes remains as a compatibility accessor for the inactive Bank
+// type. The current resource model has no consuming buildings.
+func BuildingConsumes(BuildingType) Resources {
+	return nil
 }
