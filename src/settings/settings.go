@@ -16,7 +16,11 @@ type SettingsStore struct {
 	ReducedMotion  bool    `json:"reduced_motion"`
 }
 
-var Current = SettingsStore{}
+var Current = SettingsStore{
+	SFXVolume:      0.5,
+	MusicVolume:    0.5,
+	AmbienceVolume: 0.5,
+}
 
 func Load() error {
 	var loaded SettingsStore
