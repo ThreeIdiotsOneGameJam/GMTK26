@@ -5,7 +5,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 )
 
-func (r *WorldRenderer) updateRecruitPlacement(m *game.Map, hex game.Hex, place bool) {
+func (r *WorldRenderer) updateRecruitPlacement(m *game.Map, hex game.Hex, place bool) bool {
 	if global.UIBlocksWorldInput ||
 		!r.ActionsEnabled ||
 		r.MovementAnimating() ||
@@ -13,18 +13,20 @@ func (r *WorldRenderer) updateRecruitPlacement(m *game.Map, hex game.Hex, place 
 		r.SelectedHex == nil ||
 		r.SelectedKind != SelectionBuilding ||
 		!place {
-		return
+		return false
 	}
 
 	from := *r.SelectedHex
 	if !r.canRecruitAt(m, from, hex, r.RecruitToPlace) {
-		return
+		return false
 	}
 
 	if r.OnRecruit == nil || r.OnRecruit(from, hex, r.RecruitToPlace) {
 		r.clearPlacementSelection()
 		r.ClearQueuedBuilding()
+		return true
 	}
+	return false
 }
 
 func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, unit game.UnitType) bool {

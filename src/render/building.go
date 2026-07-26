@@ -45,7 +45,7 @@ func (r *WorldRenderer) cancelQueuedBuildingAt(hex game.Hex, click bool) bool {
 	return true
 }
 
-func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place bool) {
+func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place bool) bool {
 	r.buildingPreview.Visible = false
 
 	if global.UIBlocksWorldInput ||
@@ -55,7 +55,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 		r.SelectedHex == nil ||
 		r.SelectedKind != SelectionUnit ||
 		!m.HexInsideBounds(hex) {
-		return
+		return false
 	}
 
 	from := *r.SelectedHex
@@ -65,7 +65,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 			m.GetCell(hex).Building = r.BuildingToPlace
 		}
 		r.clearPlacementSelection()
-		return
+		return true
 	}
 
 	tint := rl.Red
@@ -80,6 +80,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 		Tint:    tint,
 		Visible: true,
 	}
+	return false
 }
 
 func (r *WorldRenderer) clearPlacementSelection() {

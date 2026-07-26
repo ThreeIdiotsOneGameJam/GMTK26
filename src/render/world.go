@@ -325,11 +325,13 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	if !cancelledBuilding {
 		r.cancelQueuedMovementAt(m, mousePos, rightActionClick)
 	}
-	r.updateBuildingPlacement(m, hex, worldLeftClick)
-	r.updateRecruitPlacement(m, hex, worldLeftClick)
+	placementConsumedClick := r.updateBuildingPlacement(m, hex, worldLeftClick)
+	recruitmentConsumedClick := r.updateRecruitPlacement(m, hex, worldLeftClick)
 	r.updateMovementPreview(m, hex)
 	if !global.UIBlocksWorldInput &&
 		!selectionMenuOwnsInput &&
+		!placementConsumedClick &&
+		!recruitmentConsumedClick &&
 		r.BuildingToPlace == game.BuildingUnknown &&
 		r.RecruitToPlace == game.UnitUnknown {
 		if worldLeftClick {

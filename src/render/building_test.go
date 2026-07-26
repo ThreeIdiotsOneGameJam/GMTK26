@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 func TestClearPlacementSelectionClosesPlacementAndSourceSelection(t *testing.T) {
@@ -66,5 +67,42 @@ func TestCancelQueuedBuildingOnlyAtPendingTarget(t *testing.T) {
 	}
 	if r.queuedBuilding.Visible || !cancelled {
 		t.Fatal("pending building was not cancelled")
+	}
+}
+
+func TestSameTileBuildingPlacementConsumesWorldClick(t *testing.T) {
+	source := game.NewHex(0, 0)
+	m := game.Map{
+		Grid: [][]game.Cell{{
+			{
+				Tile:      game.TilePlains,
+				Owner:     -1,
+				Unit:      game.UnitScout,
+				UnitOwner: 0,
+			},
+		}},
+		GridSize: vec.Vec2i{X: 1, Y: 1},
+	}
+	placed := false
+	r := WorldRenderer{
+		ActionsEnabled:  true,
+		LocalFaction:    0,
+		SelectedHex:     &source,
+		SelectedKind:    SelectionUnit,
+		BuildingToPlace: game.BuildingBarracks,
+		OnPlaceBuilding: func(from, to game.Hex, building game.BuildingType) bool {
+			placed = from == source && to == source && building == game.BuildingBarracks
+			return true
+		},
+	}
+
+	if !r.updateBuildingPlacement(&m, source, true) {
+		t.Fatal("successful same-tile placement did not consume the world click")
+	}
+	if !placed {
+		t.Fatal("same-tile placement callback was not invoked")
+	}
+	if r.SelectedHex != nil || r.SelectedKind != SelectionNone {
+		t.Fatal("unit was reselected after same-tile placement")
 	}
 }
