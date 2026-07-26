@@ -35,6 +35,7 @@ go.work.sum
 /bin/
 /server
 /server.exe
+/resource_windows_amd64.syso
 
 # IDE
 .idea/
