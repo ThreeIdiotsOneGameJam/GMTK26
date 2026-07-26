@@ -8,6 +8,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
@@ -669,7 +670,9 @@ func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
 
 func (r *WorldRenderer) drawBackground() {
 	if rl.IsShaderValid(shaders.WorldBackground) {
-		rl.SetShaderValue(shaders.WorldBackground, shaders.WorldBackgroundTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+		if !settings.Current.ReducedMotion {
+			rl.SetShaderValue(shaders.WorldBackground, shaders.WorldBackgroundTimeLoc, []float32{float32(rl.GetTime())}, rl.ShaderUniformFloat)
+		}
 		rl.BeginShaderMode(shaders.WorldBackground)
 		rl.Begin(rl.Triangles)
 
