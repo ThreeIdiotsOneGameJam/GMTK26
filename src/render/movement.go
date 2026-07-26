@@ -259,7 +259,7 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 	}
 
 	selectedPos := r.HexToPixel(from.Vec2i)
-	rl.DrawCircleLinesV(rlvec.ToRL(selectedPos), 17, rl.White)
+	rl.DrawCircleLines(int32(selectedPos.X), int32(selectedPos.Y), 17, rl.White)
 
 	for x := range m.Grid {
 		for y := range m.Grid[x] {
@@ -288,7 +288,7 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 				continue
 			}
 			position := r.HexToPixel(to.Vec2i)
-			rl.DrawCircleLinesV(rlvec.ToRL(position), 19, col)
+			rl.DrawCircleLines(int32(position.X), int32(position.Y), 19, col)
 		}
 	}
 }
@@ -335,7 +335,7 @@ func (r *WorldRenderer) drawAttackAnimations() {
 		}
 		markerColor := factionColor(anim.event.Owner)
 		markerColor.A = uint8(max(0, min(255, int(255*(1-progress*0.3)))))
-		drawUnitMarker(lungePos, r.HexSize, anim.event.Unit, markerColor)
+		r.drawUnit(lungePos, anim.event.Unit, markerColor)
 
 		if progress >= 0.45 && progress < 0.55 {
 			impact := color.RGBA{R: 255, G: 220, B: 100, A: uint8(max(0, min(255, int(200*(1-(progress-0.45)*10)))))}
@@ -360,7 +360,7 @@ func (r *WorldRenderer) drawUnitAnimations() {
 		trailColor.A = uint8(float32(180) * alpha)
 		r.drawPartialTrail(trail, position, trailColor)
 		if animation.elapsed <= moveDuration {
-			drawUnitMarker(position, r.HexSize, event.Unit, factionColor(event.Owner))
+			r.drawUnit(position, event.Unit, factionColor(event.Owner))
 		}
 	}
 }
