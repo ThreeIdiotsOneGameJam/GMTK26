@@ -298,6 +298,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Input().
+				WithText(game.PlayerData.PlayerName).
 				WithDefaultText(game.PlayerData.PlayerName).
 				WithPlaceholderText("Your Name").
 				WithMaxTextLength(20).
