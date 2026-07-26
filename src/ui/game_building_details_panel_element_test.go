@@ -119,6 +119,32 @@ func TestTileHoverLines(t *testing.T) {
 	}
 }
 
+func TestTileHoverTooltipVisibleOnlyOverWorld(t *testing.T) {
+	tests := []struct {
+		name               string
+		uiBlocksWorldInput bool
+		uiModalBlocksInput bool
+		want               bool
+	}{
+		{name: "world", want: true},
+		{name: "ui", uiBlocksWorldInput: true},
+		{name: "modal", uiModalBlocksInput: true},
+		{name: "ui under modal", uiBlocksWorldInput: true, uiModalBlocksInput: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := tileHoverTooltipVisible(
+				test.uiBlocksWorldInput,
+				test.uiModalBlocksInput,
+			)
+			if got != test.want {
+				t.Fatalf("tileHoverTooltipVisible() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
 func TestTileResourceLabel(t *testing.T) {
 	tests := map[game.TileType]string{
 		game.TileForest: "Wood",

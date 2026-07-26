@@ -97,10 +97,12 @@ func (el *GameBuildingDetailsPanelElement) draw() {
 	r := &el.world.Renderer
 	m := &el.world.Map
 
-	hoveredCell := m.GetCell(r.HoveredHex)
-	hoverLines := tileHoverLines(hoveredCell, r.HoveredHex, global.DebugEnabled)
-	if len(hoverLines) > 0 {
-		el.drawHover(hoverLines)
+	if tileHoverTooltipVisible(global.UIBlocksWorldInput, global.UIModalBlocksInput) {
+		hoveredCell := m.GetCell(r.HoveredHex)
+		hoverLines := tileHoverLines(hoveredCell, r.HoveredHex, global.DebugEnabled)
+		if len(hoverLines) > 0 {
+			el.drawHover(hoverLines)
+		}
 	}
 
 	if el.lay.panelH == 0 {
@@ -108,6 +110,10 @@ func (el *GameBuildingDetailsPanelElement) draw() {
 	}
 
 	el.drawPanel()
+}
+
+func tileHoverTooltipVisible(uiBlocksWorldInput, uiModalBlocksInput bool) bool {
+	return !uiBlocksWorldInput && !uiModalBlocksInput
 }
 
 func (el *GameBuildingDetailsPanelElement) drawHover(lines []string) {
