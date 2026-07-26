@@ -50,6 +50,11 @@ const (
 	// Rate at which momentum decays after releasing the mouse.
 	panMomentumDamping = float32(4.0)
 
+	// A short left press remains a click. Holding for this long, or moving this
+	// far first, turns the same gesture into a camera pan.
+	leftPanHoldSeconds   float32 = 0.18
+	leftPanDragThreshold float32 = 6.0
+
 	// Careful, short drags use raw momentum instead of the speed compression
 	// curve. Distance and speed are in viewport pixels, independent of zoom.
 	panMomentumShortDragDistance float32 = 32.0
@@ -82,6 +87,10 @@ type WorldRenderer struct {
 	panDragDuration       float32
 	panStationaryDuration float32
 	panRawVelocity        v.Vec2
+	leftPressPos          v.Vec2
+	leftPressTime         float32
+	leftGesture           bool
+	leftPanning           bool
 
 	HoveredHex  game.Hex
 	SelectedHex *game.Hex
@@ -133,6 +142,9 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	r.panDragDuration = 0.0
 	r.panStationaryDuration = 0.0
 	r.panRawVelocity = v.Vec2{}
+	r.leftPressTime = 0.0
+	r.leftGesture = false
+	r.leftPanning = false
 	r.InterpolateFocus = false
 	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
@@ -165,79 +177,31 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
+	if !global.UIModalBlocksInput && rl.IsMouseButtonPressed(rl.MouseButtonMiddle) {
+		r.BuildingToPlace = game.BuildingUnknown
+		r.buildingPreview.Visible = false
+	}
+
+	leftPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft)
+	leftDown := rl.IsMouseButtonDown(rl.MouseButtonLeft)
+	worldLeftClick, leftPanDown, leftPanReleased := r.updateLeftGesture(
+		deltaSeconds,
+		leftPressed,
+		leftDown,
+		global.UIBlocksWorldInput,
+	)
+	rightDown := rl.IsMouseButtonDown(rl.MouseButtonRight)
+	panButtonDown := rightDown || leftPanDown
+
 	if global.UIBlocksWorldInput {
 		r.clampCameraToMap(m)
-		mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
-		r.updateBuildingPlacement(m, r.PixelToHex(mousePos))
 	} else {
 		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
-			r.PanStart = r.MousePosition
-			r.PanVelocity = v.Vec2{}
-			r.panDragging = true
-			r.panDragDistance = 0.0
-			r.panDragDuration = 0.0
-			r.panStationaryDuration = 0.0
-			r.panRawVelocity = v.Vec2{}
-			r.InterpolateFocus = false
+			r.beginPan(r.MousePosition)
 		}
 
-		if rl.IsMouseButtonDown(rl.MouseButtonRight) {
-			mouseDelta := r.MousePosition.Sub(r.PanStart)
-			mouseDistance := mouseDelta.Magnitude()
-			r.panDragDistance += mouseDistance
-			r.panDragDuration += deltaSeconds
-			panDelta := mouseDelta.Mul(v.Vec2{
-				X: -1.0 / r.Camera.Zoom,
-				Y: -1.0 / r.Camera.Zoom,
-			})
-
-			r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
-
-			if mouseDistance <= panStationarySampleDistance {
-				r.panStationaryDuration += deltaSeconds
-				stationaryDecay := float32(math.Exp(float64(-panStationaryVelocityDamping * deltaSeconds)))
-				r.PanVelocity = r.PanVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
-				r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
-			} else {
-				r.panStationaryDuration = 0.0
-			}
-
-			if deltaSeconds > 0.0 && mouseDistance > panStationarySampleDistance {
-				rawVelocity := panDelta.Mul(v.Vec2{
-					X: 1.0 / deltaSeconds,
-					Y: 1.0 / deltaSeconds,
-				})
-				rawSpeed := rawVelocity.Magnitude()
-
-				if rawSpeed > 0.0 {
-					midSpeed := panMomentumMidSpeed / r.Camera.Zoom
-					compressedSpeed := midSpeed * float32(math.Pow(
-						float64(rawSpeed/midSpeed),
-						panSpeedCompressionExponent,
-					))
-					dragVelocity := rawVelocity.Mul(v.Vec2{
-						X: compressedSpeed / rawSpeed,
-						Y: compressedSpeed / rawSpeed,
-					})
-					previousVelocityWeight := 1.0 - panVelocitySampleWeight
-					r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{
-						X: previousVelocityWeight,
-						Y: previousVelocityWeight,
-					}).Add(rawVelocity.Mul(v.Vec2{
-						X: panVelocitySampleWeight,
-						Y: panVelocitySampleWeight,
-					}))
-					r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
-						X: previousVelocityWeight,
-						Y: previousVelocityWeight,
-					}).Add(dragVelocity.Mul(v.Vec2{
-						X: panVelocitySampleWeight,
-						Y: panVelocitySampleWeight,
-					}))
-				}
-			}
-
-			r.PanStart = r.MousePosition
+		if r.panDragging && panButtonDown {
+			r.updatePan(deltaSeconds)
 		}
 
 		moveDir := v.Vec2{}
@@ -276,20 +240,12 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		}
 	}
 
-	if rl.IsMouseButtonReleased(rl.MouseButtonRight) {
-		if r.panDragging {
-			r.PanVelocity = panMomentumReleaseVelocity(
-				r.PanVelocity,
-				r.panRawVelocity,
-				r.panDragDistance,
-				r.panDragDuration,
-				r.panStationaryDuration,
-			)
-		}
-		r.panDragging = false
+	rightPanReleased := rl.IsMouseButtonReleased(rl.MouseButtonRight)
+	if r.panDragging && !panButtonDown && (rightPanReleased || leftPanReleased) {
+		r.finishPan()
 	}
 
-	if !rl.IsMouseButtonDown(rl.MouseButtonRight) {
+	if !panButtonDown {
 		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
 			X: deltaSeconds,
 			Y: deltaSeconds,
@@ -332,9 +288,9 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	r.HoveredHex = hex
-	r.updateBuildingPlacement(m, hex)
+	r.updateBuildingPlacement(m, hex, worldLeftClick)
 	if !global.UIBlocksWorldInput && r.BuildingToPlace == game.BuildingUnknown {
-		if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		if worldLeftClick {
 			cell := m.GetCell(hex)
 			if cell != nil && cell.Building != game.BuildingUnknown {
 				h := hex
@@ -347,6 +303,128 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.SelectedHex = nil
 		}
 	}
+}
+
+func (r *WorldRenderer) updateLeftGesture(
+	deltaSeconds float32,
+	pressed bool,
+	down bool,
+	worldInputBlocked bool,
+) (clicked bool, panning bool, panReleased bool) {
+	if pressed {
+		r.leftGesture = !worldInputBlocked
+		r.leftPanning = false
+		r.leftPressTime = 0.0
+		r.leftPressPos = r.MousePosition
+		if r.leftGesture {
+			r.PanVelocity = v.Vec2{}
+			r.panRawVelocity = v.Vec2{}
+			r.InterpolateFocus = false
+		}
+	}
+
+	if !r.leftGesture {
+		return false, false, false
+	}
+
+	if down {
+		r.leftPressTime += deltaSeconds
+		dragDistance := r.MousePosition.Sub(r.leftPressPos)
+		if !r.leftPanning &&
+			(r.leftPressTime >= leftPanHoldSeconds ||
+				dragDistance.MagnitudeSqr() >= leftPanDragThreshold*leftPanDragThreshold) {
+			r.leftPanning = true
+			r.beginPan(r.leftPressPos)
+		}
+		return false, r.leftPanning, false
+	}
+
+	clicked = !r.leftPanning && !worldInputBlocked
+	panReleased = r.leftPanning
+	r.leftGesture = false
+	r.leftPanning = false
+	return clicked, false, panReleased
+}
+
+func (r *WorldRenderer) beginPan(start v.Vec2) {
+	r.PanStart = start
+	r.PanVelocity = v.Vec2{}
+	r.panDragging = true
+	r.panDragDistance = 0.0
+	r.panDragDuration = 0.0
+	r.panStationaryDuration = 0.0
+	r.panRawVelocity = v.Vec2{}
+	r.InterpolateFocus = false
+}
+
+func (r *WorldRenderer) updatePan(deltaSeconds float32) {
+	mouseDelta := r.MousePosition.Sub(r.PanStart)
+	mouseDistance := mouseDelta.Magnitude()
+	r.panDragDistance += mouseDistance
+	r.panDragDuration += deltaSeconds
+	panDelta := mouseDelta.Mul(v.Vec2{
+		X: -1.0 / r.Camera.Zoom,
+		Y: -1.0 / r.Camera.Zoom,
+	})
+
+	r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
+
+	if mouseDistance <= panStationarySampleDistance {
+		r.panStationaryDuration += deltaSeconds
+		stationaryDecay := float32(math.Exp(float64(-panStationaryVelocityDamping * deltaSeconds)))
+		r.PanVelocity = r.PanVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
+		r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
+	} else {
+		r.panStationaryDuration = 0.0
+	}
+
+	if deltaSeconds > 0.0 && mouseDistance > panStationarySampleDistance {
+		rawVelocity := panDelta.Mul(v.Vec2{
+			X: 1.0 / deltaSeconds,
+			Y: 1.0 / deltaSeconds,
+		})
+		rawSpeed := rawVelocity.Magnitude()
+
+		if rawSpeed > 0.0 {
+			midSpeed := panMomentumMidSpeed / r.Camera.Zoom
+			compressedSpeed := midSpeed * float32(math.Pow(
+				float64(rawSpeed/midSpeed),
+				panSpeedCompressionExponent,
+			))
+			dragVelocity := rawVelocity.Mul(v.Vec2{
+				X: compressedSpeed / rawSpeed,
+				Y: compressedSpeed / rawSpeed,
+			})
+			previousVelocityWeight := 1.0 - panVelocitySampleWeight
+			r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{
+				X: previousVelocityWeight,
+				Y: previousVelocityWeight,
+			}).Add(rawVelocity.Mul(v.Vec2{
+				X: panVelocitySampleWeight,
+				Y: panVelocitySampleWeight,
+			}))
+			r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
+				X: previousVelocityWeight,
+				Y: previousVelocityWeight,
+			}).Add(dragVelocity.Mul(v.Vec2{
+				X: panVelocitySampleWeight,
+				Y: panVelocitySampleWeight,
+			}))
+		}
+	}
+
+	r.PanStart = r.MousePosition
+}
+
+func (r *WorldRenderer) finishPan() {
+	r.PanVelocity = panMomentumReleaseVelocity(
+		r.PanVelocity,
+		r.panRawVelocity,
+		r.panDragDistance,
+		r.panDragDuration,
+		r.panStationaryDuration,
+	)
+	r.panDragging = false
 }
 
 func panMomentumReleaseVelocity(

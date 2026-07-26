@@ -34,7 +34,7 @@ func (r *WorldRenderer) ClearQueuedBuilding() {
 	r.queuedBuilding.Visible = false
 }
 
-func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
+func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place bool) {
 	r.buildingPreview.Visible = false
 
 	if global.UIBlocksWorldInput ||
@@ -44,7 +44,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
 	}
 
 	canPlace := game.BuildingCanPlace(m, r.BuildingToPlace, hex)
-	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canPlace {
+	if place && canPlace {
 		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(hex, r.BuildingToPlace) {
 			m.GetCell(hex).Building = r.BuildingToPlace
 		}
