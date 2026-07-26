@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
@@ -39,12 +40,37 @@ func (el *PanelElement) WithRoundness(roundness float32) *PanelElement {
 	return el
 }
 
+// WithWorldInputBlocking makes a panel consume pointer input over its full
+// surface. This is useful for popovers whose padding and title area should not
+// click through to the game world.
+func (el *PanelElement) WithWorldInputBlocking(blocks bool) *PanelElement {
+	el.BlocksWorldInput = blocks
+	return el
+}
+
 type PanelElement struct {
 	BaseElement[*PanelElement]
-	BackgroundColor color.RGBA
-	OutlineColor    color.RGBA
-	OutlineWidth    float32
-	Roundness       float32
+	BackgroundColor  color.RGBA
+	OutlineColor     color.RGBA
+	OutlineWidth     float32
+	Roundness        float32
+	BlocksWorldInput bool
+}
+
+func (el *PanelElement) update(deltaNano int64) {
+	if !el.BlocksWorldInput || !el.Enabled() || global.UIModalBlocksInput {
+		return
+	}
+
+	pos := el.AbsolutePos()
+	size := el.Size()
+	mouse := global.MousePosition
+	if mouse.X >= float32(pos.X) &&
+		mouse.X <= float32(pos.X+size.X) &&
+		mouse.Y >= float32(pos.Y) &&
+		mouse.Y <= float32(pos.Y+size.Y) {
+		global.UIBlocksWorldInput = true
+	}
 }
 
 func (el *PanelElement) draw() {
