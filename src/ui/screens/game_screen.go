@@ -22,6 +22,8 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
+const gameCodeCopyFeedbackDuration = 1500 * time.Millisecond
+
 var gameSeedInput = ui.Input()
 var gameWorld = ui.GameWorld()
 var gameRegenerateButton = ui.Button()
@@ -429,6 +431,47 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	// nil previousScreen → Leave Game creates a fresh main screen.
 	escScreen = NewEscScreen(nil)
 
+	var copiedGameCode string
+	var gameCodeCopiedUntil time.Time
+
+	gameCodeButtonText := func() string {
+		if currentGame == nil || !currentGame.Multiplayer || currentGame.GameCode == "" {
+			return ""
+		}
+		if currentGame.GameCode == copiedGameCode && time.Now().Before(gameCodeCopiedUntil) {
+			return "Copied!"
+		}
+		return "Game code: " + currentGame.GameCode
+	}
+
+	transparent := color.RGBA{}
+	gameCodeButton := ui.Button().
+		WithText(gameCodeButtonText()).
+		WithTextSize(28).
+		WithPadding(0).
+		WithOutlineWidth(0).
+		WithForegroundColors(ui.ColorSet{
+			Default: &rl.Black,
+			Hover:   &ui.PaletteIndigo,
+			Click:   &ui.PaletteIndigoPress,
+		}).
+		WithBackgroundColors(ui.ColorSet{Default: &transparent}).
+		WithOutlineColors(ui.ColorSet{Default: &transparent}).
+		WithAnchors(anchor.TopRight, anchor.TopRight).
+		WithRelativePos(vec.Vec2i{X: -20, Y: 20}).
+		WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+			return currentGame != nil && currentGame.Multiplayer && currentGame.GameCode != ""
+		}).
+		WithClick(func() {
+			if currentGame == nil || !currentGame.Multiplayer || currentGame.GameCode == "" {
+				return
+			}
+
+			copiedGameCode = currentGame.GameCode
+			gameCodeCopiedUntil = time.Now().Add(gameCodeCopyFeedbackDuration)
+			rl.SetClipboardText(copiedGameCode)
+		})
+
 	screen := ui.Screen().
 		WithEnter(func() {
 			HideEscScreen()
@@ -457,18 +500,11 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			gameWorld,
 		).
 		AddChild(
-			ui.Text().
-				WithTextDynamic(func() string {
-					if currentGame == nil || !currentGame.Multiplayer {
-						return ""
-					}
-					return "Game code: " + currentGame.GameCode
-				}).
-				WithTextSize(28).
-				WithTextColor(rl.Black).
-				WithAnchors(anchor.TopRight, anchor.TopRight).
-				WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
+			ui.Group().WithUpdate(func(_ int64) {
+				gameCodeButton.Text = gameCodeButtonText()
+			}),
 		).
+		AddChild(gameCodeButton).
 		AddChild(
 			ui.Text().
 				WithTextDynamic(multiplayerStatusText).
