@@ -58,7 +58,7 @@ func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {
 	case game.BuildingUnknown:
 		return rl.Rectangle{}
 	case game.BuildingTownhall:
-		return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
+		return rl.Rectangle{X: 96.0 * 4.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingBarracks:
 		return rl.Rectangle{X: 96.0 * 3.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingFarm:
