@@ -108,6 +108,7 @@ func (gi *GameInstance) Run() {
 	gi.assignStartingCells()
 
 	gameEndTime := time.Now().Add(5 * time.Minute)
+	gi.game.GameEndTime = gameEndTime.UnixNano()
 	firstDeadline := time.Now().Add(5 * time.Second)
 
 	gi.setRound(1)
@@ -118,13 +119,14 @@ func (gi *GameInstance) Run() {
 		}
 		f := gi.game.Factions[i]
 		startPacket := &packets.S2CGameStartPacket{
-			FactionIdx: i,
-			Map:        gi.game.Map,
-			Coins:      f.Coins,
-			Points:     f.Points,
-			Resources:  f.Resources,
-			Round:      1,
-			Deadline:   firstDeadline.UnixNano(),
+			FactionIdx:  i,
+			Map:         gi.game.Map,
+			Coins:       f.Coins,
+			Points:      f.Points,
+			Resources:   f.Resources,
+			Round:       1,
+			Deadline:    firstDeadline.UnixNano(),
+			GameEndTime: gi.game.GameEndTime,
 		}
 		gi.sendToClient(c, startPacket)
 	}

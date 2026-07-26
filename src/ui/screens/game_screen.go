@@ -40,6 +40,7 @@ var serverCoins int32
 var serverPoints int32
 var serverResources game.Resources
 var serverDeadline int64
+var serverGameEndTime int64
 var gameOverMessage string
 var gameActionError string
 
@@ -81,6 +82,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	gameOverMessage = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
+	serverGameEndTime = p.GameEndTime
 	focusOnTownhall()
 }
 
@@ -99,6 +101,7 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 		return
 	}
 	serverGameActive = false
+	serverGameEndTime = 0
 	gameWorld.Renderer.ClearQueuedBuilding()
 	if p.WinnerName != "" {
 		gameOverMessage = "Game over! Winner: " + p.WinnerName
@@ -270,6 +273,7 @@ func clearCurrentGame() {
 	gameWorld.Renderer.ClearQueuedBuilding()
 	gameLeaveTransition = false
 	serverGameActive = false
+	serverGameEndTime = 0
 	gameOverMessage = ""
 	gameActionError = ""
 	serverResources = nil
@@ -464,8 +468,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Group().
-				WithAnchors(anchor.TopLeft, anchor.TopLeft).
-				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+				WithAnchors(anchor.Left, anchor.Left).
+				WithRelativePos(vec.Vec2i{X: 8, Y: 0}).
 				WithVisibleDynamic(func(el *ui.GroupElement) bool {
 					return serverGameActive
 				}).
@@ -523,6 +527,24 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithTextColor(rl.Black).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
 				),
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					if serverGameEndTime <= 0 || !serverGameActive {
+						return ""
+					}
+					gameEnd := max(time.Until(time.Unix(0, serverGameEndTime)), 0)
+					if gameEnd >= time.Minute {
+						return fmt.Sprintf("Ends in: %dm %ds",
+							int(gameEnd.Minutes()), int(gameEnd.Seconds())%60)
+					}
+					return fmt.Sprintf("Ends in: %ds", int(gameEnd.Seconds()))
+				}).
+				WithTextSize(20).
+				WithTextColor(rl.Black).
+				WithAnchors(anchor.TopLeft, anchor.TopLeft).
+				WithRelativePos(vec.Vec2i{X: 8, Y: 8}),
 		).
 		AddChild(
 			ui.Button().
