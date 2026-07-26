@@ -42,11 +42,11 @@ func newWSClient() *WSClient {
 	}
 }
 
-func Connect(addrs ...string) {
+func Connect(addrs ...constants.ServerAddr) {
 	client.run(addrs)
 }
 
-func (c *WSClient) run(addrs []string) {
+func (c *WSClient) run(addrs []constants.ServerAddr) {
 	c.connectOnce.Do(func() {
 		if !c.beginRun() {
 			return
@@ -133,7 +133,7 @@ func (c *WSClient) endRun() {
 	c.lifecycleMu.Unlock()
 }
 
-func (c *WSClient) connect(addrs []string) {
+func (c *WSClient) connect(addrs []constants.ServerAddr) {
 	retryDelay := initialReconnectDelay
 
 	for {
@@ -160,8 +160,7 @@ func (c *WSClient) connect(addrs []string) {
 			// fallback addresses for the default TCP timeout (20-30s).
 			dialCtx, dialCancel := context.WithTimeout(c.ctx, 5*time.Second)
 
-			url := fmt.Sprintf("%s://%s", constants.ClientWebSocketScheme, addr)
-			conn, _, err := websocket.Dial(dialCtx, url, nil)
+			conn, _, err := websocket.Dial(dialCtx, addr.URL(), nil)
 			dialCancel()
 			if err != nil {
 				lastErr = err

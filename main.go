@@ -205,7 +205,7 @@ func main() {
 	shaders.Load()
 	defer shaders.Unload()
 
-	go net.Connect(constants.DefaultServerAddresses()...)
+	go net.Connect(constants.DefaultServerAddrs()...)
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)
