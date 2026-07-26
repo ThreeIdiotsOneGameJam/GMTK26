@@ -18,6 +18,30 @@ func (h Hex) Add(other Hex) Hex {
 	return Hex{Vec2i: h.Vec2i.Add(other.Vec2i)}
 }
 
+// Distance returns the number of steps in the shortest unobstructed path
+// between two hexes. Hex uses odd-column offset coordinates, so convert them
+// to cube coordinates before measuring the distance.
+func (h Hex) Distance(other Hex) int32 {
+	hx, hy, hz := h.cubeCoordinates()
+	ox, oy, oz := other.cubeCoordinates()
+
+	return (abs32(hx-ox) + abs32(hy-oy) + abs32(hz-oz)) / 2
+}
+
+func (h Hex) cubeCoordinates() (x, y, z int32) {
+	x = h.X
+	z = h.Y - (h.X-(h.X&1))/2
+	y = -x - z
+	return
+}
+
+func abs32(value int32) int32 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
 type Cube struct {
 	vec.Vec3
 }
