@@ -195,7 +195,7 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 	}
 
 	selectedPos := r.HexToPixel(from.Vec2i)
-	rl.DrawCircleLinesV(rlvec.ToRL(selectedPos), 17, rl.White)
+	rl.DrawCircleLines(int32(selectedPos.X), int32(selectedPos.Y), 17, rl.White)
 
 	for x := range m.Grid {
 		for y := range m.Grid[x] {
@@ -228,7 +228,7 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 				continue
 			}
 			position := r.HexToPixel(to.Vec2i)
-			rl.DrawCircleLinesV(rlvec.ToRL(position), 19, col)
+			rl.DrawCircleLines(int32(position.X), int32(position.Y), 19, col)
 		}
 	}
 }
