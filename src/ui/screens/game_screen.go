@@ -912,7 +912,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Button().
-				WithText("Hold").
+				WithText("Hold Position").
 				WithTextSize(18).
 				WithPadding(6).
 				WithOutlineWidth(2).
