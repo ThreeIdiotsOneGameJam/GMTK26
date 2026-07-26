@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
@@ -80,5 +81,55 @@ func TestSelectionMenuUsesSquareStandardPanelBorder(t *testing.T) {
 	}
 	if panel.OutlineColor != PaletteBorder {
 		t.Fatalf("menu outline = %#v, want standard border %#v", panel.OutlineColor, PaletteBorder)
+	}
+}
+
+func TestSelectionMenuOptionsHandleStaleCellState(t *testing.T) {
+	tests := []struct {
+		name              string
+		cell              game.Cell
+		wantUnitAvailable bool
+		wantUnitText      string
+		wantBldAvailable  bool
+		wantBldText       string
+	}{
+		{
+			name: "unit removed while menu is open",
+			cell: game.Cell{
+				Building: &game.BuildingData{Type: game.BuildingFarm},
+			},
+			wantUnitText:     "No unit",
+			wantBldAvailable: true,
+			wantBldText:      "Farm building",
+		},
+		{
+			name: "building removed while menu is open",
+			cell: game.Cell{
+				Units: []game.UnitData{{Type: game.UnitScout}},
+			},
+			wantUnitAvailable: true,
+			wantUnitText:      "Scout unit",
+			wantBldText:       "No building",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			menu := GameSelectionMenu()
+			menu.updateOptions(&tt.cell)
+
+			if menu.unitAvailable != tt.wantUnitAvailable {
+				t.Fatalf("unit availability = %v, want %v", menu.unitAvailable, tt.wantUnitAvailable)
+			}
+			if menu.unitButton.Text != tt.wantUnitText {
+				t.Fatalf("unit text = %q, want %q", menu.unitButton.Text, tt.wantUnitText)
+			}
+			if menu.buildingAvailable != tt.wantBldAvailable {
+				t.Fatalf("building availability = %v, want %v", menu.buildingAvailable, tt.wantBldAvailable)
+			}
+			if menu.buildingButton.Text != tt.wantBldText {
+				t.Fatalf("building text = %q, want %q", menu.buildingButton.Text, tt.wantBldText)
+			}
+		})
 	}
 }
