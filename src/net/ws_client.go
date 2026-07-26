@@ -57,10 +57,17 @@ func (c *WSClient) run(addr string) {
 }
 
 func Send(packet packets.C2SPacket) error {
+	if local := activeLocalTransport(); local != nil {
+		return local.send(packet)
+	}
 	return client.send(packet)
 }
 
 func DrainEvents(onPacket func(packets.S2CPacket)) {
+	if local := activeLocalTransport(); local != nil {
+		local.drainEvents(onPacket)
+		return
+	}
 	client.drainEvents(onPacket)
 }
 
@@ -72,7 +79,16 @@ func RetryConnection() {
 	client.retryConnection()
 }
 
+func suspendRemote() {
+	client.suspend()
+}
+
+func resumeRemote() {
+	client.resume()
+}
+
 func Close() {
+	stopLocalGame(false)
 	client.close()
 }
 
@@ -81,6 +97,7 @@ type WSClient struct {
 	connMu sync.Mutex
 
 	stateAtomic atomic.Int32
+	suspended   atomic.Bool
 
 	events   []packets.S2CPacket
 	eventsMu sync.Mutex
@@ -123,7 +140,7 @@ func (c *WSClient) connect(addr string) {
 			c.setState(ConnectionDisconnected)
 			return
 		}
-		if !c.waitUntilOnline() {
+		if !c.waitUntilAvailable() {
 			return
 		}
 
@@ -143,7 +160,9 @@ func (c *WSClient) connect(addr string) {
 		}
 
 		connection := NewConnection(conn)
-		connection.Start(c.handlePacket)
+		connection.Start(func(packet packets.Packet) error {
+			return c.handlePacket(connection, packet)
+		})
 		if !c.setConnection(connection) {
 			connection.Close()
 			connection.wait()
@@ -193,8 +212,8 @@ func (c *WSClient) connect(addr string) {
 }
 
 func (c *WSClient) waitForRetry(delay time.Duration) bool {
-	if settings.Current.Offline {
-		return c.waitUntilOnline()
+	if c.unavailable() {
+		return c.waitUntilAvailable()
 	}
 
 	timer := time.NewTimer(delay)
@@ -205,18 +224,18 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 	for {
 		select {
 		case <-timer.C:
-			if settings.Current.Offline {
-				return c.waitUntilOnline()
+			if c.unavailable() {
+				return c.waitUntilAvailable()
 			}
 			return true
 		case <-c.retry:
-			if settings.Current.Offline {
+			if c.unavailable() {
 				continue
 			}
 			return true
 		case <-offlineTicker.C:
-			if settings.Current.Offline {
-				return c.waitUntilOnline()
+			if c.unavailable() {
+				return c.waitUntilAvailable()
 			}
 		case <-c.ctx.Done():
 			return false
@@ -224,8 +243,8 @@ func (c *WSClient) waitForRetry(delay time.Duration) bool {
 	}
 }
 
-func (c *WSClient) waitUntilOnline() bool {
-	if !settings.Current.Offline {
+func (c *WSClient) waitUntilAvailable() bool {
+	if !c.unavailable() {
 		return true
 	}
 
@@ -233,7 +252,7 @@ func (c *WSClient) waitUntilOnline() bool {
 	ticker := time.NewTicker(offlinePollPeriod)
 	defer ticker.Stop()
 
-	for settings.Current.Offline {
+	for c.unavailable() {
 		select {
 		case <-ticker.C:
 		case <-c.retry:
@@ -248,7 +267,7 @@ func (c *WSClient) setConnection(conn *Connection) bool {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 
-	if c.ctx.Err() != nil {
+	if c.ctx.Err() != nil || c.suspended.Load() {
 		return false
 	}
 
@@ -303,7 +322,14 @@ func (c *WSClient) send(packet packets.C2SPacket) error {
 	return conn.SendPacket(packet)
 }
 
-func (c *WSClient) handlePacket(packet packets.Packet) error {
+func (c *WSClient) handlePacket(connection *Connection, packet packets.Packet) error {
+	c.connMu.Lock()
+	current := c.conn
+	c.connMu.Unlock()
+	if current != connection || c.suspended.Load() {
+		return nil
+	}
+
 	serverPacket, ok := packet.(packets.S2CPacket)
 	if !ok {
 		return fmt.Errorf("received client packet %T from server", packet)
@@ -339,10 +365,14 @@ func (c *WSClient) state() ConnectionState {
 }
 
 func (c *WSClient) retryConnection() {
-	if settings.Current.Offline || c.state() != ConnectionDisconnected {
+	if c.unavailable() || c.state() != ConnectionDisconnected {
 		return
 	}
 
+	c.signalRetry()
+}
+
+func (c *WSClient) signalRetry() {
 	select {
 	case c.retry <- struct{}{}:
 	default:
@@ -358,4 +388,45 @@ func (c *WSClient) clearRetryRequest() {
 
 func nextReconnectDelay(delay time.Duration) time.Duration {
 	return min(delay*2, maxReconnectDelay)
+}
+
+func (c *WSClient) unavailable() bool {
+	return settings.Current.Offline || c.suspended.Load()
+}
+
+func (c *WSClient) suspend() {
+	if c.suspended.Swap(true) {
+		return
+	}
+
+	c.clearEvents()
+
+	c.connMu.Lock()
+	conn := c.conn
+	c.conn = nil
+	c.connMu.Unlock()
+	if conn != nil {
+		// Solo startup runs on the UI thread, so tear the socket down
+		// immediately instead of waiting for a graceful close handshake.
+		conn.closeOnError()
+	}
+
+	c.signalRetry()
+}
+
+func (c *WSClient) resume() {
+	if !c.suspended.Swap(false) {
+		return
+	}
+
+	// Nothing received before or during suspension belongs to the new remote
+	// session that will be established after solo play.
+	c.clearEvents()
+	c.signalRetry()
+}
+
+func (c *WSClient) clearEvents() {
+	c.eventsMu.Lock()
+	c.events = nil
+	c.eventsMu.Unlock()
 }

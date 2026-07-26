@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/coder/websocket"
-	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/server"
 )
 
@@ -28,62 +27,10 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connection := NewServerConnection(socket)
-	client := server.NewClient(connection)
-	registered := false
-	defer func() {
-		if registered {
-			server.Lobbies.Disconnect(client)
-			server.Connections.Unregister(client)
-			client.LeaveGame()
-		}
-	}()
+	session := server.NewSession(connection)
+	defer session.Close()
 
-	connection.Start(func(packet packets.Packet) error {
-		clientPacket, ok := packet.(packets.C2SPacket)
-		if !ok {
-			return fmt.Errorf("received server packet %T from client", packet)
-		}
-
-		response, err := client.HandlePacket(clientPacket)
-		if err != nil {
-			log.Printf("failed to handle client packet: %v", err)
-			if server.IsFatalPacketError(err) {
-				return err
-			}
-			if response != nil {
-				if sendErr := client.SendPacket(response); sendErr != nil {
-					log.Printf("failed to send error response %T: %v", response, sendErr)
-					return sendErr
-				}
-			}
-			return nil
-		}
-
-		_, isConnectPacket := clientPacket.(*packets.C2SConnectPacket)
-		newlyRegistered := !registered && isConnectPacket
-		if !registered && !isConnectPacket {
-			return fmt.Errorf("client sent %T before connecting", clientPacket)
-		}
-		if newlyRegistered {
-			if err := server.Connections.Register(client); err != nil {
-				log.Printf("failed to register client: %v", err)
-				return err
-			}
-			registered = true
-		}
-
-		if response != nil {
-			if err := client.SendPacket(response); err != nil {
-				log.Printf("failed to send response %T: %v", response, err)
-				return err
-			}
-			if newlyRegistered {
-				client.MarkReady()
-			}
-		}
-
-		return nil
-	})
+	connection.Start(session.HandlePacket)
 	<-connection.Done()
 	connection.wait()
 }
