@@ -331,6 +331,10 @@ func ToggleEscScreen() {
 	}
 	if escScreen.Visible() {
 		if escShowingSettings {
+			if escShowingCountdownSettings {
+				escShowingCountdownSettings = false
+				return
+			}
 			escShowingSettings = false
 			return
 		}

@@ -4,6 +4,9 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 func TestRoundCountdownState(t *testing.T) {
@@ -111,5 +114,81 @@ func TestEaseInExpoStartsSlowAndAccelerates(t *testing.T) {
 			firstHalfGrowth,
 			secondHalfGrowth,
 		)
+	}
+}
+
+func TestRoundCountdownPositionUsesGridCellCenters(t *testing.T) {
+	renderSize := vec.Vec2i{X: 1200, Y: 800}
+	tests := []struct {
+		name   string
+		anchor settings.CountdownAnchor
+		want   vec.Vec2i
+	}{
+		{name: "top left", anchor: settings.CountdownAnchorAt(0, 0), want: vec.Vec2i{X: 120, Y: 80}},
+		{name: "top right", anchor: settings.CountdownAnchorAt(4, 0), want: vec.Vec2i{X: 1080, Y: 80}},
+		{name: "center", anchor: settings.CountdownAnchorAt(2, 2), want: vec.Vec2i{X: 600, Y: 400}},
+		{name: "bottom left", anchor: settings.CountdownAnchorAt(0, 4), want: vec.Vec2i{X: 120, Y: 720}},
+		{name: "bottom right", anchor: settings.CountdownAnchorAt(4, 4), want: vec.Vec2i{X: 1080, Y: 720}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := roundCountdownPosition(test.anchor, renderSize); got != test.want {
+				t.Fatalf("roundCountdownPosition() = %+v, want %+v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRoundCountdownTextSizeAppliesScale(t *testing.T) {
+	const renderHeight int32 = 1080
+
+	if got := roundCountdownTextSize(1, renderHeight, 0.25); got != 80 {
+		t.Fatalf("25%% size = %d, want 80", got)
+	}
+	if got := roundCountdownTextSize(1, renderHeight, 0.5); got != 160 {
+		t.Fatalf("50%% size = %d, want 160", got)
+	}
+	if got := roundCountdownTextSize(1, renderHeight, 1); got != 320 {
+		t.Fatalf("100%% size = %d, want 320", got)
+	}
+	if got := roundCountdownTextSize(1, renderHeight, 1.5); got != 480 {
+		t.Fatalf("150%% size = %d, want 480", got)
+	}
+}
+
+func TestCountdownSettingsPreviewPlaysOneCountdown(t *testing.T) {
+	startedAt := time.Unix(100, 0)
+	tests := []struct {
+		name         string
+		elapsed      time.Duration
+		wantDigit    int
+		wantProgress float64
+		wantVisible  bool
+	}{
+		{name: "starts at three", wantDigit: 3, wantVisible: true},
+		{name: "three animates", elapsed: 500 * time.Millisecond, wantDigit: 3, wantProgress: 0.5, wantVisible: true},
+		{name: "changes to two", elapsed: time.Second, wantDigit: 2, wantVisible: true},
+		{name: "changes to one", elapsed: 2 * time.Second, wantDigit: 1, wantVisible: true},
+		{name: "ends", elapsed: 3 * time.Second},
+		{name: "stays ended", elapsed: 4 * time.Second},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			digit, progress, visible := countdownSettingsPreviewState(
+				startedAt,
+				startedAt.Add(test.elapsed),
+			)
+			if digit != test.wantDigit {
+				t.Fatalf("digit = %d, want %d", digit, test.wantDigit)
+			}
+			if math.Abs(progress-test.wantProgress) > 1e-8 {
+				t.Fatalf("progress = %f, want %f", progress, test.wantProgress)
+			}
+			if visible != test.wantVisible {
+				t.Fatalf("visible = %t, want %t", visible, test.wantVisible)
+			}
+		})
 	}
 }
