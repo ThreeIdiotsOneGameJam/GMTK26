@@ -10,9 +10,9 @@ func TestClearPlacementSelectionClosesPlacementAndSourceSelection(t *testing.T) 
 	selected := game.NewHex(2, 3)
 	r := WorldRenderer{
 		SelectedHex:     &selected,
-		SelectedKind:    SelectionTroop,
+		SelectedKind:    SelectionUnit,
 		BuildingToPlace: game.BuildingFarm,
-		RecruitToPlace:  game.TroopScout,
+		RecruitToPlace:  game.UnitScout,
 		PreviewPath:     []game.Hex{selected, game.NewHex(2, 4)},
 		PreviewStops:    []game.Hex{game.NewHex(2, 4)},
 		buildingPreview: buildingPreview{Visible: true},
@@ -27,7 +27,7 @@ func TestClearPlacementSelectionClosesPlacementAndSourceSelection(t *testing.T) 
 	if r.SelectedKind != SelectionNone {
 		t.Fatal("selection kind remained active after placement")
 	}
-	if r.BuildingToPlace != game.BuildingUnknown || r.RecruitToPlace != game.TroopUnknown {
+	if r.BuildingToPlace != game.BuildingUnknown || r.RecruitToPlace != game.UnitUnknown {
 		t.Fatal("placement cursor remained active after placement")
 	}
 	if r.PreviewPath != nil || r.PreviewStops != nil || r.buildingPreview.Visible {

@@ -12,11 +12,11 @@ type Cell struct {
 	Tile     TileType     `json:"tile"`
 	Owner    int8         `json:"owner,omitempty"` // -1 = unowned, 0-3 = faction index
 	Building BuildingType `json:"building,omitempty"`
-	Troop    TroopType    `json:"troop,omitempty"`
-	// TroopOwner is independent from Owner so troops can occupy unclaimed
+	Unit     UnitType     `json:"unit,omitempty"`
+	// UnitOwner is independent from Owner so units can occupy unclaimed
 	// territory and survive the destruction of a building beneath them.
-	// It is meaningful only when Troop is not TroopUnknown.
-	TroopOwner int8 `json:"troop_owner,omitempty"`
+	// It is meaningful only when Unit is not UnitUnknown.
+	UnitOwner int8 `json:"unit_owner,omitempty"`
 }
 
 type Neighbors struct {

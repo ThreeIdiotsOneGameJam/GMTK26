@@ -53,7 +53,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 		r.MovementAnimating() ||
 		r.BuildingToPlace == game.BuildingUnknown ||
 		r.SelectedHex == nil ||
-		r.SelectedKind != SelectionTroop ||
+		r.SelectedKind != SelectionUnit ||
 		!m.HexInsideBounds(hex) {
 		return
 	}
@@ -84,7 +84,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 
 func (r *WorldRenderer) clearPlacementSelection() {
 	r.BuildingToPlace = game.BuildingUnknown
-	r.RecruitToPlace = game.TroopUnknown
+	r.RecruitToPlace = game.UnitUnknown
 	r.clearSelection()
 	r.buildingPreview.Visible = false
 }
@@ -94,11 +94,11 @@ func (r *WorldRenderer) canBuildAt(m *game.Map, from, to game.Hex, building game
 	target := m.GetCell(to)
 	return source != nil &&
 		target != nil &&
-		source.Troop == game.TroopScout &&
-		source.TroopOwner == r.LocalFaction &&
+		source.Unit == game.UnitScout &&
+		source.UnitOwner == r.LocalFaction &&
 		(from == to || game.HexAdjacent(from, to)) &&
 		(target.Owner == -1 || target.Owner == r.LocalFaction) &&
-		(target.Troop == game.TroopUnknown || target.TroopOwner == r.LocalFaction) &&
+		(target.Unit == game.UnitUnknown || target.UnitOwner == r.LocalFaction) &&
 		game.BuildingCanPlace(m, building, to)
 }
 

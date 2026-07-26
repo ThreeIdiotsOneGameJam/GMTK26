@@ -33,7 +33,7 @@ type buildingDetailsLayout struct {
 
 type buttonRect struct {
 	x, y, w, h int32
-	troop      game.TroopType
+	unit       game.UnitType
 	label      string
 }
 
@@ -73,9 +73,9 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 		my := int32(global.MousePosition.Y)
 		if mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h {
 			global.UIBlocksWorldInput = true
-			canAfford := gameNet.LocalGameState.GetCoins() >= game.TroopCost(btn.troop)
+			canAfford := gameNet.LocalGameState.GetCoins() >= game.UnitCost(btn.unit)
 			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
-				r.RecruitToPlace = btn.troop
+				r.RecruitToPlace = btn.unit
 				r.BuildingToPlace = game.BuildingUnknown
 				r.ClearQueuedBuilding()
 			}
@@ -163,7 +163,7 @@ func (el *GameBuildingDetailsPanelElement) drawPanel() {
 	}
 
 	for _, btn := range lay.buttons {
-		cost := game.TroopCost(btn.troop)
+		cost := game.UnitCost(btn.unit)
 		canAfford := gameNet.LocalGameState.GetCoins() >= cost
 		mx := int32(global.MousePosition.X)
 		my := int32(global.MousePosition.Y)
@@ -210,28 +210,28 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 
 	if cell.Building == game.BuildingBarracks || cell.Building == game.BuildingTownhall {
 		y := bgY + headerH + contentH + pad
-		troops := []struct {
+		units := []struct {
 			label string
-			t     game.TroopType
+			t     game.UnitType
 		}{
-			{"Peasant 10c", game.TroopPeasant},
-			{"Archer 20c", game.TroopArcher},
-			{"Knight 30c", game.TroopKnight},
-			{"Scout 10c", game.TroopScout},
+			{"Peasant 10c", game.UnitPeasant},
+			{"Archer 20c", game.UnitArcher},
+			{"Knight 30c", game.UnitKnight},
+			{"Scout 10c", game.UnitScout},
 		}
 		if cell.Building == game.BuildingTownhall {
-			troops = troops[3:]
+			units = units[3:]
 		}
-		panelH += pad*2 + int32(len(troops))*(btnH+btnGap)
+		panelH += pad*2 + int32(len(units))*(btnH+btnGap)
 		bgY = (winH - panelH) / 2
 		y = bgY + headerH + contentH + pad
-		for _, tp := range troops {
+		for _, tp := range units {
 			buttons = append(buttons, buttonRect{
 				x:     bgX + pad,
 				y:     y,
 				w:     panelW - pad*2,
 				h:     btnH,
-				troop: tp.t,
+				unit:  tp.t,
 				label: tp.label,
 			})
 			y += btnH + btnGap

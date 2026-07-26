@@ -21,9 +21,9 @@ func TestGameplayPacketRoundTrips(t *testing.T) {
 			Round: 3,
 			Type:  game.ActionRecruit,
 			Recruit: &game.RecruitActionPayload{
-				From:  game.NewHex(1, 2),
-				To:    game.NewHex(2, 2),
-				Troop: game.TroopScout,
+				From: game.NewHex(1, 2),
+				To:   game.NewHex(2, 2),
+				Unit: game.UnitScout,
 			},
 		},
 		&C2SActionPacket{
@@ -85,7 +85,7 @@ func TestGameplayPacketRoundTrips(t *testing.T) {
 				Message: "Movement order queued",
 			},
 			Movements: []game.MovementEvent{{
-				Troop: game.TroopScout,
+				Unit:  game.UnitScout,
 				Owner: 0,
 				Path: []game.Hex{
 					game.NewHex(1, 2),

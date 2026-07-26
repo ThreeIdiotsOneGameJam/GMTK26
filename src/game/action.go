@@ -25,9 +25,9 @@ type MoveActionPayload struct {
 }
 
 type RecruitActionPayload struct {
-	From  Hex       `json:"from"`
-	To    Hex       `json:"to"`
-	Troop TroopType `json:"troop"`
+	From Hex      `json:"from"`
+	To   Hex      `json:"to"`
+	Unit UnitType `json:"unit"`
 }
 
 type AttackActionPayload struct {

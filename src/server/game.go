@@ -102,14 +102,14 @@ func (gi *GameInstance) setMovementOrderLocked(
 	factionOwner := int8(factionIdx)
 	source := gi.game.Map.GetCell(move.From)
 	if source == nil ||
-		source.Troop == game.TroopUnknown ||
-		source.TroopOwner != factionOwner {
-		return fmt.Errorf("no friendly troop at movement source")
+		source.Unit == game.UnitUnknown ||
+		source.UnitOwner != factionOwner {
+		return fmt.Errorf("no friendly unit at movement source")
 	}
 	if move.From == move.To {
 		return fmt.Errorf("movement destination must differ from source")
 	}
-	if _, ok := gi.game.Map.FindTroopPath(factionOwner, move.From, move.To); !ok {
+	if _, ok := gi.game.Map.FindUnitPath(factionOwner, move.From, move.To); !ok {
 		return fmt.Errorf("no legal route to destination")
 	}
 

@@ -37,15 +37,15 @@ func BuildingProduces(b BuildingType, tile TileType) map[ResourceType]uint32 {
 	}
 }
 
-func TroopCost(t TroopType) int32 {
+func UnitCost(t UnitType) int32 {
 	switch t {
-	case TroopPeasant:
+	case UnitPeasant:
 		return 10
-	case TroopArcher:
+	case UnitArcher:
 		return 20
-	case TroopKnight:
+	case UnitKnight:
 		return 30
-	case TroopScout:
+	case UnitScout:
 		return 10
 	default:
 		return 0

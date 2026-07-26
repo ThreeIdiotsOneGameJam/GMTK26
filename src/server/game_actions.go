@@ -13,7 +13,7 @@ type roundIntent struct {
 	from        game.Hex
 	to          game.Hex
 	destination game.Hex
-	troop       game.TroopType
+	unit        game.UnitType
 	building    game.BuildingType
 	path        []game.Hex
 	cost        int32
@@ -91,7 +91,7 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if action.Recruit == nil {
 			return intent.invalid("Recruit payload was missing")
 		}
-		intent.from, intent.to, intent.troop = action.Recruit.From, action.Recruit.To, action.Recruit.Troop
+		intent.from, intent.to, intent.unit = action.Recruit.From, action.Recruit.To, action.Recruit.Unit
 		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
 		if source == nil || target == nil || source.Owner != factionOwner {
 			return intent.invalid("Recruitment source is not friendly")
@@ -101,23 +101,23 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		}
 		if game.TerrainMovementCost(target.Tile) <= 0 ||
 			(target.Owner != -1 && target.Owner != factionOwner) ||
-			target.Troop != game.TroopUnknown {
+			target.Unit != game.UnitUnknown {
 			return intent.invalid("Recruitment target is not available")
 		}
-		validTroop := intent.troop >= game.TroopPeasant && intent.troop <= game.TroopScout
-		if !validTroop ||
-			source.Building == game.BuildingTownhall && intent.troop != game.TroopScout ||
+		validUnit := intent.unit >= game.UnitPeasant && intent.unit <= game.UnitScout
+		if !validUnit ||
+			source.Building == game.BuildingTownhall && intent.unit != game.UnitScout ||
 			source.Building != game.BuildingTownhall && source.Building != game.BuildingBarracks {
-			return intent.invalid("Building cannot recruit that troop")
+			return intent.invalid("Building cannot recruit that unit")
 		}
-		intent.cost = game.TroopCost(intent.troop)
+		intent.cost = game.UnitCost(intent.unit)
 		if faction.Coins < intent.cost {
 			return intent.insufficientCoins()
 		}
 		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = fmt.Sprintf("%s recruited", intent.troop)
+		intent.result.Message = fmt.Sprintf("%s recruited", intent.unit)
 
 	case game.ActionBuild:
 		if action.Build == nil {
@@ -126,8 +126,8 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		intent.from, intent.to, intent.building = action.Build.From, action.Build.To, action.Build.Building
 		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
 		if source == nil || target == nil ||
-			source.Troop != game.TroopScout ||
-			source.TroopOwner != factionOwner {
+			source.Unit != game.UnitScout ||
+			source.UnitOwner != factionOwner {
 			return intent.invalid("A friendly Scout is required to build")
 		}
 		if intent.from != intent.to && !game.HexAdjacent(intent.from, intent.to) {
@@ -136,8 +136,8 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if target.Owner != -1 && target.Owner != factionOwner {
 			return intent.invalid("Cannot build in enemy territory")
 		}
-		if target.Troop != game.TroopUnknown && target.TroopOwner != factionOwner {
-			return intent.invalid("Cannot build beneath an enemy troop")
+		if target.Unit != game.UnitUnknown && target.UnitOwner != factionOwner {
+			return intent.invalid("Cannot build beneath an enemy unit")
 		}
 		if !game.BuildingCanPlace(m, intent.building, intent.to) {
 			return intent.invalid("Building cannot be placed on that terrain")
@@ -158,10 +158,10 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		intent.from, intent.to = action.Attack.From, action.Attack.To
 		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
 		if source == nil || target == nil ||
-			source.Troop == game.TroopUnknown ||
-			source.Troop == game.TroopScout ||
-			source.TroopOwner != factionOwner {
-			return intent.invalid("A friendly non-Scout troop is required to attack")
+			source.Unit == game.UnitUnknown ||
+			source.Unit == game.UnitScout ||
+			source.UnitOwner != factionOwner {
+			return intent.invalid("A friendly non-Scout unit is required to attack")
 		}
 		if !game.HexAdjacent(intent.from, intent.to) {
 			return intent.invalid("Attack target must be adjacent")
@@ -201,16 +201,16 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		order := orders[0]
 		orders = orders[1:]
 		source := gi.game.Map.GetCell(order.Current)
-		if source == nil || source.Troop == game.TroopUnknown || source.TroopOwner != factionOwner ||
+		if source == nil || source.Unit == game.UnitUnknown || source.UnitOwner != factionOwner ||
 			order.Current == order.Destination {
 			continue
 		}
-		path, ok := gi.game.Map.FindTroopPath(factionOwner, order.Current, order.Destination)
+		path, ok := gi.game.Map.FindUnitPath(factionOwner, order.Current, order.Destination)
 		if !ok {
 			orders = append(orders, order)
 			continue
 		}
-		traversed := gi.game.Map.AdvanceTroopPath(path, game.TroopMovementBudget(source.Troop))
+		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Unit))
 		if len(traversed) < 2 {
 			orders = append(orders, order)
 			continue
@@ -221,12 +221,12 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		intent.from = order.Current
 		intent.destination = order.Destination
 		intent.to = traversed[len(traversed)-1]
-		intent.troop = source.Troop
+		intent.unit = source.Unit
 		intent.path = traversed
 		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = "Queued troop advanced"
+		intent.result.Message = "Queued unit advanced"
 		return intent
 	}
 
@@ -249,10 +249,10 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionMove:
 		source := m.GetCell(intent.from)
 		target := m.GetCell(intent.to)
-		source.Troop = game.TroopUnknown
-		source.TroopOwner = 0
-		target.Troop = intent.troop
-		target.TroopOwner = owner
+		source.Unit = game.UnitUnknown
+		source.UnitOwner = 0
+		target.Unit = intent.unit
+		target.UnitOwner = owner
 
 		if intent.destination != intent.to {
 			gi.movementOrders[intent.faction] = append(
@@ -261,7 +261,7 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 			)
 		}
 		gi.movementEvents = append(gi.movementEvents, game.MovementEvent{
-			Troop: intent.troop,
+			Unit:  intent.unit,
 			Owner: owner,
 			Path:  append([]game.Hex(nil), intent.path...),
 		})
@@ -269,8 +269,8 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionRecruit:
 		target := m.GetCell(intent.to)
 		faction.Coins -= intent.cost
-		target.Troop = intent.troop
-		target.TroopOwner = owner
+		target.Unit = intent.unit
+		target.UnitOwner = owner
 
 	case game.ActionBuild:
 		target := m.GetCell(intent.to)

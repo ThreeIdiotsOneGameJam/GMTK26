@@ -13,7 +13,7 @@ type SelectionKind uint8
 
 const (
 	SelectionNone SelectionKind = iota
-	SelectionTroop
+	SelectionUnit
 	SelectionBuilding
 )
 
@@ -53,7 +53,7 @@ func (r *WorldRenderer) ClearSelection() {
 
 func (r *WorldRenderer) clearMouseSlot() {
 	r.BuildingToPlace = game.BuildingUnknown
-	r.RecruitToPlace = game.TroopUnknown
+	r.RecruitToPlace = game.UnitUnknown
 	r.buildingPreview.Visible = false
 	r.clearSelection()
 }
@@ -63,18 +63,18 @@ func (r *WorldRenderer) selectCell(hex game.Hex, cell *game.Cell) {
 		r.clearSelection()
 		return
 	}
-	hasTroop := cell.Troop != game.TroopUnknown
+	hasUnit := cell.Unit != game.UnitUnknown
 	hasBuilding := cell.Building != game.BuildingUnknown
 	switch {
-	case hasTroop && hasBuilding:
+	case hasUnit && hasBuilding:
 		r.clearSelection()
 		r.selectionMenu = selectionMenu{
 			Hex:      hex,
 			Position: r.MousePosition.Add(vec.Vec2{X: 10, Y: 10}),
 			Visible:  true,
 		}
-	case hasTroop:
-		r.selectAt(hex, SelectionTroop)
+	case hasUnit:
+		r.selectAt(hex, SelectionUnit)
 	case hasBuilding:
 		r.selectAt(hex, SelectionBuilding)
 	default:
@@ -96,8 +96,8 @@ func (r *WorldRenderer) updateSelectionMenu(m *game.Map) bool {
 	row := r.selectionMenuRowAt(r.MousePosition)
 	switch row {
 	case 0:
-		if cell != nil && cell.Troop != game.TroopUnknown {
-			r.selectAt(r.selectionMenu.Hex, SelectionTroop)
+		if cell != nil && cell.Unit != game.UnitUnknown {
+			r.selectAt(r.selectionMenu.Hex, SelectionUnit)
 		} else {
 			r.clearSelection()
 		}
@@ -161,7 +161,7 @@ func (r *WorldRenderer) drawSelectionMenu(m *game.Map) {
 	rl.DrawRectangleLinesEx(bounds, 1, color.RGBA{R: 220, G: 225, B: 232, A: 220})
 
 	labels := [2]string{
-		fmt.Sprintf("Troop: %s", cell.Troop),
+		fmt.Sprintf("Unit: %s", cell.Unit),
 		fmt.Sprintf("Building: %s", cell.Building),
 	}
 	firstY := bounds.Y + selectionMenuPadding

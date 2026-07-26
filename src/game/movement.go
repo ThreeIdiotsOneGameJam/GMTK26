@@ -1,6 +1,6 @@
 package game
 
-// MovementOrder is a private, persistent destination assigned to one troop.
+// MovementOrder is a private, persistent destination assigned to one unit.
 // Current changes after every successful activation; Destination is retained
 // until reached, rerouted, cancelled, or contested.
 type MovementOrder struct {
@@ -11,18 +11,18 @@ type MovementOrder struct {
 // MovementEvent is public resolved history used to animate authoritative
 // movement. Path includes both the starting cell and final cell.
 type MovementEvent struct {
-	Troop TroopType `json:"troop"`
-	Owner int8      `json:"owner"`
-	Path  []Hex     `json:"path"`
+	Unit  UnitType `json:"unit"`
+	Owner int8     `json:"owner"`
+	Path  []Hex    `json:"path"`
 }
 
-func TroopMovementBudget(troop TroopType) int {
-	switch troop {
-	case TroopScout:
+func UnitMovementBudget(unit UnitType) int {
+	switch unit {
+	case UnitScout:
 		return 3
-	case TroopPeasant, TroopArcher:
+	case UnitPeasant, UnitArcher:
 		return 2
-	case TroopKnight:
+	case UnitKnight:
 		return 4
 	default:
 		return 0
@@ -42,10 +42,10 @@ func TerrainMovementCost(tile TileType) int {
 	}
 }
 
-// FindTroopPath finds the cheapest legal route for a faction's troop.
-// Troops may traverse friendly or unclaimed land, but every other troop blocks
-// traversal. The starting troop itself is exempt from that blocker.
-func (m *Map) FindTroopPath(faction int8, start, goal Hex) ([]Hex, bool) {
+// FindUnitPath finds the cheapest legal route for a faction's unit.
+// Units may traverse friendly or unclaimed land, but every other unit blocks
+// traversal. The starting unit itself is exempt from that blocker.
+func (m *Map) FindUnitPath(faction int8, start, goal Hex) ([]Hex, bool) {
 	if m == nil {
 		return nil, false
 	}
@@ -53,9 +53,9 @@ func (m *Map) FindTroopPath(faction int8, start, goal Hex) ([]Hex, bool) {
 	startCell := m.GetCell(start)
 	goalCell := m.GetCell(goal)
 	if startCell == nil || goalCell == nil ||
-		startCell.Troop == TroopUnknown ||
-		startCell.TroopOwner != faction ||
-		goalCell.Troop != TroopUnknown && goal != start ||
+		startCell.Unit == UnitUnknown ||
+		startCell.UnitOwner != faction ||
+		goalCell.Unit != UnitUnknown && goal != start ||
 		!cellFriendlyOrUnclaimed(goalCell, faction) {
 		return nil, false
 	}
@@ -65,7 +65,7 @@ func (m *Map) FindTroopPath(faction int8, start, goal Hex) ([]Hex, bool) {
 			if !cellFriendlyOrUnclaimed(cell, faction) {
 				return 0
 			}
-			if destination != start && cell.Troop != TroopUnknown {
+			if destination != start && cell.Unit != UnitUnknown {
 				return 0
 			}
 			return TerrainMovementCost(cell.Tile)
@@ -78,9 +78,9 @@ func cellFriendlyOrUnclaimed(cell *Cell, faction int8) bool {
 	return cell != nil && (cell.Owner == -1 || cell.Owner == faction)
 }
 
-// AdvanceTroopPath returns the portion of path traversed in one activation.
+// AdvanceUnitPath returns the portion of path traversed in one activation.
 // The first legal step is always allowed, even when it costs more than budget.
-func (m *Map) AdvanceTroopPath(path []Hex, budget int) []Hex {
+func (m *Map) AdvanceUnitPath(path []Hex, budget int) []Hex {
 	if m == nil || len(path) == 0 {
 		return nil
 	}
@@ -117,7 +117,7 @@ func (m *Map) MovementTurnStops(path []Hex, budget int) []Hex {
 	}
 	stops := make([]Hex, 0)
 	for offset := 0; offset < len(path)-1; {
-		segment := m.AdvanceTroopPath(path[offset:], budget)
+		segment := m.AdvanceUnitPath(path[offset:], budget)
 		if len(segment) < 2 {
 			break
 		}

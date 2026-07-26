@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	troopAnimationStep                 = 140 * time.Millisecond
-	troopTrailFade                     = 250 * time.Millisecond
+	unitAnimationStep                  = 140 * time.Millisecond
+	unitTrailFade                      = 250 * time.Millisecond
 	routeCancelHitRadiusPixels float32 = 8
 )
 
-type troopAnimation struct {
+type unitAnimation struct {
 	event   game.MovementEvent
 	elapsed time.Duration
 }
@@ -26,9 +26,9 @@ func (r *WorldRenderer) StartMovementAnimations(events []game.MovementEvent) {
 		if len(event.Path) < 2 {
 			continue
 		}
-		r.troopAnimations = append(r.troopAnimations, troopAnimation{
+		r.unitAnimations = append(r.unitAnimations, unitAnimation{
 			event: game.MovementEvent{
-				Troop: event.Troop,
+				Unit:  event.Unit,
 				Owner: event.Owner,
 				Path:  append([]game.Hex(nil), event.Path...),
 			},
@@ -36,21 +36,21 @@ func (r *WorldRenderer) StartMovementAnimations(events []game.MovementEvent) {
 	}
 }
 
-func (r *WorldRenderer) updateTroopAnimations(delta time.Duration) {
-	filtered := r.troopAnimations[:0]
-	for i := range r.troopAnimations {
-		r.troopAnimations[i].elapsed += delta
-		duration := time.Duration(len(r.troopAnimations[i].event.Path)-1)*troopAnimationStep + troopTrailFade
-		if r.troopAnimations[i].elapsed < duration {
-			filtered = append(filtered, r.troopAnimations[i])
+func (r *WorldRenderer) updateUnitAnimations(delta time.Duration) {
+	filtered := r.unitAnimations[:0]
+	for i := range r.unitAnimations {
+		r.unitAnimations[i].elapsed += delta
+		duration := time.Duration(len(r.unitAnimations[i].event.Path)-1)*unitAnimationStep + unitTrailFade
+		if r.unitAnimations[i].elapsed < duration {
+			filtered = append(filtered, r.unitAnimations[i])
 		}
 	}
-	r.troopAnimations = filtered
+	r.unitAnimations = filtered
 }
 
 func (r *WorldRenderer) MovementAnimating() bool {
-	for _, animation := range r.troopAnimations {
-		moveDuration := time.Duration(len(animation.event.Path)-1) * troopAnimationStep
+	for _, animation := range r.unitAnimations {
+		moveDuration := time.Duration(len(animation.event.Path)-1) * unitAnimationStep
 		if animation.elapsed <= moveDuration {
 			return true
 		}
@@ -67,7 +67,7 @@ func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
 		}
 		col := color.RGBA{R: 245, G: 245, B: 245, A: 100}
 		width := float32(3)
-		if r.SelectedKind == SelectionTroop &&
+		if r.SelectedKind == SelectionUnit &&
 			r.SelectedHex != nil &&
 			*r.SelectedHex == order.Current {
 			col.A = 190
@@ -76,7 +76,7 @@ func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
 		r.drawPathLine(path, col, width)
 		stopColor := rl.Gold
 		stopColor.A = 170
-		if r.SelectedKind == SelectionTroop &&
+		if r.SelectedKind == SelectionUnit &&
 			r.SelectedHex != nil &&
 			*r.SelectedHex == order.Current {
 			stopColor.A = 230
@@ -98,7 +98,7 @@ func movementOrderRoute(
 	faction int8,
 	order game.MovementOrder,
 ) ([]game.Hex, []game.Hex, bool) {
-	path, ok := m.FindTroopPath(faction, order.Current, order.Destination)
+	path, ok := m.FindUnitPath(faction, order.Current, order.Destination)
 	if !ok {
 		return nil, nil, false
 	}
@@ -106,7 +106,7 @@ func movementOrderRoute(
 	if source == nil {
 		return path, nil, true
 	}
-	stops := m.MovementTurnStops(path, game.TroopMovementBudget(source.Troop))
+	stops := m.MovementTurnStops(path, game.UnitMovementBudget(source.Unit))
 	return path, stops, true
 }
 
@@ -205,16 +205,16 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 			valid := false
 			col := rl.Green
 			switch {
-			case r.SelectedKind == SelectionTroop &&
+			case r.SelectedKind == SelectionUnit &&
 				r.BuildingToPlace != game.BuildingUnknown:
 				valid = r.canBuildAt(m, from, to, r.BuildingToPlace)
 			case r.SelectedKind == SelectionBuilding &&
-				r.RecruitToPlace != game.TroopUnknown:
+				r.RecruitToPlace != game.UnitUnknown:
 				valid = r.canRecruitAt(m, from, to, r.RecruitToPlace)
-			case r.SelectedKind == SelectionTroop &&
-				source.Troop != game.TroopUnknown &&
-				source.Troop != game.TroopScout &&
-				source.TroopOwner == r.LocalFaction:
+			case r.SelectedKind == SelectionUnit &&
+				source.Unit != game.UnitUnknown &&
+				source.Unit != game.UnitScout &&
+				source.UnitOwner == r.LocalFaction:
 				target := m.GetCell(to)
 				valid = target != nil &&
 					target.Building != game.BuildingUnknown &&
@@ -247,13 +247,13 @@ func (r *WorldRenderer) zoomSafeSize(worldSize, minimumScreenPixels float32) flo
 	return max(worldSize, minimumScreenPixels/r.Camera.Zoom)
 }
 
-func (r *WorldRenderer) drawTroopAnimations() {
-	for _, animation := range r.troopAnimations {
+func (r *WorldRenderer) drawUnitAnimations() {
+	for _, animation := range r.unitAnimations {
 		event := animation.event
-		moveDuration := time.Duration(len(event.Path)-1) * troopAnimationStep
+		moveDuration := time.Duration(len(event.Path)-1) * unitAnimationStep
 		alpha := float32(1)
 		if animation.elapsed > moveDuration {
-			alpha = 1 - float32(animation.elapsed-moveDuration)/float32(troopTrailFade)
+			alpha = 1 - float32(animation.elapsed-moveDuration)/float32(unitTrailFade)
 		}
 		alpha = max(float32(0), min(float32(1), alpha))
 
@@ -263,20 +263,20 @@ func (r *WorldRenderer) drawTroopAnimations() {
 		trailColor.A = uint8(float32(180) * alpha)
 		r.drawPartialTrail(trail, position, trailColor)
 		if animation.elapsed <= moveDuration {
-			drawTroopMarker(position, r.HexSize, event.Troop, factionColor(event.Owner))
+			drawUnitMarker(position, r.HexSize, event.Unit, factionColor(event.Owner))
 		}
 	}
 }
 
-func (r *WorldRenderer) animationPosition(animation troopAnimation) (vec.Vec2, int) {
+func (r *WorldRenderer) animationPosition(animation unitAnimation) (vec.Vec2, int) {
 	path := animation.event.Path
-	moveDuration := time.Duration(len(path)-1) * troopAnimationStep
+	moveDuration := time.Duration(len(path)-1) * unitAnimationStep
 	elapsed := min(animation.elapsed, moveDuration)
-	segment := int(elapsed / troopAnimationStep)
+	segment := int(elapsed / unitAnimationStep)
 	if segment >= len(path)-1 {
 		return r.HexToPixel(path[len(path)-1].Vec2i), len(path) - 1
 	}
-	progress := float32(elapsed%troopAnimationStep) / float32(troopAnimationStep)
+	progress := float32(elapsed%unitAnimationStep) / float32(unitAnimationStep)
 	from := r.HexToPixel(path[segment].Vec2i)
 	to := r.HexToPixel(path[segment+1].Vec2i)
 	return from.Lerp(to, progress), segment
@@ -304,13 +304,13 @@ func factionColor(owner int8) color.RGBA {
 	return factionColors[owner]
 }
 
-func (r *WorldRenderer) troopEndpointAnimating(hex game.Hex, owner int8, troop game.TroopType) bool {
-	for _, animation := range r.troopAnimations {
+func (r *WorldRenderer) unitEndpointAnimating(hex game.Hex, owner int8, unit game.UnitType) bool {
+	for _, animation := range r.unitAnimations {
 		path := animation.event.Path
-		moveDuration := time.Duration(len(path)-1) * troopAnimationStep
+		moveDuration := time.Duration(len(path)-1) * unitAnimationStep
 		if animation.elapsed <= moveDuration &&
 			animation.event.Owner == owner &&
-			animation.event.Troop == troop &&
+			animation.event.Unit == unit &&
 			path[len(path)-1] == hex {
 			return true
 		}

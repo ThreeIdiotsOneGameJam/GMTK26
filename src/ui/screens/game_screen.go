@@ -78,16 +78,16 @@ func init() {
 		}
 		return true
 	}
-	gameWorld.Renderer.OnRecruit = func(from, to game.Hex, troop game.TroopType) bool {
+	gameWorld.Renderer.OnRecruit = func(from, to game.Hex, unit game.UnitType) bool {
 		if !serverGameActive {
 			return false
 		}
-		if err := gameNet.SendRecruitAction(serverRound, from, to, troop); err != nil {
+		if err := gameNet.SendRecruitAction(serverRound, from, to, unit); err != nil {
 			fmt.Printf("failed to send recruit action: %v\n", err)
 			return true
 		}
 		gameWorld.Renderer.ClearQueuedBuilding()
-		setPendingAction(fmt.Sprintf("Recruit %s", troop))
+		setPendingAction(fmt.Sprintf("Recruit %s", unit))
 		return true
 	}
 	gameWorld.Renderer.OnMove = func(from, to game.Hex) bool {
@@ -207,7 +207,7 @@ func applyServerRound(
 	movements []game.MovementEvent,
 	result *game.ActionResult,
 ) {
-	if gameWorld.Renderer.SelectedKind == render.SelectionTroop &&
+	if gameWorld.Renderer.SelectedKind == render.SelectionUnit &&
 		gameWorld.Renderer.SelectedHex != nil {
 		for _, movement := range movements {
 			if movement.Owner != int8(gameNet.LocalGameState.FactionIdx) || len(movement.Path) < 2 {
@@ -523,7 +523,7 @@ func clearCurrentGame() {
 func setBuildingClick(building game.BuildingType) func() {
 	return func() {
 		gameWorld.Renderer.BuildingToPlace = building
-		gameWorld.Renderer.RecruitToPlace = game.TroopUnknown
+		gameWorld.Renderer.RecruitToPlace = game.UnitUnknown
 	}
 }
 
@@ -706,13 +706,13 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithVisibleDynamic(func(el *ui.GroupElement) bool {
 					if !serverGameActive ||
 						gameWorld.Renderer.SelectedHex == nil ||
-						gameWorld.Renderer.SelectedKind != render.SelectionTroop {
+						gameWorld.Renderer.SelectedKind != render.SelectionUnit {
 						return false
 					}
 					cell := gameWorld.Map.GetCell(*gameWorld.Renderer.SelectedHex)
 					return cell != nil &&
-						cell.Troop == game.TroopScout &&
-						cell.TroopOwner == int8(gameNet.LocalGameState.FactionIdx)
+						cell.Unit == game.UnitScout &&
+						cell.UnitOwner == int8(gameNet.LocalGameState.FactionIdx)
 				}).
 				AddChild(
 					ui.Text().

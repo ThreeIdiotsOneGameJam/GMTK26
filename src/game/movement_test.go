@@ -20,17 +20,17 @@ func movementTestMap(width, height int32) Map {
 	}
 }
 
-func TestTroopMovementBudgets(t *testing.T) {
-	tests := map[TroopType]int{
-		TroopScout:   3,
-		TroopPeasant: 2,
-		TroopArcher:  2,
-		TroopKnight:  4,
-		TroopUnknown: 0,
+func TestUnitMovementBudgets(t *testing.T) {
+	tests := map[UnitType]int{
+		UnitScout:   3,
+		UnitPeasant: 2,
+		UnitArcher:  2,
+		UnitKnight:  4,
+		UnitUnknown: 0,
 	}
-	for troop, want := range tests {
-		if got := TroopMovementBudget(troop); got != want {
-			t.Fatalf("%s budget = %d, want %d", troop, got, want)
+	for unit, want := range tests {
+		if got := UnitMovementBudget(unit); got != want {
+			t.Fatalf("%s budget = %d, want %d", unit, got, want)
 		}
 	}
 }
@@ -55,18 +55,18 @@ func TestTerrainMovementCosts(t *testing.T) {
 	}
 }
 
-func TestAdvanceTroopPathGuaranteesFirstCostlyStep(t *testing.T) {
+func TestAdvanceUnitPathGuaranteesFirstCostlyStep(t *testing.T) {
 	m := movementTestMap(1, 4)
 	m.Grid[0][1].Tile = TileJungle
 	path := []Hex{NewHex(0, 0), NewHex(0, 1), NewHex(0, 2)}
 
-	got := m.AdvanceTroopPath(path, 2)
+	got := m.AdvanceUnitPath(path, 2)
 	if len(got) != 2 || got[1] != NewHex(0, 1) {
 		t.Fatalf("traversed = %v, want costly first step only", got)
 	}
 }
 
-func TestAdvanceTroopPathRespectsRemainingBudget(t *testing.T) {
+func TestAdvanceUnitPathRespectsRemainingBudget(t *testing.T) {
 	m := movementTestMap(1, 4)
 	m.Grid[0][2].Tile = TileForest
 	path := []Hex{
@@ -76,45 +76,45 @@ func TestAdvanceTroopPathRespectsRemainingBudget(t *testing.T) {
 		NewHex(0, 3),
 	}
 
-	got := m.AdvanceTroopPath(path, 2)
+	got := m.AdvanceUnitPath(path, 2)
 	if len(got) != 2 || got[1] != NewHex(0, 1) {
 		t.Fatalf("traversed = %v, want stop before forest", got)
 	}
 }
 
-func TestFindTroopPathUsesTerrainOwnershipAndBlockers(t *testing.T) {
+func TestFindUnitPathUsesTerrainOwnershipAndBlockers(t *testing.T) {
 	m := movementTestMap(1, 4)
 	start := NewHex(0, 0)
 	goal := NewHex(0, 3)
-	m.GetCell(start).Troop = TroopScout
-	m.GetCell(start).TroopOwner = 0
+	m.GetCell(start).Unit = UnitScout
+	m.GetCell(start).UnitOwner = 0
 
-	if _, ok := m.FindTroopPath(0, start, goal); !ok {
+	if _, ok := m.FindUnitPath(0, start, goal); !ok {
 		t.Fatal("expected clear friendly/unclaimed path")
 	}
 
 	m.GetCell(NewHex(0, 1)).Owner = 1
-	if _, ok := m.FindTroopPath(0, start, goal); ok {
+	if _, ok := m.FindUnitPath(0, start, goal); ok {
 		t.Fatal("path crossed enemy-owned tile")
 	}
 
 	m.GetCell(NewHex(0, 1)).Owner = -1
-	m.GetCell(NewHex(0, 1)).Troop = TroopPeasant
-	m.GetCell(NewHex(0, 1)).TroopOwner = 0
-	if _, ok := m.FindTroopPath(0, start, goal); ok {
-		t.Fatal("path crossed friendly troop blocker")
+	m.GetCell(NewHex(0, 1)).Unit = UnitPeasant
+	m.GetCell(NewHex(0, 1)).UnitOwner = 0
+	if _, ok := m.FindUnitPath(0, start, goal); ok {
+		t.Fatal("path crossed friendly unit blocker")
 	}
 }
 
-func TestFindTroopPathChoosesCheaperTerrain(t *testing.T) {
+func TestFindUnitPathChoosesCheaperTerrain(t *testing.T) {
 	m := movementTestMap(3, 2)
 	start := NewHex(0, 1)
 	goal := NewHex(2, 1)
-	m.GetCell(start).Troop = TroopKnight
-	m.GetCell(start).TroopOwner = 0
+	m.GetCell(start).Unit = UnitKnight
+	m.GetCell(start).UnitOwner = 0
 	m.GetCell(NewHex(1, 1)).Tile = TileJungle
 
-	path, ok := m.FindTroopPath(0, start, goal)
+	path, ok := m.FindUnitPath(0, start, goal)
 	if !ok {
 		t.Fatal("expected route")
 	}

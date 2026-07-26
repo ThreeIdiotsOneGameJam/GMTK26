@@ -112,12 +112,12 @@ type WorldRenderer struct {
 	zoomSmoothness   float32
 
 	BuildingToPlace game.BuildingType
-	RecruitToPlace  game.TroopType
+	RecruitToPlace  game.UnitType
 	// OnPlaceBuilding, when set, may take over a placement click. Returning
 	// true means the click was handled externally (e.g. sent to the server)
 	// and the map is not modified locally.
 	OnPlaceBuilding  func(from, to game.Hex, building game.BuildingType) bool
-	OnRecruit        func(from, to game.Hex, troop game.TroopType) bool
+	OnRecruit        func(from, to game.Hex, unit game.UnitType) bool
 	OnMove           func(from, to game.Hex) bool
 	OnAttack         func(from, to game.Hex) bool
 	OnCancelMovement func(from game.Hex) bool
@@ -130,8 +130,8 @@ type WorldRenderer struct {
 	viewport    rl.RenderTexture2D
 	initialized bool
 
-	troopAnimations []troopAnimation
-	selectionMenu   selectionMenu
+	unitAnimations []unitAnimation
+	selectionMenu  selectionMenu
 }
 
 func (r *WorldRenderer) Init(m *game.Map) {
@@ -187,7 +187,7 @@ func (r *WorldRenderer) Unload() {
 }
 
 func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
-	r.updateTroopAnimations(delta)
+	r.updateUnitAnimations(delta)
 	deltaSeconds := float32(delta.Seconds())
 	srcRect, dstRect := r.viewportRects()
 	mouse := global.MousePosition
@@ -331,7 +331,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	if !global.UIBlocksWorldInput &&
 		!selectionMenuOwnsInput &&
 		r.BuildingToPlace == game.BuildingUnknown &&
-		r.RecruitToPlace == game.TroopUnknown {
+		r.RecruitToPlace == game.UnitUnknown {
 		if worldLeftClick {
 			r.handleWorldClick(m, hex)
 		}
@@ -470,11 +470,11 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 		return
 	}
 
-	if r.ActionsEnabled && r.SelectedHex != nil && r.SelectedKind == SelectionTroop {
+	if r.ActionsEnabled && r.SelectedHex != nil && r.SelectedKind == SelectionUnit {
 		from := *r.SelectedHex
 		source := m.GetCell(from)
-		if source != nil && source.Troop != game.TroopUnknown &&
-			source.TroopOwner == r.LocalFaction {
+		if source != nil && source.Unit != game.UnitUnknown &&
+			source.UnitOwner == r.LocalFaction {
 			if hex == from {
 				if r.hasMovementOrder(from) && r.OnCancelMovement != nil {
 					if r.OnCancelMovement(from) {
@@ -485,11 +485,11 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 				}
 				return
 			}
-			if cell.Troop != game.TroopUnknown && cell.TroopOwner == r.LocalFaction {
+			if cell.Unit != game.UnitUnknown && cell.UnitOwner == r.LocalFaction {
 				r.selectCell(hex, cell)
 				return
 			}
-			if source.Troop != game.TroopScout &&
+			if source.Unit != game.UnitScout &&
 				game.HexAdjacent(from, hex) &&
 				cell.Building != game.BuildingUnknown &&
 				cell.Building != game.BuildingTownhall &&
@@ -500,7 +500,7 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 				}
 				return
 			}
-			if _, ok := m.FindTroopPath(r.LocalFaction, from, hex); ok {
+			if _, ok := m.FindUnitPath(r.LocalFaction, from, hex); ok {
 				if r.OnMove != nil && r.OnMove(from, hex) {
 					r.QueueMovementOrder(from, hex)
 					r.clearSelection()
@@ -510,7 +510,7 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 		}
 	}
 
-	if cell.Building != game.BuildingUnknown || cell.Troop != game.TroopUnknown {
+	if cell.Building != game.BuildingUnknown || cell.Unit != game.UnitUnknown {
 		r.selectCell(hex, cell)
 		return
 	}
@@ -522,22 +522,22 @@ func (r *WorldRenderer) updateMovementPreview(m *game.Map, hovered game.Hex) {
 	r.PreviewStops = nil
 	if !r.ActionsEnabled ||
 		r.BuildingToPlace != game.BuildingUnknown ||
-		r.RecruitToPlace != game.TroopUnknown ||
+		r.RecruitToPlace != game.UnitUnknown ||
 		r.SelectedHex == nil ||
-		r.SelectedKind != SelectionTroop ||
+		r.SelectedKind != SelectionUnit ||
 		hovered == *r.SelectedHex {
 		return
 	}
 	source := m.GetCell(*r.SelectedHex)
-	if source == nil || source.Troop == game.TroopUnknown || source.TroopOwner != r.LocalFaction {
+	if source == nil || source.Unit == game.UnitUnknown || source.UnitOwner != r.LocalFaction {
 		return
 	}
-	path, ok := m.FindTroopPath(r.LocalFaction, *r.SelectedHex, hovered)
+	path, ok := m.FindUnitPath(r.LocalFaction, *r.SelectedHex, hovered)
 	if !ok {
 		return
 	}
 	r.PreviewPath = path
-	r.PreviewStops = m.MovementTurnStops(path, game.TroopMovementBudget(source.Troop))
+	r.PreviewStops = m.MovementTurnStops(path, game.UnitMovementBudget(source.Unit))
 }
 
 func (r *WorldRenderer) SetMovementOrders(orders []game.MovementOrder) {
@@ -612,8 +612,8 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	r.drawTileDetails(m, visible)
 	r.drawMovementRoutes(m)
 	r.drawBuildings(m, visible, mousePos)
-	r.drawTroops(m, visible)
-	r.drawTroopAnimations()
+	r.drawUnits(m, visible)
+	r.drawUnitAnimations()
 	rl.EndMode2D()
 	r.drawSelectionMenu(m)
 

@@ -29,16 +29,16 @@ func actionTestGame(width, height int32) *game.Game {
 	return g
 }
 
-func putTroop(g *game.Game, hex game.Hex, troop game.TroopType, owner int8) {
+func putUnit(g *game.Game, hex game.Hex, unit game.UnitType, owner int8) {
 	cell := g.Map.GetCell(hex)
-	cell.Troop = troop
-	cell.TroopOwner = owner
+	cell.Unit = unit
+	cell.UnitOwner = owner
 }
 
 func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
 	g := actionTestGame(1, 5)
 	from, destination := game.NewHex(0, 0), game.NewHex(0, 4)
-	putTroop(g, from, game.TroopPeasant, 0)
+	putUnit(g, from, game.UnitPeasant, 0)
 	gi := NewGameInstance(1, g, nil)
 	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
 		From: from,
@@ -50,10 +50,10 @@ func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
 	gi.processClientActions()
 
 	endpoint := game.NewHex(0, 2)
-	if g.Map.GetCell(endpoint).Troop != game.TroopPeasant ||
-		g.Map.GetCell(endpoint).TroopOwner != 0 ||
-		g.Map.GetCell(from).Troop != game.TroopUnknown {
-		t.Fatalf("troop did not move to %v", endpoint)
+	if g.Map.GetCell(endpoint).Unit != game.UnitPeasant ||
+		g.Map.GetCell(endpoint).UnitOwner != 0 ||
+		g.Map.GetCell(from).Unit != game.UnitUnknown {
+		t.Fatalf("unit did not move to %v", endpoint)
 	}
 	orders := gi.movementOrders[0]
 	if len(orders) != 1 ||
@@ -69,7 +69,7 @@ func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
 func TestActionPacketReachesAuthoritativeMovementResolver(t *testing.T) {
 	g := actionTestGame(1, 4)
 	from, destination := game.NewHex(0, 0), game.NewHex(0, 3)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	client := NewClient(nil)
 	gi := NewGameInstance(1, g, []*Client{client})
 	client.JoinGame(gi)
@@ -94,7 +94,7 @@ func TestActionPacketReachesAuthoritativeMovementResolver(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(destination).Troop != game.TroopScout {
+	if g.Map.GetCell(destination).Unit != game.UnitScout {
 		t.Fatal("packet-submitted movement did not resolve")
 	}
 	result := gi.actionResults[0]
@@ -107,8 +107,8 @@ func TestNewRouteAdvancesBeforeExistingRoundRobinQueue(t *testing.T) {
 	g := actionTestGame(2, 2)
 	oldFrom, oldTo := game.NewHex(0, 0), game.NewHex(0, 1)
 	newFrom, newTo := game.NewHex(1, 0), game.NewHex(1, 1)
-	putTroop(g, oldFrom, game.TroopScout, 0)
-	putTroop(g, newFrom, game.TroopScout, 0)
+	putUnit(g, oldFrom, game.UnitScout, 0)
+	putUnit(g, newFrom, game.UnitScout, 0)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{{
 		Current:     oldFrom,
@@ -123,10 +123,10 @@ func TestNewRouteAdvancesBeforeExistingRoundRobinQueue(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(newTo).Troop != game.TroopScout {
+	if g.Map.GetCell(newTo).Unit != game.UnitScout {
 		t.Fatal("newly assigned route did not receive first advancement")
 	}
-	if g.Map.GetCell(oldFrom).Troop != game.TroopScout {
+	if g.Map.GetCell(oldFrom).Unit != game.UnitScout {
 		t.Fatal("existing round-robin route advanced before the new route")
 	}
 }
@@ -136,7 +136,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 	from := game.NewHex(0, 0)
 	destination := game.NewHex(0, 2)
 	buildTarget := game.NewHex(1, 0)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	gi := NewGameInstance(1, g, nil)
 	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
 		From: from,
@@ -155,7 +155,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(from).Troop != game.TroopScout {
+	if g.Map.GetCell(from).Unit != game.UnitScout {
 		t.Fatal("manual build did not suppress route advancement")
 	}
 	if len(gi.movementOrders[0]) != 1 {
@@ -167,7 +167,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 
 	delete(gi.actions, 0)
 	gi.processClientActions()
-	if g.Map.GetCell(destination).Troop != game.TroopScout {
+	if g.Map.GetCell(destination).Unit != game.UnitScout {
 		t.Fatal("persisted route did not advance on the next free round")
 	}
 }
@@ -178,9 +178,9 @@ func TestAutomaticMovementSkipsBlockedOrder(t *testing.T) {
 	blockedDestination := game.NewHex(0, 1)
 	movableFrom := game.NewHex(0, 3)
 	movableDestination := game.NewHex(1, 3)
-	putTroop(g, blockedFrom, game.TroopScout, 0)
-	putTroop(g, blockedDestination, game.TroopPeasant, 0)
-	putTroop(g, movableFrom, game.TroopScout, 0)
+	putUnit(g, blockedFrom, game.UnitScout, 0)
+	putUnit(g, blockedDestination, game.UnitPeasant, 0)
+	putUnit(g, movableFrom, game.UnitScout, 0)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{
 		{Current: blockedFrom, Destination: blockedDestination},
@@ -189,7 +189,7 @@ func TestAutomaticMovementSkipsBlockedOrder(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(movableDestination).Troop != game.TroopScout {
+	if g.Map.GetCell(movableDestination).Unit != game.UnitScout {
 		t.Fatal("movable order did not advance")
 	}
 	if got := gi.movementOrders[0]; len(got) != 1 || got[0].Current != blockedFrom {
@@ -200,7 +200,7 @@ func TestAutomaticMovementSkipsBlockedOrder(t *testing.T) {
 func TestPassSuppressesAutomaticMovement(t *testing.T) {
 	g := actionTestGame(1, 3)
 	from, destination := game.NewHex(0, 0), game.NewHex(0, 2)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{{
 		Current:     from,
@@ -210,7 +210,7 @@ func TestPassSuppressesAutomaticMovement(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(from).Troop != game.TroopScout {
+	if g.Map.GetCell(from).Unit != game.UnitScout {
 		t.Fatal("pass allowed automatic movement")
 	}
 	if len(gi.movementOrders[0]) != 1 {
@@ -221,8 +221,8 @@ func TestPassSuppressesAutomaticMovement(t *testing.T) {
 func TestAllBlockedOrdersReportBlocked(t *testing.T) {
 	g := actionTestGame(1, 2)
 	from, destination := game.NewHex(0, 0), game.NewHex(0, 1)
-	putTroop(g, from, game.TroopScout, 0)
-	putTroop(g, destination, game.TroopPeasant, 0)
+	putUnit(g, from, game.UnitScout, 0)
+	putUnit(g, destination, game.UnitPeasant, 0)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{{
 		Current:     from,
@@ -243,7 +243,7 @@ func TestAllBlockedOrdersReportBlocked(t *testing.T) {
 func TestFreeCancellationWithdrawsNewRoutePriority(t *testing.T) {
 	g := actionTestGame(1, 3)
 	from := game.NewHex(0, 0)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	client := NewClient(nil)
 	gi := NewGameInstance(1, g, []*Client{client})
 	client.JoinGame(gi)
@@ -271,8 +271,8 @@ func TestCancelPendingBuildRestoresAutomaticMovement(t *testing.T) {
 	moveTo := game.NewHex(0, 1)
 	buildFrom := game.NewHex(1, 0)
 	buildTo := game.NewHex(1, 1)
-	putTroop(g, moveFrom, game.TroopPeasant, 0)
-	putTroop(g, buildFrom, game.TroopScout, 0)
+	putUnit(g, moveFrom, game.UnitPeasant, 0)
+	putUnit(g, buildFrom, game.UnitScout, 0)
 
 	client := NewClient(nil)
 	gi := NewGameInstance(1, g, []*Client{client})
@@ -309,7 +309,7 @@ func TestCancelPendingBuildRestoresAutomaticMovement(t *testing.T) {
 	if g.Map.GetCell(buildTo).Building != game.BuildingUnknown {
 		t.Fatal("cancelled building was constructed")
 	}
-	if g.Map.GetCell(moveTo).Troop != game.TroopPeasant {
+	if g.Map.GetCell(moveTo).Unit != game.UnitPeasant {
 		t.Fatal("cancelling the build did not restore automatic movement")
 	}
 }
@@ -341,7 +341,7 @@ func TestCancelBuildAdvancesRouteAssignedInSameRound(t *testing.T) {
 	from := game.NewHex(0, 0)
 	destination := game.NewHex(0, 2)
 	buildTarget := game.NewHex(1, 0)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 
 	client := NewClient(nil)
 	gi := NewGameInstance(1, g, []*Client{client})
@@ -381,7 +381,7 @@ func TestCancelBuildAdvancesRouteAssignedInSameRound(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(destination).Troop != game.TroopScout {
+	if g.Map.GetCell(destination).Unit != game.UnitScout {
 		t.Fatal("same-round route did not advance after pending build cancellation")
 	}
 	if g.Map.GetCell(buildTarget).Building != game.BuildingUnknown {
@@ -392,18 +392,18 @@ func TestCancelBuildAdvancesRouteAssignedInSameRound(t *testing.T) {
 func TestContestedMovementCancelsAllOrders(t *testing.T) {
 	g := actionTestGame(3, 1)
 	left, target, right := game.NewHex(0, 0), game.NewHex(1, 0), game.NewHex(2, 0)
-	putTroop(g, left, game.TroopScout, 0)
-	putTroop(g, right, game.TroopScout, 1)
+	putUnit(g, left, game.UnitScout, 0)
+	putUnit(g, right, game.UnitScout, 1)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{{Current: left, Destination: target}}
 	gi.movementOrders[1] = []game.MovementOrder{{Current: right, Destination: target}}
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(left).Troop == game.TroopUnknown ||
-		g.Map.GetCell(right).Troop == game.TroopUnknown ||
-		g.Map.GetCell(target).Troop != game.TroopUnknown {
-		t.Fatal("contested movement mutated troop positions")
+	if g.Map.GetCell(left).Unit == game.UnitUnknown ||
+		g.Map.GetCell(right).Unit == game.UnitUnknown ||
+		g.Map.GetCell(target).Unit != game.UnitUnknown {
+		t.Fatal("contested movement mutated unit positions")
 	}
 	if len(gi.movementOrders[0]) != 0 || len(gi.movementOrders[1]) != 0 {
 		t.Fatal("contested movement orders were not cancelled")
@@ -419,8 +419,8 @@ func TestMixedBuildAndMoveConflictFailsBoth(t *testing.T) {
 	moveFrom := game.NewHex(0, 0)
 	target := game.NewHex(1, 0)
 	buildFrom := game.NewHex(2, 0)
-	putTroop(g, moveFrom, game.TroopPeasant, 0)
-	putTroop(g, buildFrom, game.TroopScout, 1)
+	putUnit(g, moveFrom, game.UnitPeasant, 0)
+	putUnit(g, buildFrom, game.UnitScout, 1)
 	gi := NewGameInstance(1, g, nil)
 	gi.movementOrders[0] = []game.MovementOrder{{Current: moveFrom, Destination: target}}
 	gi.actions[1] = &submittedAction{
@@ -434,8 +434,8 @@ func TestMixedBuildAndMoveConflictFailsBoth(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(moveFrom).Troop != game.TroopPeasant ||
-		g.Map.GetCell(target).Troop != game.TroopUnknown ||
+	if g.Map.GetCell(moveFrom).Unit != game.UnitPeasant ||
+		g.Map.GetCell(target).Unit != game.UnitUnknown ||
 		g.Map.GetCell(target).Building != game.BuildingUnknown {
 		t.Fatal("mixed conflict mutated target")
 	}
@@ -458,16 +458,16 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 	gi.actions[0] = &submittedAction{
 		Type: game.ActionRecruit,
 		Recruit: &game.RecruitActionPayload{
-			From:  from,
-			To:    to,
-			Troop: game.TroopScout,
+			From: from,
+			To:   to,
+			Unit: game.UnitScout,
 		},
 	}
 
 	gi.processClientActions()
 
 	target := g.Map.GetCell(to)
-	if target.Troop != game.TroopScout || target.TroopOwner != 0 || target.Owner != -1 {
+	if target.Unit != game.UnitScout || target.UnitOwner != 0 || target.Owner != -1 {
 		t.Fatalf("recruitment target = %+v", target)
 	}
 	if g.Factions[0].Coins != 90 {
@@ -478,7 +478,7 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 func TestScoutBuildsAdjacentAndClaims(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type: game.ActionBuild,
@@ -495,20 +495,20 @@ func TestScoutBuildsAdjacentAndClaims(t *testing.T) {
 	if target.Building != game.BuildingBarracks || target.Owner != 0 {
 		t.Fatalf("build target = %+v", target)
 	}
-	if g.Map.GetCell(from).Troop != game.TroopScout {
+	if g.Map.GetCell(from).Unit != game.UnitScout {
 		t.Fatal("Scout was consumed by construction")
 	}
 }
 
-func TestAttackUnclaimsBuildingButPreservesTroopOwner(t *testing.T) {
+func TestAttackUnclaimsBuildingButPreservesUnitOwner(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
-	putTroop(g, from, game.TroopPeasant, 0)
+	putUnit(g, from, game.UnitPeasant, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
 	target.Building = game.BuildingBarracks
-	target.Troop = game.TroopKnight
-	target.TroopOwner = 1
+	target.Unit = game.UnitKnight
+	target.UnitOwner = 1
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type:   game.ActionAttack,
@@ -519,8 +519,8 @@ func TestAttackUnclaimsBuildingButPreservesTroopOwner(t *testing.T) {
 
 	if target.Building != game.BuildingUnknown ||
 		target.Owner != -1 ||
-		target.Troop != game.TroopKnight ||
-		target.TroopOwner != 1 {
+		target.Unit != game.UnitKnight ||
+		target.UnitOwner != 1 {
 		t.Fatalf("attack target = %+v", target)
 	}
 }
@@ -528,7 +528,7 @@ func TestAttackUnclaimsBuildingButPreservesTroopOwner(t *testing.T) {
 func TestTownhallIsImmune(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
-	putTroop(g, from, game.TroopKnight, 0)
+	putUnit(g, from, game.UnitKnight, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
 	target.Building = game.BuildingTownhall
@@ -551,7 +551,7 @@ func TestTownhallIsImmune(t *testing.T) {
 func TestScoutCannotAttackBuilding(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
-	putTroop(g, from, game.TroopScout, 0)
+	putUnit(g, from, game.UnitScout, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
 	target.Building = game.BuildingBarracks

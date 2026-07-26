@@ -7,11 +7,11 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-func TestSelectCellWithTroopAndBuildingOpensContextMenuOnly(t *testing.T) {
+func TestSelectCellWithUnitAndBuildingOpensContextMenuOnly(t *testing.T) {
 	r := WorldRenderer{MousePosition: vec.Vec2{X: 40, Y: 50}}
 	hex := game.NewHex(2, 3)
 	cell := &game.Cell{
-		Troop:    game.TroopScout,
+		Unit:     game.UnitScout,
 		Building: game.BuildingFarm,
 	}
 
@@ -33,9 +33,9 @@ func TestSelectCellUsesUnambiguousObjectKind(t *testing.T) {
 		want SelectionKind
 	}{
 		{
-			name: "troop",
-			cell: game.Cell{Troop: game.TroopPeasant},
-			want: SelectionTroop,
+			name: "unit",
+			cell: game.Cell{Unit: game.UnitPeasant},
+			want: SelectionUnit,
 		},
 		{
 			name: "building",
@@ -67,9 +67,9 @@ func TestClearMouseSlotClearsSelectionAndTargetingOnly(t *testing.T) {
 	r := WorldRenderer{
 		ActionsEnabled:  true,
 		SelectedHex:     &selected,
-		SelectedKind:    SelectionTroop,
+		SelectedKind:    SelectionUnit,
 		BuildingToPlace: game.BuildingFarm,
-		RecruitToPlace:  game.TroopScout,
+		RecruitToPlace:  game.UnitScout,
 		Orders:          []game.MovementOrder{order},
 		PreviewPath:     []game.Hex{selected, game.NewHex(1, 2)},
 		PreviewStops:    []game.Hex{game.NewHex(1, 2)},
@@ -84,7 +84,7 @@ func TestClearMouseSlotClearsSelectionAndTargetingOnly(t *testing.T) {
 		t.Fatal("active object selection was not cleared")
 	}
 	if r.BuildingToPlace != game.BuildingUnknown ||
-		r.RecruitToPlace != game.TroopUnknown {
+		r.RecruitToPlace != game.UnitUnknown {
 		t.Fatal("placement targeting was not cleared")
 	}
 	if r.buildingPreview.Visible ||

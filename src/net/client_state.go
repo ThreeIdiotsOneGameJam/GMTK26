@@ -113,11 +113,11 @@ func SendMoveAction(round int32, from, to game.Hex) error {
 	})
 }
 
-func SendRecruitAction(round int32, from, to game.Hex, troop game.TroopType) error {
+func SendRecruitAction(round int32, from, to game.Hex, unit game.UnitType) error {
 	return Send(&packets.C2SActionPacket{
 		Round:   round,
 		Type:    game.ActionRecruit,
-		Recruit: &game.RecruitActionPayload{From: from, To: to, Troop: troop},
+		Recruit: &game.RecruitActionPayload{From: from, To: to, Unit: unit},
 	})
 }
 

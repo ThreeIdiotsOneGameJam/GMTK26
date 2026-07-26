@@ -9,7 +9,7 @@ func (r *WorldRenderer) updateRecruitPlacement(m *game.Map, hex game.Hex, place 
 	if global.UIBlocksWorldInput ||
 		!r.ActionsEnabled ||
 		r.MovementAnimating() ||
-		r.RecruitToPlace == game.TroopUnknown ||
+		r.RecruitToPlace == game.UnitUnknown ||
 		r.SelectedHex == nil ||
 		r.SelectedKind != SelectionBuilding ||
 		!place {
@@ -27,21 +27,21 @@ func (r *WorldRenderer) updateRecruitPlacement(m *game.Map, hex game.Hex, place 
 	}
 }
 
-func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, troop game.TroopType) bool {
+func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, unit game.UnitType) bool {
 	source := m.GetCell(from)
 	target := m.GetCell(to)
 	if source == nil || target == nil ||
 		source.Owner != r.LocalFaction ||
 		!game.HexAdjacent(from, to) ||
 		game.TerrainMovementCost(target.Tile) <= 0 ||
-		target.Troop != game.TroopUnknown ||
+		target.Unit != game.UnitUnknown ||
 		target.Owner != -1 && target.Owner != r.LocalFaction {
 		return false
 	}
 	if source.Building == game.BuildingTownhall {
-		return troop == game.TroopScout
+		return unit == game.UnitScout
 	}
 	return source.Building == game.BuildingBarracks &&
-		troop >= game.TroopPeasant &&
-		troop <= game.TroopScout
+		unit >= game.UnitPeasant &&
+		unit <= game.UnitScout
 }
