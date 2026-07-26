@@ -6,6 +6,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
 const (
@@ -168,6 +169,7 @@ func Draw() {
 
 	if pendingScreen == nil {
 		activeScreen.Draw()
+		drawTooltip()
 		return
 	}
 
@@ -176,6 +178,7 @@ func Draw() {
 	w := int32(rl.GetRenderWidth())
 	h := int32(rl.GetRenderHeight())
 	if w <= 0 || h <= 0 {
+		drawTooltip()
 		return
 	}
 	captured := ensureTransitionSource(w, h)
@@ -186,6 +189,7 @@ func Draw() {
 		if !transitionCanceling {
 			pendingScreen.Draw()
 		}
+		drawTooltip()
 		return
 	}
 
@@ -204,6 +208,36 @@ func Draw() {
 	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 	rl.DrawTexturePro(transitionSource, src, dst, rl.Vector2{}, 0, tint)
 	rl.EndBlendMode()
+
+	drawTooltip()
+}
+
+func drawTooltip() {
+	text := global.TooltipText
+	if text == "" {
+		return
+	}
+
+	textSize := int32(18)
+	pad := int32(6)
+	textW := rl.MeasureText(text, textSize)
+	textH := textSize
+	bgW := textW + pad*2
+	bgH := textH + pad*2
+	mx := int32(global.MousePosition.X)
+	my := int32(global.MousePosition.Y)
+	x := mx - bgW/2
+	y := my - bgH - 10
+
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = my + 10
+	}
+
+	rl.DrawRectangle(x, y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
+	rl.DrawText(text, x+pad, y+pad, textSize, rl.White)
 }
 
 func ensureTransitionSource(w, h int32) bool {

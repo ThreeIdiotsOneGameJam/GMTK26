@@ -5,6 +5,8 @@ package game
 import "strconv"
 
 func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[ActionUnknown-0]
 	_ = x[ActionPass-1]

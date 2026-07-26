@@ -33,6 +33,7 @@ func TestRecruitmentOntoBuildingConsumesWorldClick(t *testing.T) {
 	r := WorldRenderer{
 		ActionsEnabled: true,
 		LocalFaction:   0,
+		LocalResources: game.Resources{game.ResourceFood: 1},
 		SelectedHex:    &source,
 		SelectedKind:   SelectionBuilding,
 		RecruitToPlace: game.UnitPeasant,
