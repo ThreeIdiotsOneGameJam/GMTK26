@@ -322,6 +322,16 @@ func (gi *GameInstance) assignStartingCells() {
 			}
 		}
 	}
+
+	largestIsland := m.LargestLandIsland()
+	filtered := make([]game.Hex, 0, len(candidates))
+	for _, h := range candidates {
+		if largestIsland[h] {
+			filtered = append(filtered, h)
+		}
+	}
+	candidates = filtered
+
 	if len(candidates) == 0 {
 		return
 	}
