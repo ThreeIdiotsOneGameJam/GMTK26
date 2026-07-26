@@ -1,4 +1,5 @@
 //go:build darwin
+
 package global
 
 import (
@@ -13,6 +14,9 @@ var AssetDir = (func() string {
 	}
 
 	exeDir := filepath.Dir(exe)
+	if filepath.Base(exeDir) != "MacOS" {
+		return "assets"
+	}
 	resources := filepath.Join(exeDir, "..", "Resources")
 
 	return resources + "/assets"
