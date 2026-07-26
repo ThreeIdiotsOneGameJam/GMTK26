@@ -64,14 +64,16 @@ func TestGameplayPacketRoundTrips(t *testing.T) {
 				Current:     game.NewHex(1, 2),
 				Destination: game.NewHex(4, 5),
 			}},
+			AttackOrders: []game.AttackOrder{},
 		},
 		&S2CGameStatePacket{
-			Round:     4,
-			Deadline:  100,
-			Map:       game.Map{},
-			Coins:     90,
-			Points:    2,
-			Resources: game.Resources{},
+			Round:        4,
+			Deadline:     100,
+			Map:          game.Map{},
+			Coins:        90,
+			Points:       2,
+			Resources:    game.Resources{},
+			AttackOrders: []game.AttackOrder{},
 			Orders: []game.MovementOrder{{
 				Current:     game.NewHex(2, 2),
 				Destination: game.NewHex(5, 5),
@@ -92,6 +94,7 @@ func TestGameplayPacketRoundTrips(t *testing.T) {
 					game.NewHex(2, 2),
 				},
 			}},
+			AttackEvents: []game.AttackEvent{},
 		},
 		&S2CGameEndPacket{
 			WinnerFaction: 1,
@@ -154,6 +157,7 @@ func TestGameStartRoundTripPreservesTimerAndOrders(t *testing.T) {
 			Current:     game.NewHex(1, 2),
 			Destination: game.NewHex(4, 5),
 		}},
+		AttackOrders: []game.AttackOrder{},
 	}
 	encoded, err := Serialize(want)
 	if err != nil {

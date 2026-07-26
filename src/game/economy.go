@@ -77,13 +77,13 @@ func FactionRoundIncome(m *Map, owner int8) (int32, Resources) {
 	for x := range m.Grid {
 		for y := range m.Grid[x] {
 			cell := &m.Grid[x][y]
-			if cell.Owner != owner || cell.Building == BuildingUnknown {
+			if cell.Owner != owner || !cell.HasBuilding() {
 				continue
 			}
-			for resource, amount := range BuildingProduces(cell.Building, cell.Tile) {
+			for resource, amount := range BuildingProduces(cell.BuildingType(), cell.Tile) {
 				resources[resource] += amount
 			}
-			coins += BuildingCoinsProduces(cell.Building)
+			coins += BuildingCoinsProduces(cell.BuildingType())
 		}
 	}
 	return coins, resources

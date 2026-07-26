@@ -75,10 +75,9 @@ func TestSameTileBuildingPlacementConsumesWorldClick(t *testing.T) {
 	m := game.Map{
 		Grid: [][]game.Cell{{
 			{
-				Tile:      game.TilePlains,
-				Owner:     -1,
-				Unit:      game.UnitScout,
-				UnitOwner: 0,
+				Tile:  game.TilePlains,
+				Owner: -1,
+				Units: []game.UnitData{{Type: game.UnitScout, Owner: 0, HP: 3}},
 			},
 		}},
 		GridSize: vec.Vec2i{X: 1, Y: 1},

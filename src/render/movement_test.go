@@ -20,8 +20,7 @@ func TestMovementOrderRouteIncludesPersistentTurnStops(t *testing.T) {
 	}
 	start := game.NewHex(0, 0)
 	destination := game.NewHex(0, 5)
-	m.GetCell(start).Unit = game.UnitPeasant
-	m.GetCell(start).UnitOwner = 0
+	m.GetCell(start).Units = []game.UnitData{{Type: game.UnitPeasant, Owner: 0, HP: 3}}
 
 	path, stops, ok := movementOrderRoute(&m, 0, game.MovementOrder{
 		Current:     start,
@@ -75,7 +74,7 @@ func TestMovementStopsStaySmallAtMinimumZoom(t *testing.T) {
 func TestRightClickOnQueuedRouteCancelsIt(t *testing.T) {
 	grid := make([][]game.Cell, 1)
 	grid[0] = []game.Cell{
-		{Tile: game.TilePlains, Owner: -1, Unit: game.UnitScout, UnitOwner: 0},
+		{Tile: game.TilePlains, Owner: -1, Units: []game.UnitData{{Type: game.UnitScout, Owner: 0, HP: 3}}},
 		{Tile: game.TilePlains, Owner: -1},
 		{Tile: game.TilePlains, Owner: -1},
 	}

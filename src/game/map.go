@@ -8,15 +8,44 @@ type Map struct {
 	GridSize vec.Vec2i `json:"grid_size"`
 }
 
+type BuildingData struct {
+	Type BuildingType `json:"type"`
+	HP   int8         `json:"hp"`
+}
+
+type UnitData struct {
+	Type  UnitType `json:"type"`
+	Owner int8     `json:"owner"`
+	HP    int8     `json:"hp"`
+}
+
 type Cell struct {
-	Tile     TileType     `json:"tile"`
-	Owner    int8         `json:"owner,omitempty"` // -1 = unowned, 0-3 = faction index
-	Building BuildingType `json:"building,omitempty"`
-	Unit     UnitType     `json:"unit,omitempty"`
-	// UnitOwner is independent from Owner so units can occupy unclaimed
-	// territory and survive the destruction of a building beneath them.
-	// It is meaningful only when Unit is not UnitUnknown.
-	UnitOwner int8 `json:"unit_owner,omitempty"`
+	Tile     TileType      `json:"tile"`
+	Owner    int8          `json:"owner,omitempty"` // territory, based ONLY on building (-1 = unowned)
+	Building *BuildingData `json:"building,omitempty"`
+	Units    []UnitData    `json:"units,omitempty"`
+}
+
+func (c *Cell) HasBuilding() bool {
+	return c != nil && c.Building != nil
+}
+
+func (c *Cell) BuildingType() BuildingType {
+	if c == nil || c.Building == nil {
+		return BuildingUnknown
+	}
+	return c.Building.Type
+}
+
+func (c *Cell) HasUnits() bool {
+	return c != nil && len(c.Units) > 0
+}
+
+func (c *Cell) FirstUnit() *UnitData {
+	if c == nil || len(c.Units) == 0 {
+		return nil
+	}
+	return &c.Units[0]
 }
 
 type Neighbors struct {

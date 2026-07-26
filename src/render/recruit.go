@@ -36,7 +36,7 @@ func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, unit game.U
 		source.Owner != r.LocalFaction ||
 		!game.HexAdjacent(from, to) ||
 		game.TerrainMovementCost(target.Tile) <= 0 ||
-		target.Unit != game.UnitUnknown ||
+		target.HasUnits() ||
 		target.Owner != -1 && target.Owner != r.LocalFaction {
 		return false
 	}
@@ -49,10 +49,10 @@ func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, unit game.U
 	) {
 		return false
 	}
-	if source.Building == game.BuildingTownhall {
+	if source.BuildingType() == game.BuildingTownhall {
 		return unit == game.UnitScout
 	}
-	return source.Building == game.BuildingBarracks &&
+	return source.BuildingType() == game.BuildingBarracks &&
 		unit >= game.UnitPeasant &&
 		unit <= game.UnitScout
 }

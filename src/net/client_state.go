@@ -8,19 +8,21 @@ import (
 )
 
 type localGameState struct {
-	mu          sync.RWMutex
-	InGame      bool
-	FactionIdx  int
-	Round       int32
-	Deadline    int64
-	GameEndTime int64
-	Map         game.Map
-	Coins       int32
-	Points      int32
-	Resources   game.Resources
-	Orders      []game.MovementOrder
-	Result      *game.ActionResult
-	Movements   []game.MovementEvent
+	mu           sync.RWMutex
+	InGame       bool
+	FactionIdx   int
+	Round        int32
+	Deadline     int64
+	GameEndTime  int64
+	Map          game.Map
+	Coins        int32
+	Points       int32
+	Resources    game.Resources
+	Orders       []game.MovementOrder
+	AttackOrders []game.AttackOrder
+	Result       *game.ActionResult
+	Movements    []game.MovementEvent
+	AttackEvents []game.AttackEvent
 }
 
 var LocalGameState = &localGameState{}
@@ -38,8 +40,10 @@ func (s *localGameState) ApplyStartPacket(p *packets.S2CGameStartPacket) {
 	s.Points = p.Points
 	s.Resources = p.Resources
 	s.Orders = append([]game.MovementOrder(nil), p.Orders...)
+	s.AttackOrders = append([]game.AttackOrder(nil), p.AttackOrders...)
 	s.Result = nil
 	s.Movements = nil
+	s.AttackEvents = nil
 }
 
 func (s *localGameState) ApplyStatePacket(p *packets.S2CGameStatePacket) {
@@ -52,8 +56,10 @@ func (s *localGameState) ApplyStatePacket(p *packets.S2CGameStatePacket) {
 	s.Points = p.Points
 	s.Resources = p.Resources
 	s.Orders = append([]game.MovementOrder(nil), p.Orders...)
+	s.AttackOrders = append([]game.AttackOrder(nil), p.AttackOrders...)
 	s.Result = p.Result
 	s.Movements = append([]game.MovementEvent(nil), p.Movements...)
+	s.AttackEvents = append([]game.AttackEvent(nil), p.AttackEvents...)
 }
 
 func (s *localGameState) ApplyEndPacket() {
@@ -75,8 +81,10 @@ func (s *localGameState) Reset() {
 	s.Points = 0
 	s.Resources = nil
 	s.Orders = nil
+	s.AttackOrders = nil
 	s.Result = nil
 	s.Movements = nil
+	s.AttackEvents = nil
 }
 
 func (s *localGameState) GetRound() int32 {

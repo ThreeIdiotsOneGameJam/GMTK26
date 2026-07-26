@@ -109,7 +109,7 @@ func init() {
 			fmt.Printf("failed to send attack action: %v\n", err)
 			return true
 		}
-		setPendingAction("Demolish building")
+		setPendingAction("Attack ordered")
 		return true
 	}
 	gameWorld.Renderer.OnCancelMovement = func(from game.Hex) bool {
@@ -161,7 +161,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	gameWorld.Renderer.ClearQueuedBuilding()
 	gameWorld.Renderer.LocalFaction = int8(p.FactionIdx)
 	gameWorld.Renderer.ActionsEnabled = true
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, nil, nil)
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, p.AttackOrders, nil, nil, nil)
 	serverGameEndTime = p.GameEndTime
 	// The renderer may not be initialized until the game screen's first
 	// update. Defer focus so ResetCamera cannot discard this request.
@@ -178,7 +178,7 @@ func ApplyServerGameState(p *packets.S2CGameStatePacket) {
 		roundAnnouncementUntil = time.Now().Add(roundAnnouncementDuration)
 		gamePendingAction = ""
 	}
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, p.Movements, p.Result)
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, p.AttackOrders, p.Movements, p.AttackEvents, p.Result)
 }
 
 func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
@@ -216,7 +216,9 @@ func applyServerRound(
 	coins, points int32,
 	resources game.Resources,
 	orders []game.MovementOrder,
+	attackOrders []game.AttackOrder,
 	movements []game.MovementEvent,
+	attackEvents []game.AttackEvent,
 	result *game.ActionResult,
 ) {
 	if gameWorld.Renderer.SelectedKind == render.SelectionUnit &&
@@ -244,6 +246,7 @@ func applyServerRound(
 	gameWorld.Map = m
 	gameWorld.Renderer.SetMovementOrders(orders)
 	gameWorld.Renderer.StartMovementAnimations(movements)
+	gameWorld.Renderer.StartAttackAnimations(attackEvents)
 	if result != nil {
 		key := fmt.Sprintf("%d:%d:%d:%t", result.Round, result.Type, result.Status, result.Automatic)
 		showResolutionToast(result.Message, key)
@@ -587,7 +590,7 @@ func tryFocusOnTownhall() bool {
 	for x := range gameWorld.Map.Grid {
 		for y := range gameWorld.Map.Grid[x] {
 			cell := &gameWorld.Map.Grid[x][y]
-			if cell.Owner == int8(gameNet.LocalGameState.FactionIdx) && cell.Building == game.BuildingTownhall {
+			if cell.Owner == int8(gameNet.LocalGameState.FactionIdx) && cell.BuildingType() == game.BuildingTownhall {
 				gameWorld.Renderer.FocusOnHex(game.NewHex(int32(x), int32(y)))
 				return true
 			}
@@ -619,8 +622,8 @@ func buildingToolbar() *ui.GroupElement {
 			}
 			cell := gameWorld.Map.GetCell(*gameWorld.Renderer.SelectedHex)
 			return cell != nil &&
-				cell.Unit == game.UnitScout &&
-				cell.UnitOwner == int8(gameNet.LocalGameState.FactionIdx)
+				cell.HasUnits() && cell.Units[0].Type == game.UnitScout &&
+				cell.Units[0].Owner == int8(gameNet.LocalGameState.FactionIdx)
 		}).
 		AddChild(
 			ui.Text().

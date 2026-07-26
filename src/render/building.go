@@ -62,7 +62,7 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 	canPlace := r.canBuildAt(m, from, hex, r.BuildingToPlace)
 	if place && canPlace {
 		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(from, hex, r.BuildingToPlace) {
-			m.GetCell(hex).Building = r.BuildingToPlace
+			m.GetCell(hex).Building = &game.BuildingData{Type: r.BuildingToPlace, HP: game.BuildingMaxHP(r.BuildingToPlace)}
 		}
 		r.clearPlacementSelection()
 		return true
@@ -95,11 +95,12 @@ func (r *WorldRenderer) canBuildAt(m *game.Map, from, to game.Hex, building game
 	target := m.GetCell(to)
 	return source != nil &&
 		target != nil &&
-		source.Unit == game.UnitScout &&
-		source.UnitOwner == r.LocalFaction &&
+		source.HasUnits() &&
+		source.Units[0].Type == game.UnitScout &&
+		source.Units[0].Owner == r.LocalFaction &&
 		(from == to || game.HexAdjacent(from, to)) &&
 		(target.Owner == -1 || target.Owner == r.LocalFaction) &&
-		(target.Unit == game.UnitUnknown || target.UnitOwner == r.LocalFaction) &&
+		(!target.HasUnits() || target.Units[0].Owner == r.LocalFaction) &&
 		game.BuildingCanPlace(m, building, to)
 }
 
@@ -144,13 +145,17 @@ func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mouseP
 	}
 
 	for _, b := range visible {
-		building := m.Grid[b.hex.X][b.hex.Y].Building
-		draw(b.position, building, rl.White, 0, mouseHex == b.hex)
+		cell := &m.Grid[b.hex.X][b.hex.Y]
+		bt := cell.BuildingType()
+		draw(b.position, bt, rl.White, 0, mouseHex == b.hex)
+		if cell.HasBuilding() && cell.Owner == r.LocalFaction {
+			drawHPBar(b.position, r.HexSize, cell.Building.HP, game.BuildingMaxHP(bt))
+		}
 	}
 
 	if r.queuedBuilding.Visible {
 		cell := m.GetCell(r.queuedBuilding.Hex)
-		if cell != nil && cell.Building == game.BuildingUnknown {
+		if cell != nil && !cell.HasBuilding() {
 			worldPos := r.HexToPixel(r.queuedBuilding.Hex.Vec2i)
 			draw(worldPos, r.queuedBuilding.Type, r.queuedBuilding.Tint, queuedBuildingAlpha, false)
 		}

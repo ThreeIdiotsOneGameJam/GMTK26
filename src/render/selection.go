@@ -24,6 +24,7 @@ func (r *WorldRenderer) selectAt(hex game.Hex, kind SelectionKind) {
 	r.selectionMenu.Visible = false
 	r.PreviewPath = nil
 	r.PreviewStops = nil
+	r.PreviewTarget = nil
 }
 
 func (r *WorldRenderer) clearSelection() {
@@ -32,6 +33,7 @@ func (r *WorldRenderer) clearSelection() {
 	r.selectionMenu.Visible = false
 	r.PreviewPath = nil
 	r.PreviewStops = nil
+	r.PreviewTarget = nil
 }
 
 func (r *WorldRenderer) ClearSelection() {
@@ -43,6 +45,7 @@ func (r *WorldRenderer) clearMouseSlot() {
 	r.RecruitToPlace = game.UnitUnknown
 	r.buildingPreview.Visible = false
 	r.clearSelection()
+	r.PreviewTarget = nil
 }
 
 func (r *WorldRenderer) selectCell(hex game.Hex, cell *game.Cell) {
@@ -50,8 +53,8 @@ func (r *WorldRenderer) selectCell(hex game.Hex, cell *game.Cell) {
 		r.clearSelection()
 		return
 	}
-	hasUnit := cell.Unit != game.UnitUnknown
-	hasBuilding := cell.Building != game.BuildingUnknown
+	hasUnit := cell.HasUnits()
+	hasBuilding := cell.HasBuilding()
 	switch {
 	case hasUnit && hasBuilding:
 		r.clearSelection()
@@ -85,12 +88,12 @@ func (r *WorldRenderer) ChooseSelectionMenuOption(m *game.Map, kind SelectionKin
 	cell := m.GetCell(r.selectionMenu.Hex)
 	switch kind {
 	case SelectionUnit:
-		if cell != nil && cell.Unit != game.UnitUnknown {
+		if cell != nil && cell.HasUnits() {
 			r.selectAt(r.selectionMenu.Hex, kind)
 			return
 		}
 	case SelectionBuilding:
-		if cell != nil && cell.Building != game.BuildingUnknown {
+		if cell != nil && cell.HasBuilding() {
 			r.selectAt(r.selectionMenu.Hex, kind)
 			return
 		}

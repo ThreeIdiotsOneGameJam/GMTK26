@@ -16,14 +16,14 @@ func TestRecruitmentOntoBuildingConsumesWorldClick(t *testing.T) {
 				{
 					Tile:     game.TilePlains,
 					Owner:    0,
-					Building: game.BuildingBarracks,
+					Building: &game.BuildingData{Type: game.BuildingBarracks, HP: 10},
 				},
 			},
 			{
 				{
 					Tile:     game.TilePlains,
 					Owner:    0,
-					Building: game.BuildingFarm,
+					Building: &game.BuildingData{Type: game.BuildingFarm, HP: 8},
 				},
 			},
 		},
@@ -60,9 +60,9 @@ func TestRecruitmentCanUseIncomingFarmFood(t *testing.T) {
 	target := game.NewHex(1, 0)
 	m := game.Map{
 		Grid: [][]game.Cell{
-			{{Tile: game.TilePlains, Owner: 0, Building: game.BuildingBarracks}},
+			{{Tile: game.TilePlains, Owner: 0, Building: &game.BuildingData{Type: game.BuildingBarracks, HP: 10}}},
 			{{Tile: game.TilePlains, Owner: 0}},
-			{{Tile: game.TilePlains, Owner: 0, Building: game.BuildingFarm}},
+			{{Tile: game.TilePlains, Owner: 0, Building: &game.BuildingData{Type: game.BuildingFarm, HP: 8}}},
 		},
 		GridSize: vec.Vec2i{X: 3, Y: 1},
 	}
@@ -76,7 +76,7 @@ func TestRecruitmentCanUseIncomingFarmFood(t *testing.T) {
 		t.Fatal("incoming Farm food did not make Peasant recruitment available")
 	}
 
-	m.GetCell(game.NewHex(2, 0)).Building = game.BuildingUnknown
+	m.GetCell(game.NewHex(2, 0)).Building = nil
 	if r.canRecruitAt(&m, source, target, game.UnitPeasant) {
 		t.Fatal("Peasant recruitment remained available without Food")
 	}

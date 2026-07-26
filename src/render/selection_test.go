@@ -11,8 +11,8 @@ func TestSelectCellWithUnitAndBuildingOpensContextMenuOnly(t *testing.T) {
 	r := WorldRenderer{MousePosition: vec.Vec2{X: 40, Y: 50}}
 	hex := game.NewHex(2, 3)
 	cell := &game.Cell{
-		Unit:     game.UnitScout,
-		Building: game.BuildingFarm,
+		Units:    []game.UnitData{{Type: game.UnitScout, Owner: 0, HP: 3}},
+		Building: &game.BuildingData{Type: game.BuildingFarm, HP: 8},
 	}
 
 	r.selectCell(hex, cell)
@@ -34,12 +34,12 @@ func TestSelectCellUsesUnambiguousObjectKind(t *testing.T) {
 	}{
 		{
 			name: "unit",
-			cell: game.Cell{Unit: game.UnitPeasant},
+			cell: game.Cell{Units: []game.UnitData{{Type: game.UnitPeasant, Owner: 0, HP: 3}}},
 			want: SelectionUnit,
 		},
 		{
 			name: "building",
-			cell: game.Cell{Building: game.BuildingBarracks},
+			cell: game.Cell{Building: &game.BuildingData{Type: game.BuildingBarracks, HP: 10}},
 			want: SelectionBuilding,
 		},
 	}
@@ -68,8 +68,8 @@ func TestChooseSelectionMenuOptionRevalidatesTile(t *testing.T) {
 		},
 	}
 	cell := m.GetCell(hex)
-	cell.Unit = game.UnitScout
-	cell.Building = game.BuildingFarm
+	cell.Units = []game.UnitData{{Type: game.UnitScout, Owner: 0, HP: 3}}
+	cell.Building = &game.BuildingData{Type: game.BuildingFarm, HP: 8}
 
 	r := WorldRenderer{}
 	r.selectCell(hex, cell)
@@ -90,7 +90,7 @@ func TestChooseSelectionMenuOptionRevalidatesTile(t *testing.T) {
 	}
 
 	r.selectCell(hex, cell)
-	cell.Unit = game.UnitUnknown
+	cell.Units = nil
 	r.ChooseSelectionMenuOption(&m, SelectionUnit)
 	if r.SelectedHex != nil || r.SelectedKind != SelectionNone {
 		t.Fatal("stale unit option selected an object removed from the map")

@@ -22,6 +22,13 @@ type unitAnimation struct {
 	elapsed time.Duration
 }
 
+const attackAnimationDuration = 300 * time.Millisecond
+
+type attackAnimation struct {
+	event   game.AttackEvent
+	elapsed time.Duration
+}
+
 func (r *WorldRenderer) StartMovementAnimations(events []game.MovementEvent) {
 	for _, event := range events {
 		if len(event.Path) < 2 {
@@ -33,6 +40,14 @@ func (r *WorldRenderer) StartMovementAnimations(events []game.MovementEvent) {
 				Owner: event.Owner,
 				Path:  append([]game.Hex(nil), event.Path...),
 			},
+		})
+	}
+}
+
+func (r *WorldRenderer) StartAttackAnimations(events []game.AttackEvent) {
+	for _, event := range events {
+		r.attackAnimations = append(r.attackAnimations, attackAnimation{
+			event: event,
 		})
 	}
 }
@@ -92,6 +107,32 @@ func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
 			r.drawMovementStop(stop, rl.Gold, true)
 		}
 	}
+	if r.PreviewTarget != nil {
+		pos := r.HexToPixel(r.PreviewTarget.Vec2i)
+		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, color.RGBA{R: 255, G: 80, B: 80, A: 200})
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -14, Y: -14})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 14, Y: 14})),
+			2, color.RGBA{R: 255, G: 80, B: 80, A: 200},
+		)
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 14, Y: -14})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -14, Y: 14})),
+			2, color.RGBA{R: 255, G: 80, B: 80, A: 200},
+		)
+	}
+
+	for _, order := range r.AttackOrders {
+		path, _, ok := m.FindAdjacentApproachPath(r.LocalFaction, order.From, order.TargetTile)
+		if !ok {
+			continue
+		}
+		col := color.RGBA{R: 220, G: 50, B: 50, A: 140}
+		r.drawPathLine(path, col, 3)
+		pos := r.HexToPixel(order.TargetTile.Vec2i)
+		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, col)
+		rl.DrawCircleLinesV(rlvec.ToRL(pos), 14, col)
+	}
 }
 
 func movementOrderRoute(
@@ -107,7 +148,7 @@ func movementOrderRoute(
 	if source == nil {
 		return path, nil, true
 	}
-	stops := m.MovementTurnStops(path, game.UnitMovementBudget(source.Unit))
+	stops := m.MovementTurnStops(path, game.UnitMovementBudget(source.Units[0].Type))
 	return path, stops, true
 }
 
@@ -213,15 +254,11 @@ func (r *WorldRenderer) drawActionTargets(m *game.Map) {
 				r.RecruitToPlace != game.UnitUnknown:
 				valid = r.canRecruitAt(m, from, to, r.RecruitToPlace)
 			case r.SelectedKind == SelectionUnit &&
-				source.Unit != game.UnitUnknown &&
-				source.Unit != game.UnitScout &&
-				source.UnitOwner == r.LocalFaction:
+				source.HasUnits() &&
+				source.Units[0].Type != game.UnitScout &&
+				source.Units[0].Owner == r.LocalFaction:
 				target := m.GetCell(to)
-				valid = target != nil &&
-					target.Building != game.BuildingUnknown &&
-					target.Building != game.BuildingTownhall &&
-					target.Owner >= 0 &&
-					target.Owner != r.LocalFaction
+				valid = target != nil && (hasEnemyUnit(target, r.LocalFaction) || hasEnemyBuilding(target, r.LocalFaction))
 				col = rl.Red
 			}
 			if !valid {
@@ -246,6 +283,43 @@ func (r *WorldRenderer) zoomSafeSize(worldSize, minimumScreenPixels float32) flo
 		return worldSize
 	}
 	return max(worldSize, minimumScreenPixels/r.Camera.Zoom)
+}
+
+func (r *WorldRenderer) updateAttackAnimations(delta time.Duration) {
+	filtered := r.attackAnimations[:0]
+	for i := range r.attackAnimations {
+		r.attackAnimations[i].elapsed += delta
+		if r.attackAnimations[i].elapsed < attackAnimationDuration {
+			filtered = append(filtered, r.attackAnimations[i])
+		}
+	}
+	r.attackAnimations = filtered
+}
+
+func (r *WorldRenderer) drawAttackAnimations() {
+	for _, anim := range r.attackAnimations {
+		progress := float32(anim.elapsed) / float32(attackAnimationDuration)
+		from := r.HexToPixel(anim.event.From.Vec2i)
+		to := r.HexToPixel(anim.event.Target.Vec2i)
+
+		alpha := uint8(max(0, min(255, int(255*(1-progress)))))
+		col := color.RGBA{R: 255, G: 180, B: 80, A: alpha}
+
+		var lungePos vec.Vec2
+		if progress < 0.5 {
+			t := progress * 2
+			lungePos = from.Lerp(to, t*0.4)
+		} else {
+			t := (progress - 0.5) * 2
+			lungePos = from.Lerp(to, 0.4*(1-t))
+		}
+		rl.DrawCircleV(rlvec.ToRL(lungePos), r.zoomSafeSize(5, 2), col)
+
+		if progress >= 0.45 && progress < 0.55 {
+			impact := color.RGBA{R: 255, G: 220, B: 100, A: uint8(max(0, min(255, int(200*(1-(progress-0.45)*10)))))}
+			rl.DrawRing(rlvec.ToRL(to), 8, 16, 0, 360, 16, impact)
+		}
+	}
 }
 
 func (r *WorldRenderer) drawUnitAnimations() {
@@ -303,6 +377,22 @@ func factionColor(owner int8) color.RGBA {
 		return rl.White
 	}
 	return factionColors[owner]
+}
+
+func hasEnemyUnit(cell *game.Cell, faction int8) bool {
+	if !cell.HasUnits() {
+		return false
+	}
+	for _, u := range cell.Units {
+		if u.Owner != faction {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEnemyBuilding(cell *game.Cell, faction int8) bool {
+	return cell.HasBuilding() && cell.Owner >= 0 && cell.Owner != faction
 }
 
 func (r *WorldRenderer) unitEndpointAnimating(hex game.Hex, owner int8, unit game.UnitType) bool {

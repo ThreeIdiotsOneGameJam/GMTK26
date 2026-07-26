@@ -8,6 +8,18 @@ type MovementOrder struct {
 	Destination Hex `json:"destination"`
 }
 
+type AttackOrder struct {
+	From       Hex `json:"from"`
+	TargetTile Hex `json:"target_tile"`
+}
+
+type AttackEvent struct {
+	Unit   UnitType `json:"unit"`
+	Owner  int8     `json:"owner"`
+	From   Hex      `json:"from"`
+	Target Hex      `json:"target"`
+}
+
 // MovementEvent is public resolved history used to animate authoritative
 // movement. Path includes both the starting cell and final cell.
 type MovementEvent struct {
@@ -53,9 +65,9 @@ func (m *Map) FindUnitPath(faction int8, start, goal Hex) ([]Hex, bool) {
 	startCell := m.GetCell(start)
 	goalCell := m.GetCell(goal)
 	if startCell == nil || goalCell == nil ||
-		startCell.Unit == UnitUnknown ||
-		startCell.UnitOwner != faction ||
-		goalCell.Unit != UnitUnknown && goal != start ||
+		!startCell.HasUnits() ||
+		startCell.Units[0].Owner != faction ||
+		goalCell.HasUnits() && goal != start ||
 		!cellFriendlyOrUnclaimed(goalCell, faction) {
 		return nil, false
 	}
@@ -65,7 +77,7 @@ func (m *Map) FindUnitPath(faction int8, start, goal Hex) ([]Hex, bool) {
 			if !cellFriendlyOrUnclaimed(cell, faction) {
 				return 0
 			}
-			if destination != start && cell.Unit != UnitUnknown {
+			if destination != start && cell.HasUnits() {
 				return 0
 			}
 			return TerrainMovementCost(cell.Tile)
@@ -129,4 +141,56 @@ func (m *Map) MovementTurnStops(path []Hex, budget int) []Hex {
 
 func HexAdjacent(a, b Hex) bool {
 	return a.Distance(b) == 1
+}
+
+func (m *Map) FindAdjacentApproachPath(faction int8, start, target Hex) ([]Hex, Hex, bool) {
+	if m == nil || start == target {
+		return nil, Hex{}, false
+	}
+	startCell := m.GetCell(start)
+	if startCell == nil || !startCell.HasUnits() || startCell.Units[0].Owner != faction {
+		return nil, Hex{}, false
+	}
+	var bestPath []Hex
+	var bestApproach Hex
+	var bestDist int64
+	found := false
+	for _, neighbor := range pathNeighborHexes(target) {
+		cell := m.GetCell(neighbor)
+		if cell == nil || !cellFriendlyOrUnclaimed(cell, faction) {
+			continue
+		}
+		if neighbor != start && cell.HasUnits() {
+			continue
+		}
+		if TerrainMovementCost(cell.Tile) <= 0 {
+			continue
+		}
+		path, ok := m.FindPathWithOptions(start, neighbor, PathOptions{
+			Cost: func(_ Hex, destination Hex, cell *Cell) int {
+				if !cellFriendlyOrUnclaimed(cell, faction) {
+					return 0
+				}
+				if destination != start && cell.HasUnits() {
+					return 0
+				}
+				return TerrainMovementCost(cell.Tile)
+			},
+			MinimumCost: 1,
+		})
+		if !ok {
+			continue
+		}
+		dist := int64(len(path))
+		if !found || dist < bestDist {
+			bestPath = path
+			bestApproach = neighbor
+			bestDist = dist
+			found = true
+		}
+	}
+	if !found {
+		return nil, Hex{}, false
+	}
+	return bestPath, bestApproach, true
 }

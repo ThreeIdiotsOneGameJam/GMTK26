@@ -27,11 +27,13 @@ type GameInstance struct {
 	factionClients map[*Client]int
 	actions        map[int]*submittedAction
 	movementOrders map[int][]game.MovementOrder
+	attackOrders   map[int][]game.AttackOrder
 	// movementPriorities records routes assigned this round so they receive
 	// their promised first advancement before the regular round-robin queue.
 	movementPriorities map[int]game.Hex
 	actionResults      map[int]*game.ActionResult
 	movementEvents     []game.MovementEvent
+	attackEvents       []game.AttackEvent
 	clientsChanged     chan struct{}
 	done               chan struct{}
 	mu                 sync.RWMutex
@@ -52,8 +54,10 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 		factionClients:     factionClients,
 		actions:            make(map[int]*submittedAction),
 		movementOrders:     make(map[int][]game.MovementOrder),
+		attackOrders:       make(map[int][]game.AttackOrder),
 		movementPriorities: make(map[int]game.Hex),
 		actionResults:      make(map[int]*game.ActionResult),
+		attackEvents:       nil,
 		clientsChanged:     make(chan struct{}, 1),
 		done:               make(chan struct{}),
 	}
@@ -80,6 +84,29 @@ func (gi *GameInstance) SubmitAction(
 		return fmt.Errorf("client not in this game")
 	}
 
+	if actionType == game.ActionAttack {
+		if attack == nil {
+			return fmt.Errorf("attack payload was missing")
+		}
+		factionOwner := int8(factionIdx)
+		source := gi.game.Map.GetCell(attack.From)
+		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner {
+			return fmt.Errorf("no friendly unit at attack source")
+		}
+		if gi.game.Map.GetCell(attack.To) == nil {
+			return fmt.Errorf("attack target cell does not exist")
+		}
+
+		if !game.HexAdjacent(attack.From, attack.To) {
+			gi.movementOrders[factionIdx] = removeMovementOrder(gi.movementOrders[factionIdx], attack.From)
+			gi.attackOrders[factionIdx] = removeAttackOrder(gi.attackOrders[factionIdx], attack.From)
+			gi.attackOrders[factionIdx] = append(gi.attackOrders[factionIdx], game.AttackOrder{
+				From: attack.From, TargetTile: attack.To,
+			})
+			return nil
+		}
+	}
+
 	if actionType == game.ActionMove {
 		if move == nil {
 			return fmt.Errorf("move payload was missing")
@@ -103,8 +130,8 @@ func (gi *GameInstance) setMovementOrderLocked(
 	factionOwner := int8(factionIdx)
 	source := gi.game.Map.GetCell(move.From)
 	if source == nil ||
-		source.Unit == game.UnitUnknown ||
-		source.UnitOwner != factionOwner {
+		!source.HasUnits() ||
+		source.Units[0].Owner != factionOwner {
 		return fmt.Errorf("no friendly unit at movement source")
 	}
 	if move.From == move.To {
@@ -120,6 +147,7 @@ func (gi *GameInstance) setMovementOrderLocked(
 		Destination: move.To,
 	})
 	gi.movementPriorities[factionIdx] = move.From
+	gi.attackOrders[factionIdx] = removeAttackOrder(gi.attackOrders[factionIdx], move.From)
 	return nil
 }
 
@@ -221,15 +249,16 @@ func (gi *GameInstance) Run() {
 		}
 		f := gi.game.Factions[i]
 		startPacket := &packets.S2CGameStartPacket{
-			FactionIdx:  i,
-			Map:         gi.game.Map,
-			Coins:       f.Coins,
-			Points:      f.Points,
-			Resources:   f.Resources,
-			Round:       1,
-			Deadline:    firstDeadline.UnixNano(),
-			GameEndTime: gi.game.GameEndTime,
-			Orders:      []game.MovementOrder{},
+			FactionIdx:   i,
+			Map:          gi.game.Map,
+			Coins:        f.Coins,
+			Points:       f.Points,
+			Resources:    f.Resources,
+			Round:        1,
+			Deadline:     firstDeadline.UnixNano(),
+			GameEndTime:  gi.game.GameEndTime,
+			Orders:       []game.MovementOrder{},
+			AttackOrders: []game.AttackOrder{},
 		}
 		gi.sendToClient(c, startPacket)
 	}
@@ -249,23 +278,27 @@ func (gi *GameInstance) Run() {
 			f := gi.game.Factions[i]
 			gi.mu.RLock()
 			orders := append([]game.MovementOrder{}, gi.movementOrders[i]...)
+			attackOrders := append([]game.AttackOrder{}, gi.attackOrders[i]...)
 			var result *game.ActionResult
 			if gi.actionResults[i] != nil {
 				copy := *gi.actionResults[i]
 				result = &copy
 			}
 			movements := copyMovementEvents(gi.movementEvents)
+			attackEvents := copyAttackEvents(gi.attackEvents)
 			gi.mu.RUnlock()
 			statePacket := &packets.S2CGameStatePacket{
-				Round:     gi.game.Round,
-				Deadline:  deadline.UnixNano(),
-				Map:       gi.game.Map,
-				Coins:     f.Coins,
-				Points:    f.Points,
-				Resources: f.Resources,
-				Orders:    orders,
-				Result:    result,
-				Movements: movements,
+				Round:        gi.game.Round,
+				Deadline:     deadline.UnixNano(),
+				Map:          gi.game.Map,
+				Coins:        f.Coins,
+				Points:       f.Points,
+				Resources:    f.Resources,
+				Orders:       orders,
+				Result:       result,
+				Movements:    movements,
+				AttackOrders: attackOrders,
+				AttackEvents: attackEvents,
 			}
 			gi.sendToClient(c, statePacket)
 		}
@@ -288,6 +321,12 @@ func (gi *GameInstance) Run() {
 			return
 		}
 	}
+}
+
+func copyAttackEvents(events []game.AttackEvent) []game.AttackEvent {
+	copied := make([]game.AttackEvent, len(events))
+	copy(copied, events)
+	return copied
 }
 
 func copyMovementEvents(events []game.MovementEvent) []game.MovementEvent {
@@ -352,7 +391,7 @@ func (gi *GameInstance) assignStartingCells() {
 		claimed = append(claimed, hex)
 		cell := m.GetCell(hex)
 		cell.Owner = int8(i)
-		cell.Building = game.BuildingTownhall
+		cell.Building = &game.BuildingData{Type: game.BuildingTownhall, HP: game.BuildingMaxHP(game.BuildingTownhall)}
 	}
 }
 
@@ -439,7 +478,7 @@ func (gi *GameInstance) checkAlive() int {
 		for x := range gi.game.Map.Grid {
 			for y := range gi.game.Map.Grid[x] {
 				if gi.game.Map.Grid[x][y].Owner == int8(i) &&
-					gi.game.Map.Grid[x][y].Building == game.BuildingTownhall {
+					gi.game.Map.Grid[x][y].BuildingType() == game.BuildingTownhall {
 					alive = true
 					break
 				}

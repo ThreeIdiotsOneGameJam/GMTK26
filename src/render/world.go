@@ -106,9 +106,11 @@ type WorldRenderer struct {
 	LocalResources game.Resources
 	ActionsEnabled bool
 
-	Orders       []game.MovementOrder
-	PreviewPath  []game.Hex
-	PreviewStops []game.Hex
+	Orders        []game.MovementOrder
+	AttackOrders  []game.AttackOrder
+	PreviewPath   []game.Hex
+	PreviewStops  []game.Hex
+	PreviewTarget *game.Hex
 
 	TargetPosition   v.Vec2
 	InterpolateFocus bool
@@ -133,8 +135,9 @@ type WorldRenderer struct {
 	viewport    rl.RenderTexture2D
 	initialized bool
 
-	unitAnimations []unitAnimation
-	selectionMenu  selectionMenu
+	unitAnimations   []unitAnimation
+	attackAnimations []attackAnimation
+	selectionMenu    selectionMenu
 }
 
 func (r *WorldRenderer) Init(m *game.Map) {
@@ -204,6 +207,7 @@ func (r *WorldRenderer) Unload() {
 
 func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.updateUnitAnimations(delta)
+	r.updateAttackAnimations(delta)
 	deltaSeconds := float32(delta.Seconds())
 	srcRect, dstRect := r.viewportRects()
 	mouse := global.MousePosition
@@ -500,8 +504,8 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 	if r.ActionsEnabled && r.SelectedHex != nil && r.SelectedKind == SelectionUnit {
 		from := *r.SelectedHex
 		source := m.GetCell(from)
-		if source != nil && source.Unit != game.UnitUnknown &&
-			source.UnitOwner == r.LocalFaction {
+		if source != nil && source.HasUnits() &&
+			source.Units[0].Owner == r.LocalFaction {
 			if hex == from {
 				if r.hasMovementOrder(from) && r.OnCancelMovement != nil {
 					if r.OnCancelMovement(from) {
@@ -512,16 +516,12 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 				}
 				return
 			}
-			if cell.Unit != game.UnitUnknown && cell.UnitOwner == r.LocalFaction {
+			if cell.HasUnits() && cell.Units[0].Owner == r.LocalFaction {
 				r.selectCell(hex, cell)
 				return
 			}
-			if source.Unit != game.UnitScout &&
-				game.HexAdjacent(from, hex) &&
-				cell.Building != game.BuildingUnknown &&
-				cell.Building != game.BuildingTownhall &&
-				cell.Owner >= 0 &&
-				cell.Owner != r.LocalFaction {
+			if source.Units[0].Type != game.UnitScout &&
+				(hasEnemyUnit(cell, r.LocalFaction) || hasEnemyBuilding(cell, r.LocalFaction)) {
 				if r.OnAttack != nil && r.OnAttack(from, hex) {
 					r.ClearQueuedBuilding()
 				}
@@ -537,7 +537,7 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 		}
 	}
 
-	if cell.Building != game.BuildingUnknown || cell.Unit != game.UnitUnknown {
+	if cell.HasBuilding() || cell.HasUnits() {
 		r.selectCell(hex, cell)
 		return
 	}
@@ -547,6 +547,7 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 func (r *WorldRenderer) updateMovementPreview(m *game.Map, hovered game.Hex) {
 	r.PreviewPath = nil
 	r.PreviewStops = nil
+	r.PreviewTarget = nil
 	if !r.ActionsEnabled ||
 		r.BuildingToPlace != game.BuildingUnknown ||
 		r.RecruitToPlace != game.UnitUnknown ||
@@ -556,19 +557,34 @@ func (r *WorldRenderer) updateMovementPreview(m *game.Map, hovered game.Hex) {
 		return
 	}
 	source := m.GetCell(*r.SelectedHex)
-	if source == nil || source.Unit == game.UnitUnknown || source.UnitOwner != r.LocalFaction {
+	if source == nil || !source.HasUnits() || source.Units[0].Owner != r.LocalFaction {
 		return
 	}
 	path, ok := m.FindUnitPath(r.LocalFaction, *r.SelectedHex, hovered)
 	if !ok {
+		if hasEnemyUnit(m.GetCell(hovered), r.LocalFaction) ||
+			hasEnemyBuilding(m.GetCell(hovered), r.LocalFaction) {
+			approachPath, _, approachOk := m.FindAdjacentApproachPath(
+				r.LocalFaction, *r.SelectedHex, hovered,
+			)
+			if approachOk {
+				r.PreviewPath = approachPath
+				r.PreviewTarget = &hovered
+				r.PreviewStops = m.MovementTurnStops(approachPath, game.UnitMovementBudget(source.Units[0].Type))
+			}
+		}
 		return
 	}
 	r.PreviewPath = path
-	r.PreviewStops = m.MovementTurnStops(path, game.UnitMovementBudget(source.Unit))
+	r.PreviewStops = m.MovementTurnStops(path, game.UnitMovementBudget(source.Units[0].Type))
 }
 
 func (r *WorldRenderer) SetMovementOrders(orders []game.MovementOrder) {
 	r.Orders = append(r.Orders[:0], orders...)
+}
+
+func (r *WorldRenderer) SetAttackOrders(orders []game.AttackOrder) {
+	r.AttackOrders = append(r.AttackOrders[:0], orders...)
 }
 
 func (r *WorldRenderer) QueueMovementOrder(from, destination game.Hex) {
@@ -641,6 +657,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	r.drawBuildings(m, visible, mousePos)
 	r.drawUnits(m, visible)
 	r.drawUnitAnimations()
+	r.drawAttackAnimations()
 	rl.EndMode2D()
 
 	rl.EndTextureMode()

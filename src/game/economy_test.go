@@ -5,10 +5,10 @@ import "testing"
 func TestFactionRoundIncome(t *testing.T) {
 	m := Map{
 		Grid: [][]Cell{
-			{{Tile: TilePlains, Owner: 0, Building: BuildingTownhall}},
-			{{Tile: TilePlains, Owner: 0, Building: BuildingFarm}},
-			{{Tile: TileForest, Owner: 0, Building: BuildingForester}},
-			{{Tile: TileGold, Owner: 1, Building: BuildingMine}},
+			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingTownhall, HP: 20}}},
+			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingFarm, HP: 8}}},
+			{{Tile: TileForest, Owner: 0, Building: &BuildingData{Type: BuildingForester, HP: 8}}},
+			{{Tile: TileGold, Owner: 1, Building: &BuildingData{Type: BuildingMine, HP: 10}}},
 		},
 	}
 
@@ -28,8 +28,8 @@ func TestFactionRoundIncome(t *testing.T) {
 func TestCanAffordUnitAfterRoundIncome(t *testing.T) {
 	m := Map{
 		Grid: [][]Cell{
-			{{Tile: TilePlains, Owner: 0, Building: BuildingTownhall}},
-			{{Tile: TilePlains, Owner: 0, Building: BuildingFarm}},
+			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingTownhall, HP: 20}}},
+			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingFarm, HP: 8}}},
 		},
 	}
 

@@ -43,7 +43,7 @@ func TestTileHoverLines(t *testing.T) {
 			cell: &game.Cell{
 				Tile:     game.TilePlains,
 				Owner:    1,
-				Building: game.BuildingTownhall,
+				Building: &game.BuildingData{Type: game.BuildingTownhall, HP: game.BuildingMaxHP(game.BuildingTownhall)},
 			},
 			want: []string{
 				"Tile: Plains",
@@ -64,10 +64,9 @@ func TestTileHoverLines(t *testing.T) {
 		{
 			name: "unit",
 			cell: &game.Cell{
-				Tile:      game.TilePlains,
-				Owner:     -1,
-				Unit:      game.UnitScout,
-				UnitOwner: 2,
+				Tile:  game.TilePlains,
+				Owner: -1,
+				Units: []game.UnitData{{Type: game.UnitScout, Owner: 2, HP: 3}},
 			},
 			want: []string{
 				"Tile: Plains",
@@ -81,7 +80,7 @@ func TestTileHoverLines(t *testing.T) {
 			cell: &game.Cell{
 				Tile:     game.TilePlains,
 				Owner:    0,
-				Building: game.BuildingBarracks,
+				Building: &game.BuildingData{Type: game.BuildingBarracks, HP: game.BuildingMaxHP(game.BuildingBarracks)},
 			},
 			want: []string{
 				"Tile: Plains",
@@ -95,7 +94,7 @@ func TestTileHoverLines(t *testing.T) {
 			cell: &game.Cell{
 				Tile:     game.TilePlains,
 				Owner:    0,
-				Building: game.BuildingFarm,
+				Building: &game.BuildingData{Type: game.BuildingFarm, HP: game.BuildingMaxHP(game.BuildingFarm)},
 			},
 			want: []string{
 				"Tile: Plains",
@@ -107,11 +106,10 @@ func TestTileHoverLines(t *testing.T) {
 		{
 			name: "building resource and unit",
 			cell: &game.Cell{
-				Tile:      game.TileGold,
-				Owner:     0,
-				Building:  game.BuildingMine,
-				Unit:      game.UnitKnight,
-				UnitOwner: 1,
+				Tile:     game.TileGold,
+				Owner:    0,
+				Building: &game.BuildingData{Type: game.BuildingMine, HP: game.BuildingMaxHP(game.BuildingMine)},
+				Units:    []game.UnitData{{Type: game.UnitKnight, Owner: 1, HP: 5}},
 			},
 			want: []string{
 				"Tile: Gold",

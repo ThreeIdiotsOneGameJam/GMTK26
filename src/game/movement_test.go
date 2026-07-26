@@ -86,8 +86,7 @@ func TestFindUnitPathUsesTerrainOwnershipAndBlockers(t *testing.T) {
 	m := movementTestMap(1, 4)
 	start := NewHex(0, 0)
 	goal := NewHex(0, 3)
-	m.GetCell(start).Unit = UnitScout
-	m.GetCell(start).UnitOwner = 0
+	m.GetCell(start).Units = []UnitData{{Type: UnitScout, Owner: 0, HP: 3}}
 
 	if _, ok := m.FindUnitPath(0, start, goal); !ok {
 		t.Fatal("expected clear friendly/unclaimed path")
@@ -99,8 +98,7 @@ func TestFindUnitPathUsesTerrainOwnershipAndBlockers(t *testing.T) {
 	}
 
 	m.GetCell(NewHex(0, 1)).Owner = -1
-	m.GetCell(NewHex(0, 1)).Unit = UnitPeasant
-	m.GetCell(NewHex(0, 1)).UnitOwner = 0
+	m.GetCell(NewHex(0, 1)).Units = []UnitData{{Type: UnitPeasant, Owner: 0, HP: 3}}
 	if _, ok := m.FindUnitPath(0, start, goal); ok {
 		t.Fatal("path crossed friendly unit blocker")
 	}
@@ -110,8 +108,7 @@ func TestFindUnitPathChoosesCheaperTerrain(t *testing.T) {
 	m := movementTestMap(3, 2)
 	start := NewHex(0, 1)
 	goal := NewHex(2, 1)
-	m.GetCell(start).Unit = UnitKnight
-	m.GetCell(start).UnitOwner = 0
+	m.GetCell(start).Units = []UnitData{{Type: UnitKnight, Owner: 0, HP: 5}}
 	m.GetCell(NewHex(1, 1)).Tile = TileJungle
 
 	path, ok := m.FindUnitPath(0, start, goal)

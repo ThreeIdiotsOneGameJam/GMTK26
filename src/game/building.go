@@ -23,7 +23,7 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 	}
 
 	cell := m.GetCell(hex)
-	if cell.Building != BuildingUnknown {
+	if cell.HasBuilding() {
 		return false
 	}
 
@@ -51,4 +51,21 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 	}
 
 	return false
+}
+
+func BuildingMaxHP(b BuildingType) int8 {
+	switch b {
+	case BuildingTownhall:
+		return 20
+	case BuildingBarracks:
+		return 10
+	case BuildingForester:
+		return 8
+	case BuildingMine:
+		return 10
+	case BuildingFarm:
+		return 8
+	default:
+		return 0
+	}
 }

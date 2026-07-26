@@ -81,7 +81,7 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 	}
 
 	selectedCell := m.GetCell(*r.SelectedHex)
-	if selectedCell == nil || selectedCell.Building == game.BuildingUnknown {
+	if selectedCell == nil || !selectedCell.HasBuilding() {
 		el.lay = buildingDetailsLayout{}
 		return
 	}
@@ -187,15 +187,15 @@ func tileHoverLines(cell *game.Cell, hex game.Hex, showCoordinates bool) []strin
 	}
 
 	var contents []string
-	if cell.Building != game.BuildingUnknown {
-		building := "Building: " + buildingLabel(cell.Building)
-		if output := buildingOutputText(cell.Building, cell.Tile); output != "" {
+	if cell.HasBuilding() {
+		building := "Building: " + buildingLabel(cell.BuildingType())
+		if output := buildingOutputText(cell.BuildingType(), cell.Tile); output != "" {
 			building += " - " + output
 		}
 		contents = append(contents, building)
 	}
-	if cell.Unit != game.UnitUnknown {
-		contents = append(contents, fmt.Sprintf("Unit: %s - %s", cell.Unit, factionLabel(cell.UnitOwner)))
+	if cell.HasUnits() {
+		contents = append(contents, fmt.Sprintf("Unit: %s - %s", cell.Units[0].Type, factionLabel(cell.Units[0].Owner)))
 	}
 	if len(lines) > 0 && len(contents) > 0 {
 		lines = append(lines, "")
@@ -282,8 +282,8 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 	btnH := int32(26)
 	btnGap := int32(4)
 
-	label := buildingLabel(cell.Building)
-	prod := buildingProductionText(cell.Building, cell.Tile)
+	label := buildingLabel(cell.BuildingType())
+	prod := buildingProductionText(cell.BuildingType(), cell.Tile)
 
 	lines := []string{label}
 	if prod != "" {
@@ -302,7 +302,7 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 
 	var buttons []buttonRect
 
-	if cell.Building == game.BuildingBarracks || cell.Building == game.BuildingTownhall {
+	if cell.BuildingType() == game.BuildingBarracks || cell.BuildingType() == game.BuildingTownhall {
 		y := bgY + headerH + contentH + pad
 		units := []struct {
 			label string
@@ -313,7 +313,7 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 			{"Knight 30c 5f", game.UnitKnight},
 			{"Scout 10c", game.UnitScout},
 		}
-		if cell.Building == game.BuildingTownhall {
+		if cell.BuildingType() == game.BuildingTownhall {
 			units = units[3:]
 		}
 		panelH += pad*2 + int32(len(units))*(btnH+btnGap)

@@ -31,8 +31,8 @@ func actionTestGame(width, height int32) *game.Game {
 
 func putUnit(g *game.Game, hex game.Hex, unit game.UnitType, owner int8) {
 	cell := g.Map.GetCell(hex)
-	cell.Unit = unit
-	cell.UnitOwner = owner
+	stats := game.GetUnitStats(unit)
+	cell.Units = []game.UnitData{{Type: unit, Owner: owner, HP: stats.MaxHP}}
 }
 
 func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
@@ -50,9 +50,10 @@ func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
 	gi.processClientActions()
 
 	endpoint := game.NewHex(0, 2)
-	if g.Map.GetCell(endpoint).Unit != game.UnitPeasant ||
-		g.Map.GetCell(endpoint).UnitOwner != 0 ||
-		g.Map.GetCell(from).Unit != game.UnitUnknown {
+	if !g.Map.GetCell(endpoint).HasUnits() ||
+		g.Map.GetCell(endpoint).Units[0].Type != game.UnitPeasant ||
+		g.Map.GetCell(endpoint).Units[0].Owner != 0 ||
+		g.Map.GetCell(from).HasUnits() {
 		t.Fatalf("unit did not move to %v", endpoint)
 	}
 	orders := gi.movementOrders[0]
@@ -94,7 +95,7 @@ func TestActionPacketReachesAuthoritativeMovementResolver(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(destination).Unit != game.UnitScout {
+	if !g.Map.GetCell(destination).HasUnits() || g.Map.GetCell(destination).Units[0].Type != game.UnitScout {
 		t.Fatal("packet-submitted movement did not resolve")
 	}
 	result := gi.actionResults[0]
@@ -123,10 +124,10 @@ func TestNewRouteAdvancesBeforeExistingRoundRobinQueue(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(newTo).Unit != game.UnitScout {
+	if !g.Map.GetCell(newTo).HasUnits() || g.Map.GetCell(newTo).Units[0].Type != game.UnitScout {
 		t.Fatal("newly assigned route did not receive first advancement")
 	}
-	if g.Map.GetCell(oldFrom).Unit != game.UnitScout {
+	if !g.Map.GetCell(oldFrom).HasUnits() || g.Map.GetCell(oldFrom).Units[0].Type != game.UnitScout {
 		t.Fatal("existing round-robin route advanced before the new route")
 	}
 }
@@ -155,7 +156,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(from).Unit != game.UnitScout {
+	if !g.Map.GetCell(from).HasUnits() || g.Map.GetCell(from).Units[0].Type != game.UnitScout {
 		t.Fatal("manual build did not suppress route advancement")
 	}
 	if len(gi.movementOrders[0]) != 1 {
@@ -167,7 +168,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 
 	delete(gi.actions, 0)
 	gi.processClientActions()
-	if g.Map.GetCell(destination).Unit != game.UnitScout {
+	if !g.Map.GetCell(destination).HasUnits() || g.Map.GetCell(destination).Units[0].Type != game.UnitScout {
 		t.Fatal("persisted route did not advance on the next free round")
 	}
 }
@@ -189,7 +190,7 @@ func TestAutomaticMovementSkipsBlockedOrder(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(movableDestination).Unit != game.UnitScout {
+	if !g.Map.GetCell(movableDestination).HasUnits() || g.Map.GetCell(movableDestination).Units[0].Type != game.UnitScout {
 		t.Fatal("movable order did not advance")
 	}
 	if got := gi.movementOrders[0]; len(got) != 1 || got[0].Current != blockedFrom {
@@ -210,7 +211,7 @@ func TestPassSuppressesAutomaticMovement(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(from).Unit != game.UnitScout {
+	if !g.Map.GetCell(from).HasUnits() || g.Map.GetCell(from).Units[0].Type != game.UnitScout {
 		t.Fatal("pass allowed automatic movement")
 	}
 	if len(gi.movementOrders[0]) != 1 {
@@ -306,10 +307,10 @@ func TestCancelPendingBuildRestoresAutomaticMovement(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(buildTo).Building != game.BuildingUnknown {
+	if g.Map.GetCell(buildTo).HasBuilding() {
 		t.Fatal("cancelled building was constructed")
 	}
-	if g.Map.GetCell(moveTo).Unit != game.UnitPeasant {
+	if !g.Map.GetCell(moveTo).HasUnits() || g.Map.GetCell(moveTo).Units[0].Type != game.UnitPeasant {
 		t.Fatal("cancelling the build did not restore automatic movement")
 	}
 }
@@ -381,10 +382,10 @@ func TestCancelBuildAdvancesRouteAssignedInSameRound(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(destination).Unit != game.UnitScout {
+	if !g.Map.GetCell(destination).HasUnits() || g.Map.GetCell(destination).Units[0].Type != game.UnitScout {
 		t.Fatal("same-round route did not advance after pending build cancellation")
 	}
-	if g.Map.GetCell(buildTarget).Building != game.BuildingUnknown {
+	if g.Map.GetCell(buildTarget).HasBuilding() {
 		t.Fatal("cancelled build resolved")
 	}
 }
@@ -400,9 +401,9 @@ func TestContestedMovementCancelsAllOrders(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(left).Unit == game.UnitUnknown ||
-		g.Map.GetCell(right).Unit == game.UnitUnknown ||
-		g.Map.GetCell(target).Unit != game.UnitUnknown {
+	if !g.Map.GetCell(left).HasUnits() ||
+		!g.Map.GetCell(right).HasUnits() ||
+		g.Map.GetCell(target).HasUnits() {
 		t.Fatal("contested movement mutated unit positions")
 	}
 	if len(gi.movementOrders[0]) != 0 || len(gi.movementOrders[1]) != 0 {
@@ -434,9 +435,9 @@ func TestMixedBuildAndMoveConflictFailsBoth(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(moveFrom).Unit != game.UnitPeasant ||
-		g.Map.GetCell(target).Unit != game.UnitUnknown ||
-		g.Map.GetCell(target).Building != game.BuildingUnknown {
+	if g.Map.GetCell(moveFrom).HasUnits() == false ||
+		g.Map.GetCell(target).HasUnits() ||
+		g.Map.GetCell(target).HasBuilding() {
 		t.Fatal("mixed conflict mutated target")
 	}
 	if g.Factions[1].Coins != 100 {
@@ -453,7 +454,7 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
 	source := g.Map.GetCell(from)
 	source.Owner = 0
-	source.Building = game.BuildingTownhall
+	source.Building = &game.BuildingData{Type: game.BuildingTownhall, HP: game.BuildingMaxHP(game.BuildingTownhall)}
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type: game.ActionRecruit,
@@ -467,7 +468,7 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 	gi.processClientActions()
 
 	target := g.Map.GetCell(to)
-	if target.Unit != game.UnitScout || target.UnitOwner != 0 || target.Owner != -1 {
+	if !target.HasUnits() || target.Units[0].Type != game.UnitScout || target.Units[0].Owner != 0 || target.Owner != -1 {
 		t.Fatalf("recruitment target = %+v", target)
 	}
 	if g.Factions[0].Coins != 90 {
@@ -480,10 +481,10 @@ func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
 	from, to, farm := game.NewHex(0, 0), game.NewHex(1, 0), game.NewHex(2, 0)
 	source := g.Map.GetCell(from)
 	source.Owner = 0
-	source.Building = game.BuildingBarracks
+	source.Building = &game.BuildingData{Type: game.BuildingBarracks, HP: game.BuildingMaxHP(game.BuildingBarracks)}
 	farmCell := g.Map.GetCell(farm)
 	farmCell.Owner = 0
-	farmCell.Building = game.BuildingFarm
+	farmCell.Building = &game.BuildingData{Type: game.BuildingFarm, HP: game.BuildingMaxHP(game.BuildingFarm)}
 
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
@@ -498,7 +499,7 @@ func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
 	gi.processAutoActions()
 	gi.processClientActions()
 
-	if g.Map.GetCell(to).Unit != game.UnitPeasant {
+	if g.Map.GetCell(to).HasUnits() && g.Map.GetCell(to).Units[0].Type != game.UnitPeasant {
 		t.Fatal("incoming Farm food did not fund recruitment")
 	}
 	if got := g.Factions[0].Resources[game.ResourceFood]; got != 1 {
@@ -514,7 +515,7 @@ func TestRecruitRejectsInsufficientFood(t *testing.T) {
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
 	source := g.Map.GetCell(from)
 	source.Owner = 0
-	source.Building = game.BuildingBarracks
+	source.Building = &game.BuildingData{Type: game.BuildingBarracks, HP: game.BuildingMaxHP(game.BuildingBarracks)}
 	g.Factions[0].Resources = game.Resources{game.ResourceFood: 2}
 
 	gi := NewGameInstance(1, g, nil)
@@ -529,7 +530,7 @@ func TestRecruitRejectsInsufficientFood(t *testing.T) {
 
 	gi.processClientActions()
 
-	if g.Map.GetCell(to).Unit != game.UnitUnknown {
+	if g.Map.GetCell(to).HasUnits() {
 		t.Fatal("Archer was recruited without enough Food")
 	}
 	if g.Factions[0].Resources[game.ResourceFood] != 2 || g.Factions[0].Coins != 100 {
@@ -560,23 +561,22 @@ func TestScoutBuildsAdjacentAndClaims(t *testing.T) {
 	gi.processClientActions()
 
 	target := g.Map.GetCell(to)
-	if target.Building != game.BuildingBarracks || target.Owner != 0 {
+	if target.BuildingType() != game.BuildingBarracks || target.Owner != 0 {
 		t.Fatalf("build target = %+v", target)
 	}
-	if g.Map.GetCell(from).Unit != game.UnitScout {
+	if !g.Map.GetCell(from).HasUnits() || g.Map.GetCell(from).Units[0].Type != game.UnitScout {
 		t.Fatal("Scout was consumed by construction")
 	}
 }
 
-func TestAttackUnclaimsBuildingButPreservesUnitOwner(t *testing.T) {
+func TestAttackDamagesUnitOverBuilding(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
 	putUnit(g, from, game.UnitPeasant, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
-	target.Building = game.BuildingBarracks
-	target.Unit = game.UnitKnight
-	target.UnitOwner = 1
+	target.Building = &game.BuildingData{Type: game.BuildingBarracks, HP: game.BuildingMaxHP(game.BuildingBarracks)}
+	target.Units = []game.UnitData{{Type: game.UnitKnight, Owner: 1, HP: game.GetUnitStats(game.UnitKnight).MaxHP}}
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type:   game.ActionAttack,
@@ -585,21 +585,31 @@ func TestAttackUnclaimsBuildingButPreservesUnitOwner(t *testing.T) {
 
 	gi.processClientActions()
 
-	if target.Building != game.BuildingUnknown ||
-		target.Owner != -1 ||
-		target.Unit != game.UnitKnight ||
-		target.UnitOwner != 1 {
-		t.Fatalf("attack target = %+v", target)
+	if !target.HasBuilding() || target.BuildingType() != game.BuildingBarracks {
+		t.Fatal("attack hit building instead of enemy unit")
+	}
+	if target.Owner != 1 {
+		t.Fatal("territory ownership changed when building was not destroyed")
+	}
+	if !target.HasUnits() || target.Units[0].Type != game.UnitKnight || target.Units[0].Owner != 1 {
+		t.Fatal("enemy unit was destroyed")
+	}
+	wantHP := game.GetUnitStats(game.UnitKnight).MaxHP - game.GetUnitStats(game.UnitPeasant).Attack
+	if target.Units[0].HP != wantHP {
+		t.Fatalf("enemy unit HP = %d, want %d", target.Units[0].HP, wantHP)
+	}
+	if gi.actionResults[0].Status != game.ActionResultSucceeded {
+		t.Fatalf("result = %+v", gi.actionResults[0])
 	}
 }
 
-func TestTownhallIsImmune(t *testing.T) {
+func TestTownhallTakesDamage(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
 	putUnit(g, from, game.UnitKnight, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
-	target.Building = game.BuildingTownhall
+	target.Building = &game.BuildingData{Type: game.BuildingTownhall, HP: game.BuildingMaxHP(game.BuildingTownhall)}
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type:   game.ActionAttack,
@@ -608,10 +618,16 @@ func TestTownhallIsImmune(t *testing.T) {
 
 	gi.processClientActions()
 
-	if target.Building != game.BuildingTownhall {
-		t.Fatal("Townhall was demolished")
+	if !target.HasBuilding() || target.BuildingType() != game.BuildingTownhall {
+		t.Fatal("Townhall was demolished in one hit")
 	}
-	if gi.actionResults[0].Status != game.ActionResultInvalid {
+	if target.Building.HP <= 0 {
+		t.Fatal("Townhall HP should be positive")
+	}
+	if target.Building.HP >= game.BuildingMaxHP(game.BuildingTownhall) {
+		t.Fatal("Townhall took no damage")
+	}
+	if gi.actionResults[0].Status != game.ActionResultSucceeded {
 		t.Fatalf("result = %+v", gi.actionResults[0])
 	}
 }
@@ -622,7 +638,7 @@ func TestScoutCannotAttackBuilding(t *testing.T) {
 	putUnit(g, from, game.UnitScout, 0)
 	target := g.Map.GetCell(to)
 	target.Owner = 1
-	target.Building = game.BuildingBarracks
+	target.Building = &game.BuildingData{Type: game.BuildingBarracks, HP: game.BuildingMaxHP(game.BuildingBarracks)}
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
 		Type:   game.ActionAttack,
@@ -631,7 +647,7 @@ func TestScoutCannotAttackBuilding(t *testing.T) {
 
 	gi.processClientActions()
 
-	if target.Building != game.BuildingBarracks {
+	if !target.HasBuilding() || target.BuildingType() != game.BuildingBarracks {
 		t.Fatal("Scout demolished building")
 	}
 	if gi.actionResults[0].Status != game.ActionResultInvalid {

@@ -6,15 +6,16 @@ import (
 )
 
 type S2CGameStartPacket struct {
-	FactionIdx  int                  `json:"faction_idx"`
-	Map         game.Map             `json:"map"`
-	Coins       int32                `json:"coins"`
-	Points      int32                `json:"points"`
-	Resources   game.Resources       `json:"resources"`
-	Round       int32                `json:"round"`
-	Deadline    int64                `json:"deadline"`
-	GameEndTime int64                `json:"game_end_time"`
-	Orders      []game.MovementOrder `json:"orders"`
+	FactionIdx   int                  `json:"faction_idx"`
+	Map          game.Map             `json:"map"`
+	Coins        int32                `json:"coins"`
+	Points       int32                `json:"points"`
+	Resources    game.Resources       `json:"resources"`
+	Round        int32                `json:"round"`
+	Deadline     int64                `json:"deadline"`
+	GameEndTime  int64                `json:"game_end_time"`
+	Orders       []game.MovementOrder `json:"orders"`
+	AttackOrders []game.AttackOrder   `json:"attack_orders"`
 }
 
 func init() {
@@ -33,15 +34,16 @@ func (*S2CGameStartPacket) isS2C()                 {}
 
 func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	type startPayload struct {
-		FactionIdx  *int                  `json:"faction_idx"`
-		Map         *game.Map             `json:"map"`
-		Coins       *int32                `json:"coins"`
-		Points      *int32                `json:"points"`
-		Resources   *game.Resources       `json:"resources"`
-		Round       *int32                `json:"round"`
-		Deadline    *int64                `json:"deadline"`
-		GameEndTime *int64                `json:"game_end_time"`
-		Orders      *[]game.MovementOrder `json:"orders"`
+		FactionIdx   *int                  `json:"faction_idx"`
+		Map          *game.Map             `json:"map"`
+		Coins        *int32                `json:"coins"`
+		Points       *int32                `json:"points"`
+		Resources    *game.Resources       `json:"resources"`
+		Round        *int32                `json:"round"`
+		Deadline     *int64                `json:"deadline"`
+		GameEndTime  *int64                `json:"game_end_time"`
+		Orders       *[]game.MovementOrder `json:"orders"`
+		AttackOrders *[]game.AttackOrder   `json:"attack_orders"`
 	}
 	var payload startPayload
 	if err := jsonutil.DecodeStrict(data, &payload); err != nil {
@@ -74,6 +76,9 @@ func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	if payload.Orders == nil {
 		return errMissingField("s2c_game_start", "orders")
 	}
+	if payload.AttackOrders == nil {
+		return errMissingField("s2c_game_start", "attack_orders")
+	}
 
 	p.FactionIdx = *payload.FactionIdx
 	p.Map = *payload.Map
@@ -84,5 +89,6 @@ func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	p.Deadline = *payload.Deadline
 	p.GameEndTime = *payload.GameEndTime
 	p.Orders = *payload.Orders
+	p.AttackOrders = *payload.AttackOrders
 	return nil
 }

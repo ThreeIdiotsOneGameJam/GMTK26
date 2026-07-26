@@ -25,7 +25,34 @@ type roundIntent struct {
 func (gi *GameInstance) processClientActions() {
 	gi.actionResults = make(map[int]*game.ActionResult)
 	gi.movementEvents = nil
+	gi.attackEvents = nil
 
+	// Phase 1: auto-attacks from persistent AttackOrders (no contest)
+	for factionIdx := range gi.game.Factions {
+		allOrders := gi.attackOrders[factionIdx]
+		remaining := allOrders[:0]
+		for _, order := range allOrders {
+			source := gi.game.Map.GetCell(order.From)
+			target := gi.game.Map.GetCell(order.TargetTile)
+			if source == nil || target == nil || !source.HasUnits() ||
+				source.Units[0].Owner != int8(factionIdx) {
+				continue
+			}
+			if !game.HexAdjacent(order.From, order.TargetTile) {
+				remaining = append(remaining, order)
+				continue
+			}
+			if !gi.resolveAttack(factionIdx, order.From, order.TargetTile) {
+				continue
+			}
+			if hasEnemies(target, int8(factionIdx)) {
+				remaining = append(remaining, order)
+			}
+		}
+		gi.attackOrders[factionIdx] = remaining
+	}
+
+	// Phase 2: manual actions + auto-movement
 	intents := make([]*roundIntent, len(gi.game.Factions))
 	for factionIdx := range gi.game.Factions {
 		action, submitted := gi.actions[factionIdx]
@@ -62,8 +89,7 @@ func (gi *GameInstance) processClientActions() {
 			intent.result.Message = "Action cancelled: destination was contested"
 			if intent.action == game.ActionMove {
 				gi.movementOrders[intent.faction] = removeMovementOrder(
-					gi.movementOrders[intent.faction],
-					intent.from,
+					gi.movementOrders[intent.faction], intent.from,
 				)
 			}
 			gi.recordResult(intent)
@@ -73,6 +99,15 @@ func (gi *GameInstance) processClientActions() {
 		gi.recordResult(intent)
 	}
 	gi.movementPriorities = make(map[int]game.Hex)
+}
+
+func hasEnemies(cell *game.Cell, factionOwner int8) bool {
+	for _, u := range cell.Units {
+		if u.Owner != factionOwner {
+			return true
+		}
+	}
+	return cell.HasBuilding() && cell.Owner >= 0 && cell.Owner != factionOwner
 }
 
 func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction) *roundIntent {
@@ -101,13 +136,13 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		}
 		if game.TerrainMovementCost(target.Tile) <= 0 ||
 			(target.Owner != -1 && target.Owner != factionOwner) ||
-			target.Unit != game.UnitUnknown {
+			target.HasUnits() {
 			return intent.invalid("Recruitment target is not available")
 		}
 		validUnit := intent.unit >= game.UnitPeasant && intent.unit <= game.UnitScout
 		if !validUnit ||
-			source.Building == game.BuildingTownhall && intent.unit != game.UnitScout ||
-			source.Building != game.BuildingTownhall && source.Building != game.BuildingBarracks {
+			source.BuildingType() == game.BuildingTownhall && intent.unit != game.UnitScout ||
+			source.BuildingType() != game.BuildingTownhall && source.BuildingType() != game.BuildingBarracks {
 			return intent.invalid("Building cannot recruit that unit")
 		}
 		intent.cost = game.UnitCost(intent.unit)
@@ -131,8 +166,9 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		intent.from, intent.to, intent.building = action.Build.From, action.Build.To, action.Build.Building
 		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
 		if source == nil || target == nil ||
-			source.Unit != game.UnitScout ||
-			source.UnitOwner != factionOwner {
+			!source.HasUnits() ||
+			source.Units[0].Type != game.UnitScout ||
+			source.Units[0].Owner != factionOwner {
 			return intent.invalid("A friendly Scout is required to build")
 		}
 		if intent.from != intent.to && !game.HexAdjacent(intent.from, intent.to) {
@@ -141,7 +177,7 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if target.Owner != -1 && target.Owner != factionOwner {
 			return intent.invalid("Cannot build in enemy territory")
 		}
-		if target.Unit != game.UnitUnknown && target.UnitOwner != factionOwner {
+		if target.HasUnits() && target.Units[0].Owner != factionOwner {
 			return intent.invalid("Cannot build beneath an enemy unit")
 		}
 		if !game.BuildingCanPlace(m, intent.building, intent.to) {
@@ -163,22 +199,21 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		intent.from, intent.to = action.Attack.From, action.Attack.To
 		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
 		if source == nil || target == nil ||
-			source.Unit == game.UnitUnknown ||
-			source.Unit == game.UnitScout ||
-			source.UnitOwner != factionOwner {
+			!source.HasUnits() ||
+			source.Units[0].Type == game.UnitScout ||
+			source.Units[0].Owner != factionOwner {
 			return intent.invalid("A friendly non-Scout unit is required to attack")
 		}
 		if !game.HexAdjacent(intent.from, intent.to) {
 			return intent.invalid("Attack target must be adjacent")
 		}
-		if target.Owner == -1 || target.Owner == factionOwner ||
-			target.Building == game.BuildingUnknown ||
-			target.Building == game.BuildingTownhall {
-			return intent.invalid("Building is not a valid attack target")
+		if !hasEnemies(target, factionOwner) {
+			return intent.invalid("Target has no enemy units or buildings")
 		}
+		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = fmt.Sprintf("%s demolished", target.Building)
+		intent.result.Message = "Attack ordered"
 
 	default:
 		return intent.invalid("Unknown action")
@@ -187,6 +222,54 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 }
 
 func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
+	factionOwner := int8(factionIdx)
+
+	// Phase 3: auto-follow movement from attack orders
+	allOrders := gi.attackOrders[factionIdx]
+	remainingAttacks := allOrders[:0]
+	for _, order := range allOrders {
+		source := gi.game.Map.GetCell(order.From)
+		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner {
+			continue
+		}
+		if game.HexAdjacent(order.From, order.TargetTile) {
+			remainingAttacks = append(remainingAttacks, order)
+			continue
+		}
+		path, _, ok := gi.game.Map.FindAdjacentApproachPath(
+			factionOwner, order.From, order.TargetTile,
+		)
+		if !ok {
+			remainingAttacks = append(remainingAttacks, order)
+			continue
+		}
+		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Units[0].Type))
+		if len(traversed) < 2 {
+			remainingAttacks = append(remainingAttacks, order)
+			continue
+		}
+		remainingAttacks = append(remainingAttacks, game.AttackOrder{
+			From:       traversed[len(traversed)-1],
+			TargetTile: order.TargetTile,
+		})
+		remainingAttacks = append(remainingAttacks, allOrders[len(remainingAttacks):]...)
+		gi.attackOrders[factionIdx] = remainingAttacks
+
+		intent := gi.newIntent(factionIdx, game.ActionMove, true)
+		intent.from = order.From
+		intent.destination = order.TargetTile
+		intent.to = traversed[len(traversed)-1]
+		intent.unit = source.Units[0].Type
+		intent.path = traversed
+		intent.targetsTile = true
+		intent.valid = true
+		intent.result.Status = game.ActionResultSucceeded
+		intent.result.Message = "Advancing toward target"
+		return intent
+	}
+	gi.attackOrders[factionIdx] = remainingAttacks
+
+	// Regular movement order advancement
 	orders := gi.movementOrders[factionIdx]
 	if priority, ok := gi.movementPriorities[factionIdx]; ok {
 		for i, order := range orders {
@@ -200,13 +283,12 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		}
 	}
 	checked := len(orders)
-	factionOwner := int8(factionIdx)
 
 	for range checked {
 		order := orders[0]
 		orders = orders[1:]
 		source := gi.game.Map.GetCell(order.Current)
-		if source == nil || source.Unit == game.UnitUnknown || source.UnitOwner != factionOwner ||
+		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner ||
 			order.Current == order.Destination {
 			continue
 		}
@@ -215,7 +297,7 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 			orders = append(orders, order)
 			continue
 		}
-		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Unit))
+		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Units[0].Type))
 		if len(traversed) < 2 {
 			orders = append(orders, order)
 			continue
@@ -226,7 +308,7 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		intent.from = order.Current
 		intent.destination = order.Destination
 		intent.to = traversed[len(traversed)-1]
-		intent.unit = source.Unit
+		intent.unit = source.Units[0].Type
 		intent.path = traversed
 		intent.targetsTile = true
 		intent.valid = true
@@ -235,8 +317,14 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		return intent
 	}
 
-	gi.movementOrders[factionIdx] = orders
-	if len(orders) == 0 {
+	filtered := orders[:0]
+	for _, o := range orders {
+		if o.Current != o.Destination {
+			filtered = append(filtered, o)
+		}
+	}
+	gi.movementOrders[factionIdx] = filtered
+	if len(filtered) == 0 {
 		return nil
 	}
 	intent := gi.newIntent(factionIdx, game.ActionMove, true)
@@ -254,10 +342,9 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionMove:
 		source := m.GetCell(intent.from)
 		target := m.GetCell(intent.to)
-		source.Unit = game.UnitUnknown
-		source.UnitOwner = 0
-		target.Unit = intent.unit
-		target.UnitOwner = owner
+		source.Units = nil
+		stats := game.GetUnitStats(intent.unit)
+		target.Units = []game.UnitData{{Type: intent.unit, Owner: owner, HP: stats.MaxHP}}
 
 		if intent.destination != intent.to {
 			gi.movementOrders[intent.faction] = append(
@@ -277,20 +364,74 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 		for res, amt := range game.UnitResourceCost(intent.unit) {
 			faction.Resources[res] -= amt
 		}
-		target.Unit = intent.unit
-		target.UnitOwner = owner
+		stats := game.GetUnitStats(intent.unit)
+		target.Units = []game.UnitData{{Type: intent.unit, Owner: owner, HP: stats.MaxHP}}
 
 	case game.ActionBuild:
 		target := m.GetCell(intent.to)
 		faction.Coins -= intent.cost
 		target.Owner = owner
-		target.Building = intent.building
+		maxHP := game.BuildingMaxHP(intent.building)
+		target.Building = &game.BuildingData{Type: intent.building, HP: maxHP}
 
 	case game.ActionAttack:
-		target := m.GetCell(intent.to)
-		target.Building = game.BuildingUnknown
-		target.Owner = -1
+		gi.resolveAttack(intent.faction, intent.from, intent.to)
 	}
+}
+
+func (gi *GameInstance) resolveAttack(factionIdx int, from, to game.Hex) bool {
+	source := gi.game.Map.GetCell(from)
+	target := gi.game.Map.GetCell(to)
+	if source == nil || target == nil {
+		return false
+	}
+	if !source.HasUnits() {
+		return false
+	}
+
+	gi.attackEvents = append(gi.attackEvents, game.AttackEvent{
+		Unit:   source.Units[0].Type,
+		Owner:  int8(factionIdx),
+		From:   from,
+		Target: to,
+	})
+
+	unitOwner := int8(factionIdx)
+	stats := game.GetUnitStats(source.Units[0].Type)
+	attackPower := stats.Attack
+
+	if target.HasUnits() {
+		var enemyIdx int
+		enemyFound := false
+		for i, u := range target.Units {
+			if u.Owner != unitOwner {
+				enemyIdx = i
+				enemyFound = true
+				break
+			}
+		}
+		if !enemyFound {
+			goto tryBuilding
+		}
+		target.Units[enemyIdx].HP -= int8(attackPower)
+		if target.Units[enemyIdx].HP <= 0 {
+			copy(target.Units[enemyIdx:], target.Units[enemyIdx+1:])
+			target.Units = target.Units[:len(target.Units)-1]
+		}
+		return true
+	}
+
+tryBuilding:
+	if target.HasBuilding() && target.Owner >= 0 && target.Owner != unitOwner {
+		target.Building.HP -= int8(attackPower)
+		if target.Building.HP <= 0 {
+			target.Building = nil
+			target.Owner = -1
+		}
+		return true
+	}
+
+	return false
 }
 
 func (gi *GameInstance) newIntent(factionIdx int, action game.ActionType, automatic bool) *roundIntent {
@@ -333,6 +474,16 @@ func (gi *GameInstance) recordResult(intent *roundIntent) {
 	}
 	result := intent.result
 	gi.actionResults[intent.faction] = &result
+}
+
+func removeAttackOrder(orders []game.AttackOrder, from game.Hex) []game.AttackOrder {
+	filtered := orders[:0]
+	for _, order := range orders {
+		if order.From != from {
+			filtered = append(filtered, order)
+		}
+	}
+	return filtered
 }
 
 func removeMovementOrder(orders []game.MovementOrder, current game.Hex) []game.MovementOrder {
