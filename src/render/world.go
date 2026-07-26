@@ -50,6 +50,17 @@ const (
 	// Rate at which momentum decays after releasing the mouse.
 	panMomentumDamping = float32(4.0)
 
+	// Careful, short drags use raw momentum instead of the speed compression
+	// curve. Distance and speed are in viewport pixels, independent of zoom.
+	panMomentumShortDragDistance float32 = 32.0
+	panMomentumSlowDragSpeed     float32 = 220.0
+
+	// Treat sub-pixel samples as a stationary mouse. While stationary, quickly
+	// bleed off the sampled velocity and cancel it entirely after a short hold.
+	panStationarySampleDistance  float32 = 0.75
+	panStationaryVelocityDamping         = float32(20.0)
+	panStationaryCancelDelay     float32 = 0.12
+
 	// Smooth camera movement toward focus target.
 	cameraFocusSmoothness float32 = 4.0
 
@@ -65,6 +76,12 @@ type WorldRenderer struct {
 	PanStart      v.Vec2
 	PanVelocity   v.Vec2
 	MousePosition v.Vec2
+
+	panDragging           bool
+	panDragDistance       float32
+	panDragDuration       float32
+	panStationaryDuration float32
+	panRawVelocity        v.Vec2
 
 	HoveredHex  game.Hex
 	SelectedHex *game.Hex
@@ -111,6 +128,11 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	r.Camera.Zoom = cameraDefaultZoom
 	r.TargetZoom = cameraDefaultZoom
 	r.PanVelocity = v.Vec2{}
+	r.panDragging = false
+	r.panDragDistance = 0.0
+	r.panDragDuration = 0.0
+	r.panStationaryDuration = 0.0
+	r.panRawVelocity = v.Vec2{}
 	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
 		Y: float32(m.GridSize.Y),
@@ -150,11 +172,19 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 			r.PanStart = r.MousePosition
 			r.PanVelocity = v.Vec2{}
+			r.panDragging = true
+			r.panDragDistance = 0.0
+			r.panDragDuration = 0.0
+			r.panStationaryDuration = 0.0
+			r.panRawVelocity = v.Vec2{}
 			r.InterpolateFocus = false
 		}
 
 		if rl.IsMouseButtonDown(rl.MouseButtonRight) {
 			mouseDelta := r.MousePosition.Sub(r.PanStart)
+			mouseDistance := mouseDelta.Magnitude()
+			r.panDragDistance += mouseDistance
+			r.panDragDuration += deltaSeconds
 			panDelta := mouseDelta.Mul(v.Vec2{
 				X: -1.0 / r.Camera.Zoom,
 				Y: -1.0 / r.Camera.Zoom,
@@ -162,7 +192,16 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 			r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(panDelta))
 
-			if deltaSeconds > 0.0 {
+			if mouseDistance <= panStationarySampleDistance {
+				r.panStationaryDuration += deltaSeconds
+				stationaryDecay := float32(math.Exp(float64(-panStationaryVelocityDamping * deltaSeconds)))
+				r.PanVelocity = r.PanVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
+				r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{X: stationaryDecay, Y: stationaryDecay})
+			} else {
+				r.panStationaryDuration = 0.0
+			}
+
+			if deltaSeconds > 0.0 && mouseDistance > panStationarySampleDistance {
 				rawVelocity := panDelta.Mul(v.Vec2{
 					X: 1.0 / deltaSeconds,
 					Y: 1.0 / deltaSeconds,
@@ -180,6 +219,13 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 						Y: compressedSpeed / rawSpeed,
 					})
 					previousVelocityWeight := 1.0 - panVelocitySampleWeight
+					r.panRawVelocity = r.panRawVelocity.Mul(v.Vec2{
+						X: previousVelocityWeight,
+						Y: previousVelocityWeight,
+					}).Add(rawVelocity.Mul(v.Vec2{
+						X: panVelocitySampleWeight,
+						Y: panVelocitySampleWeight,
+					}))
 					r.PanVelocity = r.PanVelocity.Mul(v.Vec2{
 						X: previousVelocityWeight,
 						Y: previousVelocityWeight,
@@ -223,6 +269,19 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
 			r.zoomSmoothness = cameraZoomSmoothness
 		}
+	}
+
+	if rl.IsMouseButtonReleased(rl.MouseButtonRight) {
+		if r.panDragging {
+			r.PanVelocity = panMomentumReleaseVelocity(
+				r.PanVelocity,
+				r.panRawVelocity,
+				r.panDragDistance,
+				r.panDragDuration,
+				r.panStationaryDuration,
+			)
+		}
+		r.panDragging = false
 	}
 
 	if !rl.IsMouseButtonDown(rl.MouseButtonRight) {
@@ -281,6 +340,24 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	}
 }
 
+func panMomentumReleaseVelocity(
+	compressedVelocity,
+	rawVelocity v.Vec2,
+	distance,
+	duration,
+	stationaryDuration float32,
+) v.Vec2 {
+	if stationaryDuration >= panStationaryCancelDelay {
+		return v.Vec2{}
+	}
+	if duration > 0.0 &&
+		distance <= panMomentumShortDragDistance &&
+		distance/duration <= panMomentumSlowDragSpeed {
+		return rawVelocity
+	}
+	return compressedVelocity
+}
+
 func (r *WorldRenderer) Draw(m *game.Map) {
 	screenW := float32(rl.GetRenderWidth())
 	screenH := float32(rl.GetRenderHeight())
@@ -336,6 +413,7 @@ func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
 	r.zoomSmoothness = cameraFocusZoomSmoothness
 	r.InterpolateFocus = true
 	r.PanVelocity = v.Vec2{}
+	r.panRawVelocity = v.Vec2{}
 }
 
 func (r *WorldRenderer) viewportRects() (rl.Rectangle, rl.Rectangle) {
