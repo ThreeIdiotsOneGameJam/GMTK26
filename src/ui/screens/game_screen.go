@@ -103,11 +103,22 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 	serverGameActive = false
 	serverGameEndTime = 0
 	gameWorld.Renderer.ClearQueuedBuilding()
-	if p.WinnerName != "" {
-		gameOverMessage = "Game over! Winner: " + p.WinnerName
-	} else {
-		gameOverMessage = "Game over!"
+	gameOverMessage = "Game over!"
+
+	// Keep the authoritative result independent of the network packet buffer
+	// and transition away from the live world into a dedicated results screen.
+	result := *p
+	result.Rankings = append([]packets.RankEntry(nil), p.Rankings...)
+	if gameNet.LocalGameActive() {
+		// The solo transport otherwise remains selected after its server game
+		// finishes, preventing the next solo game from being created.
+		gameNet.StopLocalGame()
 	}
+	SetActiveScreen(NewGameEndScreen(
+		result,
+		gameNet.LocalGameState.FactionIdx,
+		gamePreviousScreen,
+	))
 }
 
 func applyServerRound(round int32, deadline int64, m game.Map, coins, points int32, resources game.Resources) {
