@@ -133,6 +133,7 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	r.panDragDuration = 0.0
 	r.panStationaryDuration = 0.0
 	r.panRawVelocity = v.Vec2{}
+	r.InterpolateFocus = false
 	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
 		Y: float32(m.GridSize.Y),
@@ -268,6 +269,10 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.ZoomAnchor = r.MousePosition
 			r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
 			r.zoomSmoothness = cameraZoomSmoothness
+			// Manual zoom takes ownership of the camera just like panning or
+			// WASD, so an old focus target cannot pull cursor-anchored zooms
+			// back toward the focused hex.
+			r.InterpolateFocus = false
 		}
 	}
 
@@ -308,12 +313,16 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 
 	if r.InterpolateFocus {
 		currentTarget := rlvec.FromRL(r.Camera.Target)
-		diff := r.TargetPosition.Sub(currentTarget)
+		// A hex near the map edge may not be centerable at the current zoom.
+		// Interpolate toward the closest legal target so focus can settle
+		// instead of fighting the camera clamp forever.
+		focusTarget := r.clampCameraTargetToMap(m, r.TargetPosition)
+		diff := focusTarget.Sub(currentTarget)
 		if diff.MagnitudeSqr() > 0.01 {
 			focusBlend := 1.0 - float32(math.Exp(float64(-cameraFocusSmoothness*deltaSeconds)))
-			r.Camera.Target = rlvec.ToRL(currentTarget.Lerp(r.TargetPosition, focusBlend))
+			r.Camera.Target = rlvec.ToRL(currentTarget.Lerp(focusTarget, focusBlend))
 		} else {
-			r.Camera.Target = rlvec.ToRL(r.TargetPosition)
+			r.Camera.Target = rlvec.ToRL(focusTarget)
 			r.InterpolateFocus = false
 		}
 	}
@@ -411,6 +420,9 @@ func (r *WorldRenderer) FocusOnHex(hex game.Hex) {
 	r.TargetPosition = pixelPos
 	r.TargetZoom = cameraDefaultZoom
 	r.zoomSmoothness = cameraFocusZoomSmoothness
+	// Focus zooms around the viewport center. Cursor anchoring only applies
+	// after the player takes over with the mouse wheel.
+	r.ZoomAnchor = rlvec.FromRL(r.Camera.Offset)
 	r.InterpolateFocus = true
 	r.PanVelocity = v.Vec2{}
 	r.panRawVelocity = v.Vec2{}
@@ -516,6 +528,22 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 }
 
 func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
+	target := rlvec.FromRL(r.Camera.Target)
+	previousTarget := target
+	target = r.clampCameraTargetToMap(m, target)
+
+	r.Camera.Target = rlvec.ToRL(target)
+	if stopMomentumAtBounds {
+		if target.X != previousTarget.X {
+			r.PanVelocity.X = 0.0
+		}
+		if target.Y != previousTarget.Y {
+			r.PanVelocity.Y = 0.0
+		}
+	}
+}
+
+func (r *WorldRenderer) clampCameraTargetToMap(m *game.Map, target v.Vec2) v.Vec2 {
 	hexWidth := r.HexSize.X * 2.0
 	hexHeight := r.HexSize.Y * sqrt3
 	// Include the full outer hexagons in the map bounds.
@@ -537,8 +565,6 @@ func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
 	maxTargetX := worldMaxX - viewHalfWidth
 	minTargetY := worldMinY + viewHalfHeight
 	maxTargetY := worldMaxY - viewHalfHeight
-	target := rlvec.FromRL(r.Camera.Target)
-	previousTarget := target
 
 	// Center axes where the viewport is larger than the map.
 	if minTargetX > maxTargetX {
@@ -552,13 +578,5 @@ func (r *WorldRenderer) clampCameraToMap(m *game.Map) {
 		target.Y = max(minTargetY, min(target.Y, maxTargetY))
 	}
 
-	r.Camera.Target = rlvec.ToRL(target)
-	if stopMomentumAtBounds {
-		if target.X != previousTarget.X {
-			r.PanVelocity.X = 0.0
-		}
-		if target.Y != previousTarget.Y {
-			r.PanVelocity.Y = 0.0
-		}
-	}
+	return target
 }

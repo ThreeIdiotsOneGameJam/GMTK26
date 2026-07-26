@@ -43,6 +43,7 @@ var serverResources game.Resources
 var serverDeadline int64
 var roundAnnouncement int32
 var roundAnnouncementUntil time.Time
+var focusTownhallPending bool
 var gameOverMessage string
 var gameActionError string
 
@@ -90,7 +91,9 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	clearRoundAnnouncement()
 	gameWorld.Renderer.ClearQueuedBuilding()
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
-	focusOnTownhall()
+	// The renderer may not be initialized until the game screen's first
+	// update. Defer focus so ResetCamera cannot discard this request.
+	focusTownhallPending = true
 }
 
 func ApplyServerGameState(p *packets.S2CGameStatePacket) {
@@ -111,6 +114,7 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 	}
 	serverGameActive = false
 	clearRoundAnnouncement()
+	focusTownhallPending = false
 	gameWorld.Renderer.ClearQueuedBuilding()
 	if p.WinnerName != "" {
 		gameOverMessage = "Game over! Winner: " + p.WinnerName
@@ -277,6 +281,7 @@ func EnterGame(state game.Game) {
 	clearMatchmaking()
 	serverGameActive = false
 	clearRoundAnnouncement()
+	focusTownhallPending = false
 	gameOverMessage = ""
 	gameActionError = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
@@ -389,6 +394,7 @@ func clearCurrentGame() {
 	gameLeaveTransition = false
 	serverGameActive = false
 	clearRoundAnnouncement()
+	focusTownhallPending = false
 	gameOverMessage = ""
 	gameActionError = ""
 	serverResources = nil
@@ -401,16 +407,21 @@ func setBuildingClick(building game.BuildingType) func() {
 	}
 }
 
-func focusOnTownhall() {
+func tryFocusOnTownhall() bool {
 	for x := range gameWorld.Map.Grid {
 		for y := range gameWorld.Map.Grid[x] {
 			cell := &gameWorld.Map.Grid[x][y]
 			if cell.Owner == int8(gameNet.LocalGameState.FactionIdx) && cell.Building == game.BuildingTownhall {
 				gameWorld.Renderer.FocusOnHex(game.NewHex(int32(x), int32(y)))
-				return
+				return true
 			}
 		}
 	}
+	return false
+}
+
+func focusOnTownhall() {
+	tryFocusOnTownhall()
 }
 
 func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
@@ -433,6 +444,15 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			audio.StopAmbience()
 			clearCurrentGame()
 		}).
+		// Screen children update back-to-front. Adding this before gameWorld
+		// makes the world initialize first, then applies any deferred focus.
+		AddChild(
+			ui.Group().WithUpdate(func(deltaNano int64) {
+				if focusTownhallPending && tryFocusOnTownhall() {
+					focusTownhallPending = false
+				}
+			}),
+		).
 		AddChild(
 			gameWorld,
 		).
