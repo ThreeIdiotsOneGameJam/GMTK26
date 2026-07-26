@@ -79,6 +79,7 @@ type WorldRenderer struct {
 	// and the map is not modified locally.
 	OnPlaceBuilding func(hex game.Hex, building game.BuildingType) bool
 	buildingPreview buildingPreview
+	queuedBuilding  buildingPreview
 
 	buildingsTexture rl.Texture2D
 

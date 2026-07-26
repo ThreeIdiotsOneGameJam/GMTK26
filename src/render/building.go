@@ -17,6 +17,23 @@ type buildingPreview struct {
 	Visible bool
 }
 
+const queuedBuildingAlpha uint8 = 128
+
+// QueueBuilding stores a local render-only preview. It is deliberately not
+// part of the map state, so only the player who submitted the action sees it.
+func (r *WorldRenderer) QueueBuilding(hex game.Hex, building game.BuildingType) {
+	r.queuedBuilding = buildingPreview{
+		Type:    building,
+		Hex:     hex,
+		Tint:    rl.White,
+		Visible: building != game.BuildingUnknown,
+	}
+}
+
+func (r *WorldRenderer) ClearQueuedBuilding() {
+	r.queuedBuilding.Visible = false
+}
+
 func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
 	r.buildingPreview.Visible = false
 
@@ -74,11 +91,14 @@ func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {
 func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mousePos vec.Vec2) {
 	mouseHex := r.PixelToHex(mousePos)
 
-	draw := func(worldPos vec.Vec2, building game.BuildingType, tint color.RGBA, hovered bool) {
+	draw := func(worldPos vec.Vec2, building game.BuildingType, tint color.RGBA, alphaOverride uint8, hovered bool) {
 		if building == game.BuildingUnknown {
 			return
 		}
 		col := rl.ColorLerp(rl.White, tint, 0.5)
+		if alphaOverride != 0 {
+			col.A = alphaOverride
+		}
 
 		s := vec.Vec2{X: 96, Y: 96}
 		p := worldPos.Sub(s.Div(vec.Vec2{X: 2, Y: 2}))
@@ -87,11 +107,20 @@ func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mouseP
 
 	for _, b := range visible {
 		building := m.Grid[b.hex.X][b.hex.Y].Building
-		draw(b.position, building, rl.White, mouseHex == b.hex)
+		draw(b.position, building, rl.White, 0, mouseHex == b.hex)
 	}
 
-	if r.buildingPreview.Visible {
+	if r.queuedBuilding.Visible {
+		cell := m.GetCell(r.queuedBuilding.Hex)
+		if cell != nil && cell.Building == game.BuildingUnknown {
+			worldPos := r.HexToPixel(r.queuedBuilding.Hex.Vec2i)
+			draw(worldPos, r.queuedBuilding.Type, r.queuedBuilding.Tint, queuedBuildingAlpha, false)
+		}
+	}
+
+	queuedAtPreview := r.queuedBuilding.Visible && r.queuedBuilding.Hex == r.buildingPreview.Hex
+	if r.buildingPreview.Visible && !queuedAtPreview {
 		worldPos := r.HexToPixel(r.buildingPreview.Hex.Vec2i)
-		draw(worldPos, r.buildingPreview.Type, r.buildingPreview.Tint, false)
+		draw(worldPos, r.buildingPreview.Type, r.buildingPreview.Tint, 0, false)
 	}
 }

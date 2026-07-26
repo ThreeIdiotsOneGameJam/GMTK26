@@ -76,6 +76,10 @@ func (el *BuildingDetailsPanelElement) update(deltaNano int64) {
 			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
 				if err := gameNet.SendDispatchAction(gameNet.LocalGameState.GetRound(), *r.SelectedHex, *r.SelectedHex, btn.troop); err != nil {
 					fmt.Printf("failed to send dispatch action: %v\n", err)
+				} else {
+					// The server keeps one action per faction, so dispatching
+					// replaces any building that was queued this round.
+					r.ClearQueuedBuilding()
 				}
 			}
 		}

@@ -54,6 +54,10 @@ func init() {
 		}
 		if err := gameNet.SendBuildAction(serverRound, hex, building); err != nil {
 			fmt.Printf("failed to send build action: %v\n", err)
+		} else {
+			// Pending actions are intentionally client-only: opponents should
+			// not see a building until the server resolves the round.
+			gameWorld.Renderer.QueueBuilding(hex, building)
 		}
 		return true
 	}
@@ -75,6 +79,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	}
 	serverGameActive = true
 	gameOverMessage = ""
+	gameWorld.Renderer.ClearQueuedBuilding()
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 	focusOnTownhall()
 }
@@ -82,6 +87,9 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 func ApplyServerGameState(p *packets.S2CGameStatePacket) {
 	if !serverGameActive {
 		return
+	}
+	if p.Round != serverRound {
+		gameWorld.Renderer.ClearQueuedBuilding()
 	}
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 }
@@ -91,6 +99,7 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 		return
 	}
 	serverGameActive = false
+	gameWorld.Renderer.ClearQueuedBuilding()
 	if p.WinnerName != "" {
 		gameOverMessage = "Game over! Winner: " + p.WinnerName
 	} else {
@@ -152,6 +161,7 @@ func EnterGame(state game.Game) {
 	serverGameActive = false
 	gameOverMessage = ""
 	gameActionError = ""
+	gameWorld.Renderer.ClearQueuedBuilding()
 	applyGameState(state)
 	gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 	if screenIsActiveOrPending(gameScreen) {
@@ -257,6 +267,7 @@ func applyGameState(state game.Game) {
 func clearCurrentGame() {
 	currentGame = nil
 	gameWorld.Map = game.Map{}
+	gameWorld.Renderer.ClearQueuedBuilding()
 	gameLeaveTransition = false
 	serverGameActive = false
 	gameOverMessage = ""
