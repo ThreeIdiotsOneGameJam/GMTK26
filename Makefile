@@ -36,6 +36,7 @@ build_web: web_replace_on
 	GOOS=js GOARCH=wasm go build -tags web -o $(WEB_DIR)/main.wasm .
 	cp "$(shell go env GOROOT)/lib/wasm/wasm_exec.js" $(WEB_DIR)/wasm_exec.js
 	$(MAKE) web_replace_off
+	go mod tidy
 
 # Build the static server once (only needed the first time)
 server:
