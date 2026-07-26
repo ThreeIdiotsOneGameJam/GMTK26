@@ -10,12 +10,17 @@ var Void rl.Shader
 var VoidTimeLoc int32
 
 func Load() {
-	MenuBackground = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/menu_background.frag")
-	WorldBackground = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/world_background.frag")
+	MenuBackground = LoadShader("menu_background")
+	WorldBackground = LoadShader("world_background")
 	WorldBackgroundTimeLoc = rl.GetShaderLocation(WorldBackground, "time")
-	Vignette = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/vignette.frag")
-	Void = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/void.frag")
+	Vignette = LoadShader("vignette")
+	Void = LoadShader("void")
 	VoidTimeLoc = rl.GetShaderLocation(Void, "time")
+}
+
+// LoadShader loads the platform-appropriate GLSL version of a fragment shader.
+func LoadShader(name string) rl.Shader {
+	return rl.LoadShader(vertexShaderPath, fragmentShaderPath(name))
 }
 
 func Unload() {

@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render/shaders"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -69,7 +70,7 @@ func (el *BlurBackdropElement) Release() {
 
 func (el *BlurBackdropElement) prepare() {
 	if !rl.IsShaderValid(blurShader) {
-		blurShader = rl.LoadShader("assets/shaders/base.vert", "assets/shaders/blur.frag")
+		blurShader = shaders.LoadShader("blur")
 	}
 }
 
