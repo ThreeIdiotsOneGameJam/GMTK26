@@ -166,6 +166,10 @@ func (el *ButtonElement) update(deltaNano int64) {
 		el.clicked = false
 		el.hoveredPrevious = false
 		el.clickedPrevious = false
+		if (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).
+			containsStrict(mousePosition()) && el.TooltipText != "" {
+			global.TooltipText = el.TooltipText
+		}
 		return
 	}
 
