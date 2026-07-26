@@ -7,8 +7,8 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-// Pos and Size do not account for the outline or thumb overhang, which are
-// rendered outside the element's layout box.
+// Pos and Size do not account for the outline, shadow, or thumb overhang, which
+// are rendered outside the element's layout box.
 
 func Slider() *SliderElement {
 	el := &SliderElement{
@@ -41,7 +41,7 @@ func Slider() *SliderElement {
 		},
 		Callback: func(float32) {},
 	}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
 
 	return el.WithSize(vec.Vec2i{X: 360, Y: 36})
 }
@@ -139,7 +139,7 @@ func (el *SliderElement) ResetToDefault() {
 }
 
 type SliderElement struct {
-	BaseElement[*SliderElement]
+	DropShadowElement[*SliderElement]
 	Value         float32
 	ValueProvider func() float32
 	Min, Max      float32
@@ -297,6 +297,7 @@ func (el *SliderElement) draw() {
 	trackOuterX := el.x - el.OutlineWidth
 	trackOuterY := el.trackY - el.OutlineWidth
 
+	el.drawRectangleShadow(trackOuterX, trackOuterY, trackOuterW, trackOuterH, opacity)
 	rl.DrawRectangle(trackOuterX, trackOuterY, trackOuterW, trackOuterH, outlineColor)
 	rl.DrawRectangle(el.x, el.trackY, el.w, el.TrackHeight, trackColor)
 
@@ -307,6 +308,13 @@ func (el *SliderElement) draw() {
 
 	thumbOuterW := el.ThumbWidth + el.OutlineWidth*2
 	thumbOuterH := el.ThumbHeight + el.OutlineWidth*2
+	el.drawRectangleShadow(
+		el.thumbX-el.OutlineWidth,
+		el.thumbY-el.OutlineWidth,
+		thumbOuterW,
+		thumbOuterH,
+		opacity,
+	)
 	rl.DrawRectangle(
 		el.thumbX-el.OutlineWidth,
 		el.thumbY-el.OutlineWidth,
