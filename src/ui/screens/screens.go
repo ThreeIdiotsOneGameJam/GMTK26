@@ -109,6 +109,7 @@ func Update(deltaNano int64) {
 	// Transitions intentionally pause screen updates, so clear transient hover
 	// state here as well as in Screen.Update.
 	global.TooltipText = ""
+	ui.BeginInputFrame()
 
 	if activeScreen == nil {
 		return
@@ -142,7 +143,7 @@ func Update(deltaNano int64) {
 		target = 0
 	}
 	step := min(time.Duration(deltaNano), screenCrossfadeMaxStep)
-	transitionProgress = moveTowards(
+	transitionProgress = ui.MoveTowards(
 		transitionProgress,
 		target,
 		float32(step)/float32(screenCrossfadeDuration),
@@ -203,7 +204,7 @@ func Draw() {
 	// use their own render textures, which cannot be nested in raylib.
 	pendingScreen.Draw()
 
-	alpha := smoothstep(1 - transitionProgress)
+	alpha := ui.Smoothstep(1 - transitionProgress)
 	opacity := uint8(alpha * 255)
 	// Draw an explicitly premultiplied source. The default alpha blend also
 	// reduces framebuffer alpha during a fade, allowing browsers to composite
@@ -308,18 +309,6 @@ func Shutdown() {
 	releaseTransitionSource()
 	HideEscScreen()
 	gameWorld.Renderer.Unload()
-}
-
-func moveTowards(current, target, amount float32) float32 {
-	if current < target {
-		return min(current+amount, target)
-	}
-	return max(current-amount, target)
-}
-
-func smoothstep(value float32) float32 {
-	value = max(float32(0), min(value, float32(1)))
-	return value * value * (3 - 2*value)
 }
 
 func HandleEscape() {

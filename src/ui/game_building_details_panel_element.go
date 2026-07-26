@@ -93,10 +93,9 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 	el.lay = el.computeLayout(selectedCell)
 
 	for _, btn := range el.lay.buttons {
-		mx := int32(global.MousePosition.X)
-		my := int32(global.MousePosition.Y)
-		if mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h {
-			global.UIBlocksWorldInput = true
+		if (elementRect{X: btn.x, Y: btn.y, Width: btn.w, Height: btn.h}).
+			contains(mousePosition()) {
+			claimPointer(rl.MouseCursorPointingHand)
 			canAfford := el.canAffordUnit(btn.unit)
 			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
 				r.RecruitToPlace = btn.unit
@@ -261,9 +260,8 @@ func (el *GameBuildingDetailsPanelElement) drawPanel() {
 
 	for _, btn := range lay.buttons {
 		canAfford := el.canAffordUnit(btn.unit)
-		mx := int32(global.MousePosition.X)
-		my := int32(global.MousePosition.Y)
-		isHovered := mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h
+		isHovered := (elementRect{X: btn.x, Y: btn.y, Width: btn.w, Height: btn.h}).
+			contains(mousePosition())
 
 		bgCol := rl.Gray
 		if canAfford {

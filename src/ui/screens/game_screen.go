@@ -248,7 +248,7 @@ func applyServerRound(
 		key := fmt.Sprintf("%d:%d:%d:%t", result.Round, result.Type, result.Status, result.Automatic)
 		showResolutionToast(result.Message, key)
 	}
-	gameSeedInput.Text = strconv.FormatInt(m.Seed, 10)
+	gameSeedInput.SetText(strconv.FormatInt(m.Seed, 10))
 }
 
 func showResolutionToast(message, key string) {
@@ -538,7 +538,7 @@ func applyGameState(state game.Game) {
 
 	state.Map = nextMap
 	gameWorld.Map = nextMap
-	gameSeedInput.Text = strconv.FormatInt(nextMap.Seed, 10)
+	gameSeedInput.SetText(strconv.FormatInt(nextMap.Seed, 10))
 	currentGame = &state
 }
 
@@ -607,6 +607,85 @@ func HandleTownHallShortcut() {
 	focusOnTownhall()
 }
 
+func buildingToolbar() *ui.GroupElement {
+	group := ui.Group().
+		WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
+		WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
+		WithVisibleDynamic(func(*ui.GroupElement) bool {
+			if !serverGameActive ||
+				gameWorld.Renderer.SelectedHex == nil ||
+				gameWorld.Renderer.SelectedKind != render.SelectionUnit {
+				return false
+			}
+			cell := gameWorld.Map.GetCell(*gameWorld.Renderer.SelectedHex)
+			return cell != nil &&
+				cell.Unit == game.UnitScout &&
+				cell.UnitOwner == int8(gameNet.LocalGameState.FactionIdx)
+		}).
+		AddChild(
+			ui.Text().
+				WithText("Buildings:").
+				WithTextSize(24).
+				WithTextColor(rl.White).
+				WithRelativePos(vec.Vec2i{Y: -32}),
+		)
+
+	buttons := []struct {
+		label    string
+		building game.BuildingType
+		x        int32
+	}{
+		{label: "None", building: game.BuildingUnknown, x: 0},
+		{label: "Barracks", building: game.BuildingBarracks, x: 84},
+		{label: "Farm", building: game.BuildingFarm, x: 224},
+		{label: "Mine", building: game.BuildingMine, x: 308},
+		{label: "Forester", building: game.BuildingForester, x: 384},
+	}
+	for _, item := range buttons {
+		group.AddChild(
+			ui.Button().
+				WithText(item.label).
+				WithTextSize(24).
+				WithPadding(8).
+				WithRelativePos(vec.Vec2i{X: item.x}).
+				WithClick(setBuildingClick(item.building)).
+				WithTooltip(buildingButtonTooltip(item.building)),
+		)
+	}
+	return group
+}
+
+func serverResourceList() *ui.GroupElement {
+	group := ui.Group().
+		WithAnchors(anchor.TopLeft, anchor.TopLeft).
+		WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
+		WithVisibleDynamic(func(*ui.GroupElement) bool {
+			return serverGameActive
+		})
+
+	resources := []game.ResourceType{
+		game.ResourceWood,
+		game.ResourceStone,
+		game.ResourceCoal,
+		game.ResourceIron,
+		game.ResourceSteel,
+		game.ResourceGold,
+		game.ResourceFood,
+	}
+	for i, resourceType := range resources {
+		group.AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					return fmt.Sprintf("%s: %d", resourceType.String(), serverResources[resourceType])
+				}).
+				WithTextSize(20).
+				WithTextColor(rl.White).
+				WithRelativePos(vec.Vec2i{Y: int32(i+1) * 24}),
+		)
+	}
+	return group
+}
+
 func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	gamePreviousScreen = previousScreen
 	// nil previousScreen → Leave Game creates a fresh main screen.
@@ -627,7 +706,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 
 	transparent := color.RGBA{}
 	gameCodeButton := ui.Button().
-		WithText(gameCodeButtonText()).
+		WithTextDynamic(gameCodeButtonText).
 		WithTextSize(28).
 		WithPadding(0).
 		WithOutlineWidth(0).
@@ -680,11 +759,6 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			gameWorld,
-		).
-		AddChild(
-			ui.Group().WithUpdate(func(_ int64) {
-				gameCodeButton.Text = gameCodeButtonText()
-			}),
 		).
 		AddChild(gameCodeButton).
 		AddChild(
@@ -763,72 +837,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return serverGameActive && gamePendingAction != ""
 				}),
 		).
-		AddChild(
-			ui.Group().
-				WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
-				WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
-				WithVisibleDynamic(func(el *ui.GroupElement) bool {
-					if !serverGameActive ||
-						gameWorld.Renderer.SelectedHex == nil ||
-						gameWorld.Renderer.SelectedKind != render.SelectionUnit {
-						return false
-					}
-					cell := gameWorld.Map.GetCell(*gameWorld.Renderer.SelectedHex)
-					return cell != nil &&
-						cell.Unit == game.UnitScout &&
-						cell.UnitOwner == int8(gameNet.LocalGameState.FactionIdx)
-				}).
-				AddChild(
-					ui.Text().
-						WithTextSize(24).
-						WithRelativePos(vec.Vec2i{X: 0, Y: -32}).
-						WithTextColor(rl.White).
-						WithText("Buildings:"),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithText("None").
-						WithClick(setBuildingClick(game.BuildingUnknown)),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithText("Barracks").
-						WithRelativePos(vec.Vec2i{X: 84, Y: 0}).
-						WithClick(setBuildingClick(game.BuildingBarracks)).
-						WithTooltip(buildingButtonTooltip(game.BuildingBarracks)),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithText("Farm").
-						WithRelativePos(vec.Vec2i{X: 224, Y: 0}).
-						WithClick(setBuildingClick(game.BuildingFarm)).
-						WithTooltip(buildingButtonTooltip(game.BuildingFarm)),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithText("Mine").
-						WithRelativePos(vec.Vec2i{X: 308, Y: 0}).
-						WithClick(setBuildingClick(game.BuildingMine)).
-						WithTooltip(buildingButtonTooltip(game.BuildingMine)),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithText("Forester").
-						WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
-						WithClick(setBuildingClick(game.BuildingForester)).
-						WithTooltip(buildingButtonTooltip(game.BuildingForester)),
-				),
-		).
+		AddChild(buildingToolbar()).
 		AddChild(
 			ui.Group().
 				WithAnchors(anchor.TopLeft, anchor.TopLeft).
@@ -851,7 +860,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
 						WithText("Regenerate").
 						WithClick(func() {
-							gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Text)
+							gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Value())
 							gameWorld.Map.Generate()
 						}),
 				).
@@ -862,82 +871,12 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
 						WithText("Random").
 						WithClick(func() {
-							gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
+							gameSeedInput.SetText(strconv.FormatInt(rand.Int63(), 10))
 							gameRegenerateButton.Click()
 						}),
 				),
 		).
-		AddChild(
-			ui.Group().
-				WithAnchors(anchor.TopLeft, anchor.TopLeft).
-				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
-				WithVisibleDynamic(func(el *ui.GroupElement) bool {
-					return serverGameActive
-				}).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Wood: %d", serverResources[game.ResourceWood])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Stone: %d", serverResources[game.ResourceStone])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 48}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Coal: %d", serverResources[game.ResourceCoal])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 72}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Iron: %d", serverResources[game.ResourceIron])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 96}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Steel: %d", serverResources[game.ResourceSteel])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 120}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Gold: %d", serverResources[game.ResourceGold])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
-				).
-				AddChild(
-					ui.Text().
-						WithTextDynamic(func() string {
-							return fmt.Sprintf("Food: %d", serverResources[game.ResourceFood])
-						}).
-						WithTextSize(20).
-						WithTextColor(rl.White).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 168}),
-				),
-		).
+		AddChild(serverResourceList()).
 		AddChild(
 			ui.Text().
 				WithTextDynamic(func() string {

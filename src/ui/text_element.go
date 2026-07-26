@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"strings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -15,12 +16,17 @@ func Text() *TextElement {
 	}
 
 	return el.WithSizeDynamic(func(el *TextElement) vec.Vec2i {
-		// FIXME: not measured properly for multiline text
-		return vec.Vec2i{
-			X: rl.MeasureText(el.Text(), el.TextSize),
-			Y: el.TextSize,
-		}
+		return MeasureText(el.Text(), el.TextSize)
 	})
+}
+
+func MeasureText(text string, textSize int32) vec.Vec2i {
+	lines := strings.Split(text, "\n")
+	size := vec.Vec2i{Y: int32(len(lines)) * textSize}
+	for _, line := range lines {
+		size.X = max(size.X, rl.MeasureText(line, textSize))
+	}
+	return size
 }
 
 func (el *TextElement) WithText(text string) *TextElement {

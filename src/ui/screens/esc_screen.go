@@ -47,15 +47,23 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithVisibleDynamic(func(_ *ui.GroupElement) bool {
 			return !escShowingSettings
 		}).
-		AddChild(uiutil.MenuButton("Resume", menuStartY, HideEscScreen)).
-		AddChild(uiutil.MenuButton("Settings", menuStartY+btnStride, func() {
-			escShowingSettings = true
-			escShowingCountdownSettings = false
-		})).
-		AddChild(uiutil.MenuButton("Leave Game", menuStartY+btnStride*2, func() {
-			LeaveCurrentGame()
-			GoToPreviousScreen(previousScreen)
-		}))
+		AddChild(
+			ui.VStack(
+				btnStride-62,
+				uiutil.MenuAction("Resume", HideEscScreen),
+				uiutil.MenuAction("Settings", func() {
+					escShowingSettings = true
+					escShowingCountdownSettings = false
+				}),
+				uiutil.MenuAction("Leave Game", func() {
+					LeaveCurrentGame()
+					GoToPreviousScreen(previousScreen)
+				}),
+			).
+				WithAlignment(ui.StackCenter).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePos(vec.Vec2i{Y: menuStartY + btnStride}),
+		)
 
 	textShadow := color.RGBA{R: 0, G: 0, B: 0, A: 210}
 
@@ -121,9 +129,11 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		},
 	)
 	settingsPanel.AddChild(
-		uiutil.MenuButton("Back", 245, func() {
+		uiutil.MenuAction("Back", func() {
 			escShowingSettings = false
-		}),
+		}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{Y: 250}),
 	)
 
 	countdownPanel := ui.Screen().
@@ -169,9 +179,11 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		saveSettings,
 	)
 	countdownPanel.AddChild(
-		uiutil.MenuButton("Back", 245, func() {
+		uiutil.MenuAction("Back", func() {
 			escShowingCountdownSettings = false
-		}),
+		}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{Y: 250}),
 	)
 
 	return ui.Screen().

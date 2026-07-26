@@ -13,9 +13,23 @@ import (
 
 func NewMainScreen() *ui.ScreenElement {
 	var screen *ui.ScreenElement
-	screen = ui.Screen().
-		WithBackgroundColor(uiutil.MenuScreenBackground).
-		AddChild(uiutil.MenuBackdrop()).
+	actions := []ui.Element{
+		uiutil.MenuAction("Play", func() {
+			if ui.DebugQuickActionModifierHeld() {
+				StartSoloWithDefaults()
+				return
+			}
+			SetActiveScreen(NewPlayScreen(screen))
+		}),
+		uiutil.MenuAction("Settings", func() {
+			SetActiveScreen(NewSettingsScreen(screen))
+		}),
+	}
+	if runtime.GOOS != "js" {
+		actions = append(actions, uiutil.MenuAction("Exit", global.CloseWindow))
+	}
+
+	screen = uiutil.MenuScreen().
 		AddChild(
 			ui.Text().
 				WithText(constants.GameName).
@@ -29,19 +43,12 @@ func NewMainScreen() *ui.ScreenElement {
 					}
 				}),
 		).
-		AddChild(uiutil.MenuButton("Play", 0, func() {
-			if ui.DebugQuickActionModifierHeld() {
-				StartSoloWithDefaults()
-				return
-			}
-			SetActiveScreen(NewPlayScreen(screen))
-		})).
-		AddChild(uiutil.MenuButton("Settings", 80, func() {
-			SetActiveScreen(NewSettingsScreen(screen))
-		}))
-	if runtime.GOOS != "js" {
-		screen.AddChild(uiutil.MenuButton("Exit", 160, global.CloseWindow))
-	}
-	screen.AddChild(ui.Vignette())
+		AddChild(
+			ui.VStack(18, actions...).
+				WithAlignment(ui.StackCenter).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePos(vec.Vec2i{Y: int32(len(actions)-1) * 40}),
+		)
+	screen.AddChild(uiutil.MenuVignette())
 	return screen
 }

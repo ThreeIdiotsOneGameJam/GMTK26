@@ -60,6 +60,7 @@ func (el *ScreenElement) Exit() {
 	if el.OnExit != nil {
 		el.OnExit()
 	}
+	clearFocusedInputWithin(el)
 }
 
 func (el *ScreenElement) Update(deltaNano int64) {

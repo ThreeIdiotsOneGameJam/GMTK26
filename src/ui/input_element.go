@@ -10,30 +10,17 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-/*
-TODO: this motherfucker needs so much functionality that i decided the just leave it half unimplemented
- as noone is gonna notice anyway and we dont have time but heres a list of most stuff i could think of that is missing:
-
-- overlapping inputs will probably fuck shit up
-- no mouse-based selection or cursorPos init from mouse position
-- more keyboard shortcuts (ctrl/option+arrow, cmd+arrow/home/end, combinations with shift)
-- double-click word select, triple-click line select
-- tab focus traversal
-- fixed-width horizontal scrolling + clipping (currently just expands infinitely lol)
-
-FIXME: setting charset does not reverify existing text
-FIXME: setting max length does not reverify existing text
-FIXME: WithText can bypass all checks
-*/
+// Input currently supports keyboard selection, clipboard editing, Unicode-aware
+// character and word navigation, and focus traversal. Mouse-based selection and
+// fixed-width clipping remain future enhancements.
 
 // Pos and Size do not account for the outline or shadow, which are rendered
 // outside the element's layout box.
 
 func Input() *InputElement {
 	el := &InputElement{
-		Text:            "",
 		PlaceholderText: "Input",
-		MaxTextLength:   math.MaxInt, // MaxTextLength refers to the maximum amount of runes that the Text should be able to hold
+		MaxTextLength:   math.MaxInt,
 		TextSize:        48,
 		Padding:         8,
 		OutlineWidth:    4,
@@ -60,7 +47,7 @@ func Input() *InputElement {
 
 	return el.WithSizeDynamic(func(el *InputElement) vec.Vec2i {
 		displayWidth := max(
-			rl.MeasureText(el.Text, el.TextSize),
+			rl.MeasureText(el.Value(), el.TextSize),
 			rl.MeasureText(el.PlaceholderText, el.TextSize),
 		)
 
@@ -72,8 +59,16 @@ func Input() *InputElement {
 }
 
 func (el *InputElement) WithText(text string) *InputElement {
-	el.Text = text
+	el.setValidatedText(text)
 	return el
+}
+
+func (el *InputElement) SetText(text string) {
+	el.WithText(text)
+}
+
+func (el *InputElement) Value() string {
+	return el.editor.string()
 }
 
 func (el *InputElement) WithPlaceholderText(placeholderText string) *InputElement {
@@ -84,16 +79,19 @@ func (el *InputElement) WithPlaceholderText(placeholderText string) *InputElemen
 // WithMaxTextLength sets the maximum amount of runes that the Text should be able to hold
 func (el *InputElement) WithMaxTextLength(maxTextLength int) *InputElement {
 	el.MaxTextLength = max(0, maxTextLength)
+	el.revalidateText()
 	return el
 }
 
 func (el *InputElement) WithCharset(charset string) *InputElement {
 	el.Charset = util.NewRuneSetFromString(charset)
+	el.revalidateText()
 	return el
 }
 
 func (el *InputElement) WithInputTransformer(transformer InputTransformer) *InputElement {
 	el.InputTransformer = transformer
+	el.revalidateText()
 	return el
 }
 
@@ -161,30 +159,29 @@ func (el *InputElement) ResetToDefault() {
 	}
 
 	el.applyEdit(func() {
-		el.runes = []rune(el.Text)
-		el.replaceRange(0, len(el.runes), el.prepareInput(el.defaultText))
+		el.editor.selectAll()
+		el.editor.replaceSelection(el.prepareInput(el.defaultText), el.MaxTextLength)
 	})
 	el.Focus()
 }
 
 func (el *InputElement) Focus() {
-	el.clicked = true
-	el.cursorPos = len([]rune(el.Text))
-	el.clearSelection()
-	el.recalculateTextSplit()
+	setFocusedInput(el)
+	el.editor.moveToEnd()
 }
 
 func (el *InputElement) Blur() {
-	el.clicked = false
-	el.clearSelection()
+	if el.Focused() {
+		setFocusedInput(nil)
+	}
 }
 
 type InputTransformer func(input string) string
 
 type InputElement struct {
 	DropShadowElement[*InputElement]
-	Text, PlaceholderText string
-	MaxTextLength         int // in runes, NOT []byte len
+	PlaceholderText       string
+	MaxTextLength         int // maximum rune count; complete graphemes are never split
 	Charset               util.RuneSet
 	InputTransformer      InputTransformer
 	TextSize              int32
@@ -202,14 +199,18 @@ type InputElement struct {
 	x, y, cx, cy, w, h, textWidth int32
 
 	hovered bool
-	clicked bool
 
-	cursorPos        int // []rune index, NOT string []byte pos
-	selectionStart   int // []rune index, NOT string []byte pos
-	selectionStarted bool
+	editor textEditorModel
+}
 
-	runes                                []rune
-	textBefore, textSelection, textAfter []rune
+func (el *InputElement) revalidateText() {
+	el.setValidatedText(el.Value())
+}
+
+func (el *InputElement) setValidatedText(text string) {
+	runes := el.prepareInput(text)
+	runes = graphemeSafePrefix(runes, el.MaxTextLength)
+	el.editor.syncText(string(runes))
 }
 
 func (el *InputElement) prepareInput(input string) []rune {
@@ -229,83 +230,12 @@ func (el *InputElement) prepareInput(input string) []rune {
 	return filtered
 }
 
-func (el *InputElement) recalculateTextSplit() {
-	el.runes = []rune(el.Text)
-
-	el.cursorPos = util.Clamp(el.cursorPos, 0, len(el.runes))
-	el.selectionStart = util.Clamp(el.selectionStart, 0, len(el.runes))
-
-	start, end := el.cursorPos, el.cursorPos
-
-	if el.selectionStarted {
-		start = el.selectionStart
-		if start > end {
-			start, end = end, start
-		}
-	}
-
-	el.textBefore = el.runes[:start]
-	el.textSelection = el.runes[start:end]
-	el.textAfter = el.runes[end:]
-}
-
-func (el *InputElement) selectionRange() (start, end int) {
-	start, end = el.cursorPos, el.cursorPos
-
-	if el.selectionStarted {
-		start = el.selectionStart
-		if start > end {
-			start, end = end, start
-		}
-	}
-
-	return start, end
-}
-
-func (el *InputElement) hasSelection() bool {
-	start, end := el.selectionRange()
-	return start != end
-}
-
-func (el *InputElement) clearSelection() {
-	el.selectionStarted = false
-	el.selectionStart = 0
-}
-
 func (el *InputElement) isCharValid(char rune) bool {
 	if el.Charset == nil {
 		return true
 	}
 
 	return el.Charset.Contains(char)
-}
-
-// replaceRange is the only method that should assign el.Text during editing.
-// insert is assumed to have already been charset-filtered.
-func (el *InputElement) replaceRange(start, end int, insert []rune) {
-	start = util.Clamp(start, 0, len(el.runes))
-	end = util.Clamp(end, start, len(el.runes))
-
-	remainingLength := len(el.runes) - (end - start)
-	available := max(0, el.MaxTextLength-remainingLength)
-
-	if len(insert) > available {
-		insert = insert[:available]
-	}
-
-	next := make([]rune, 0, remainingLength+len(insert))
-	next = append(next, el.runes[:start]...)
-	next = append(next, insert...)
-	next = append(next, el.runes[end:]...)
-
-	el.Text = string(next)
-	el.cursorPos = start + len(insert)
-	el.clearSelection()
-}
-
-func (el *InputElement) replaceSelection(insert []rune) {
-	start, end := el.selectionRange()
-	el.replaceRange(start, end, insert)
 }
 
 func (el *InputElement) insertInput(input string) {
@@ -318,84 +248,22 @@ func (el *InputElement) insertInput(input string) {
 		return
 	}
 
-	el.replaceSelection(insert)
+	el.editor.replaceSelection(insert, el.MaxTextLength)
 }
 
 func (el *InputElement) applyEdit(edit func()) {
-	oldText := el.Text
+	oldText := el.Value()
 
 	edit()
-	el.recalculateTextSplit()
+	text := el.Value()
 
-	if el.Text == oldText {
+	if text == oldText {
 		return
 	}
 
 	if el.Callback != nil {
-		el.Callback(el.Text)
-
-		// Protect against callbacks that modify Text.
-		el.recalculateTextSplit()
+		el.Callback(text)
 	}
-}
-
-func (el *InputElement) deleteBackward() {
-	start, end := el.selectionRange()
-
-	if start != end {
-		el.replaceRange(start, end, nil)
-		return
-	}
-
-	if start > 0 {
-		el.replaceRange(start-1, start, nil)
-	}
-}
-
-func (el *InputElement) deleteForward() {
-	start, end := el.selectionRange()
-
-	if start != end {
-		el.replaceRange(start, end, nil)
-		return
-	}
-
-	if end < len(el.runes) {
-		el.replaceRange(end, end+1, nil)
-	}
-}
-
-func (el *InputElement) moveCursor(delta int, extendSelection bool) {
-	start, end := el.selectionRange()
-
-	if !extendSelection && start != end {
-		if delta < 0 {
-			el.cursorPos = start
-		} else {
-			el.cursorPos = end
-		}
-
-		el.clearSelection()
-		el.recalculateTextSplit()
-		return
-	}
-
-	if extendSelection && !el.selectionStarted {
-		el.selectionStart = el.cursorPos
-		el.selectionStarted = true
-	}
-
-	el.cursorPos = util.Clamp(
-		el.cursorPos+delta,
-		0,
-		len(el.runes),
-	)
-
-	if el.selectionStarted && el.selectionStart == el.cursorPos {
-		el.clearSelection()
-	}
-
-	el.recalculateTextSplit()
 }
 
 var clipboardNewlineReplacer = strings.NewReplacer(
@@ -405,9 +273,7 @@ var clipboardNewlineReplacer = strings.NewReplacer(
 )
 
 func (el *InputElement) prepare() {
-	el.recalculateTextSplit()
-
-	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
+	el.textWidth = rl.MeasureText(el.Value(), el.TextSize)
 
 	el.w, el.h = max(el.textWidth+el.Padding*2, el.Size().X), max(el.TextSize+el.Padding*2, el.Size().Y)
 
@@ -422,15 +288,11 @@ func (el *InputElement) update(deltaNano int64) {
 		return
 	}
 
-	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
-	el.hovered = mouseX > el.x &&
-		mouseX < el.x+el.w &&
-		mouseY > el.y &&
-		mouseY < el.y+el.h
+	el.hovered = (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).
+		containsStrict(mousePosition())
 
 	if el.hovered {
-		global.MouseCursorState = rl.MouseCursorIBeam
-		global.UIBlocksWorldInput = true
+		claimPointer(rl.MouseCursorIBeam)
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && el.hovered && el.hasDefault {
@@ -439,93 +301,67 @@ func (el *InputElement) update(deltaNano int64) {
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
-		prevClicked := el.clicked
-		el.clicked = el.hovered
-		if !prevClicked && el.clicked {
-			el.cursorPos = len(el.runes)
-		} else if prevClicked && !el.clicked {
-			el.clearSelection()
+		if el.hovered {
+			if !el.Focused() {
+				el.Focus()
+			}
+		} else {
+			el.Blur()
 		}
 	}
 
-	if el.clicked {
+	if el.Focused() {
 		global.UIBlocksWorldInput = true
-	}
-
-	if el.clicked {
-		ctrlOrCmd := rl.IsKeyDown(rl.KeyLeftControl) ||
-			rl.IsKeyDown(rl.KeyRightControl) ||
-			rl.IsKeyDown(rl.KeyLeftSuper) ||
-			rl.IsKeyDown(rl.KeyRightSuper)
-
-		shift := rl.IsKeyDown(rl.KeyLeftShift) || rl.IsKeyDown(rl.KeyRightShift)
-
-		left := rl.IsKeyPressed(rl.KeyLeft) || rl.IsKeyPressedRepeat(rl.KeyLeft)
-		right := rl.IsKeyPressed(rl.KeyRight) || rl.IsKeyPressedRepeat(rl.KeyRight)
-
-		backspace := rl.IsKeyPressed(rl.KeyBackspace) || rl.IsKeyPressedRepeat(rl.KeyBackspace)
-
-		del := rl.IsKeyPressed(rl.KeyDelete) || rl.IsKeyPressedRepeat(rl.KeyDelete)
-
-		enter := rl.IsKeyPressed(rl.KeyEnter)
-		ctrlA := ctrlOrCmd && rl.IsKeyPressed(rl.KeyA)
-		ctrlV := ctrlOrCmd && rl.IsKeyPressed(rl.KeyV)
-		ctrlC, ctrlX := ctrlOrCmd && rl.IsKeyPressed(rl.KeyC), ctrlOrCmd && rl.IsKeyPressed(rl.KeyX)
-
-		switch {
-		case enter && el.Submit != nil:
-			el.Submit(el.Text)
-
-		case ctrlA:
-			if len(el.runes) == 0 {
-				el.clearSelection()
-			} else {
-				el.selectionStarted = true
-				el.selectionStart = 0
-				el.cursorPos = len(el.runes)
-				el.recalculateTextSplit()
-			}
-
-		case ctrlV:
-			text := clipboardNewlineReplacer.Replace(rl.GetClipboardText())
-			el.applyEdit(func() {
-				el.insertInput(text)
-			})
-
-		case ctrlC && el.hasSelection():
-			rl.SetClipboardText(string(el.textSelection))
-
-		case ctrlX && el.hasSelection():
-			rl.SetClipboardText(string(el.textSelection))
-			el.applyEdit(func() {
-				el.replaceSelection(nil)
-			})
-
-		case left && !right:
-			el.moveCursor(-1, shift)
-
-		case right && !left:
-			el.moveCursor(1, shift)
-
-		case backspace:
-			el.applyEdit(el.deleteBackward)
-
-		case del:
-			el.applyEdit(el.deleteForward)
-
-		default:
-			var input strings.Builder
-
-			for char := rl.GetCharPressed(); char != 0; char = rl.GetCharPressed() {
-				input.WriteRune(char)
-			}
-
-			if input.Len() > 0 {
-				el.applyEdit(func() {
-					el.insertInput(input.String())
-				})
-			}
+		if claimKeyboardInput() {
+			el.executeEditorCommand(pollEditorCommand(el.Submit != nil))
 		}
+	}
+}
+
+func (el *InputElement) executeEditorCommand(command editorCommand) {
+	switch command.kind {
+	case editorCommandSubmit:
+		if el.Submit != nil {
+			el.Submit(el.Value())
+		}
+
+	case editorCommandSelectAll:
+		el.editor.selectAll()
+
+	case editorCommandPaste:
+		text := clipboardNewlineReplacer.Replace(rl.GetClipboardText())
+		el.applyEdit(func() {
+			el.insertInput(text)
+		})
+
+	case editorCommandCopy:
+		if el.editor.hasSelection() {
+			rl.SetClipboardText(el.editor.selectedText())
+		}
+
+	case editorCommandCut:
+		if el.editor.hasSelection() {
+			rl.SetClipboardText(el.editor.selectedText())
+			el.applyEdit(func() {
+				el.editor.replaceSelection(nil, el.MaxTextLength)
+			})
+		}
+
+	case editorCommandMove:
+		el.editor.move(command.direction, command.unit, command.extend)
+
+	case editorCommandFocusNext:
+		focusAdjacentInput(el, command.direction)
+
+	case editorCommandDelete:
+		el.applyEdit(func() {
+			el.editor.delete(command.direction, command.unit)
+		})
+
+	case editorCommandInsert:
+		el.applyEdit(func() {
+			el.insertInput(command.text)
+		})
 	}
 }
 
@@ -534,9 +370,10 @@ func (el *InputElement) caretOffsetAt(index int) int32 {
 		return 0
 	}
 
-	width := rl.MeasureText(string(el.runes[:index]), el.TextSize)
+	runes := el.editor.runes()
+	width := rl.MeasureText(string(runes[:index]), el.TextSize)
 
-	if index < len(el.runes) {
+	if index < len(runes) {
 		width += el.TextSize / 20
 	}
 
@@ -544,18 +381,7 @@ func (el *InputElement) caretOffsetAt(index int) int32 {
 }
 
 func (el *InputElement) draw() {
-	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
-	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
-
-	state := StateDefault
-	switch {
-	case !el.Enabled():
-		state = StateDisabled
-	case el.clicked:
-		state = StateClick
-	case el.hovered:
-		state = StateHover
-	}
+	state := controlState(el.Enabled(), el.hovered, el.Focused())
 
 	oCol := el.OutlineColors.Color(state)
 	pCol := el.PlaceholderColors.Color(state)
@@ -568,13 +394,17 @@ func (el *InputElement) draw() {
 	foregroundColor := util.ColorOpacity(*fgCol, opacity)
 	selectionColor := util.ColorOpacity(rl.SkyBlue, opacity)
 
-	el.drawRectangleShadow(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, opacity)
-	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
-	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
+	el.drawShadowedOutlinedRectangle(
+		elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h},
+		el.OutlineWidth,
+		outlineColor,
+		backgroundColor,
+		opacity,
+	)
 
 	textY := el.cy - el.TextSize/2
 
-	if el.Text == "" {
+	if el.Value() == "" {
 		drawTextWithShadow(
 			el.PlaceholderText,
 			el.x+el.Padding,
@@ -586,9 +416,8 @@ func (el *InputElement) draw() {
 			opacity,
 		)
 	} else {
-		if el.selectionStarted && el.selectionStart != el.cursorPos {
-			start := min(el.selectionStart, el.cursorPos)
-			end := max(el.selectionStart, el.cursorPos)
+		if el.editor.hasSelection() {
+			start, end := el.editor.selectionRange()
 
 			startX := el.caretOffsetAt(start)
 			endX := el.caretOffsetAt(end)
@@ -597,7 +426,7 @@ func (el *InputElement) draw() {
 		}
 
 		drawTextWithShadow(
-			el.Text,
+			el.Value(),
 			el.x+el.Padding,
 			textY,
 			el.TextSize,
@@ -608,9 +437,9 @@ func (el *InputElement) draw() {
 		)
 	}
 
-	if el.clicked && int(rl.GetTime()*2)%2 == 0 {
+	if el.Focused() && int(rl.GetTime()*2)%2 == 0 {
 		cursorWidth := max(rl.MeasureText("|", el.TextSize)/2, 1)
-		cursorX := el.caretOffsetAt(el.cursorPos)
+		cursorX := el.caretOffsetAt(el.editor.caretPosition())
 
 		rl.DrawRectangle(el.x+el.Padding+cursorX, textY-cursorWidth/2, cursorWidth, el.TextSize+cursorWidth, foregroundColor)
 	}

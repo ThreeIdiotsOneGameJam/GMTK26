@@ -12,34 +12,18 @@ import (
 
 func Slider() *SliderElement {
 	el := &SliderElement{
-		Value:        0,
-		Min:          0,
-		Max:          1,
-		TrackHeight:  12,
-		ThumbWidth:   18,
-		ThumbHeight:  28,
-		OutlineWidth: 4,
-		TrackColors: ColorSet{
-			Default:  ptrColor(PaletteSurface),
-			Disabled: ptrColor(PaletteBase),
-		},
-		FillColors: ColorSet{
-			Default:  ptrColor(PaletteIndigo),
-			Hover:    ptrColor(PaletteIndigoHover),
-			Click:    ptrColor(PaletteViolet),
-			Disabled: ptrColor(PaletteIndigoDim),
-		},
-		ThumbColors: ColorSet{
-			Default:  ptrColor(PaletteText),
-			Hover:    ptrColor(PaletteText),
-			Click:    ptrColor(PaletteText),
-			Disabled: ptrColor(PaletteTextMuted),
-		},
-		OutlineColors: ColorSet{
-			Default:  ptrColor(PaletteBorder),
-			Disabled: ptrColor(PaletteBase),
-		},
-		Callback: func(float32) {},
+		Value:         0,
+		Min:           0,
+		Max:           1,
+		TrackHeight:   12,
+		ThumbWidth:    18,
+		ThumbHeight:   28,
+		OutlineWidth:  4,
+		TrackColors:   DefaultTrackColors,
+		FillColors:    DefaultActiveTrackColors,
+		ThumbColors:   DefaultThumbColors,
+		OutlineColors: DefaultTrackOutlineColors,
+		Callback:      func(float32) {},
 	}
 	el.DropShadowElement = NewDropShadowElement(el)
 
@@ -233,23 +217,18 @@ func (el *SliderElement) update(deltaNano int64) {
 
 	el.syncValueFromProvider()
 
-	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
-
-	inBounds := mouseX >= el.x &&
-		mouseX <= el.x+el.w &&
-		mouseY >= el.y &&
-		mouseY <= el.y+el.h
-
-	inThumb := mouseX >= el.thumbX &&
-		mouseX <= el.thumbX+el.ThumbWidth &&
-		mouseY >= el.thumbY &&
-		mouseY <= el.thumbY+el.ThumbHeight
+	mouse := mousePosition()
+	mouseX := mouse.X
+	inBounds := (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).contains(mouse)
+	inThumb := (elementRect{
+		X: el.thumbX, Y: el.thumbY,
+		Width: el.ThumbWidth, Height: el.ThumbHeight,
+	}).contains(mouse)
 
 	el.hovered = inBounds || inThumb || el.dragging
 
 	if el.hovered {
-		global.MouseCursorState = rl.MouseCursorPointingHand
-		global.UIBlocksWorldInput = true
+		claimPointer(rl.MouseCursorPointingHand)
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && (inBounds || inThumb) && el.hasDefault {
@@ -276,15 +255,7 @@ func (el *SliderElement) update(deltaNano int64) {
 }
 
 func (el *SliderElement) draw() {
-	state := StateDefault
-	switch {
-	case !el.Enabled():
-		state = StateDisabled
-	case el.dragging:
-		state = StateClick
-	case el.hovered:
-		state = StateHover
-	}
+	state := controlState(el.Enabled(), el.hovered, el.dragging)
 
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*el.OutlineColors.Color(state), opacity)
@@ -292,35 +263,27 @@ func (el *SliderElement) draw() {
 	fillColor := util.ColorOpacity(*el.FillColors.Color(state), opacity)
 	thumbColor := util.ColorOpacity(*el.ThumbColors.Color(state), opacity)
 
-	trackOuterW := el.w + el.OutlineWidth*2
-	trackOuterH := el.TrackHeight + el.OutlineWidth*2
-	trackOuterX := el.x - el.OutlineWidth
-	trackOuterY := el.trackY - el.OutlineWidth
-
-	el.drawRectangleShadow(trackOuterX, trackOuterY, trackOuterW, trackOuterH, opacity)
-	rl.DrawRectangle(trackOuterX, trackOuterY, trackOuterW, trackOuterH, outlineColor)
-	rl.DrawRectangle(el.x, el.trackY, el.w, el.TrackHeight, trackColor)
+	el.drawShadowedOutlinedRectangle(
+		elementRect{X: el.x, Y: el.trackY, Width: el.w, Height: el.TrackHeight},
+		el.OutlineWidth,
+		outlineColor,
+		trackColor,
+		opacity,
+	)
 
 	fillW := int32(el.normalized() * float32(el.w))
 	if fillW > 0 {
 		rl.DrawRectangle(el.x, el.trackY, fillW, el.TrackHeight, fillColor)
 	}
 
-	thumbOuterW := el.ThumbWidth + el.OutlineWidth*2
-	thumbOuterH := el.ThumbHeight + el.OutlineWidth*2
-	el.drawRectangleShadow(
-		el.thumbX-el.OutlineWidth,
-		el.thumbY-el.OutlineWidth,
-		thumbOuterW,
-		thumbOuterH,
+	el.drawShadowedOutlinedRectangle(
+		elementRect{
+			X: el.thumbX, Y: el.thumbY,
+			Width: el.ThumbWidth, Height: el.ThumbHeight,
+		},
+		el.OutlineWidth,
+		outlineColor,
+		thumbColor,
 		opacity,
 	)
-	rl.DrawRectangle(
-		el.thumbX-el.OutlineWidth,
-		el.thumbY-el.OutlineWidth,
-		thumbOuterW,
-		thumbOuterH,
-		outlineColor,
-	)
-	rl.DrawRectangle(el.thumbX, el.thumbY, el.ThumbWidth, el.ThumbHeight, thumbColor)
 }

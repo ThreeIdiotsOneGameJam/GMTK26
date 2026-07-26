@@ -25,6 +25,12 @@ type Element interface {
 	Opacity() float32
 }
 
+// ChildLayouter lets containers contribute an additional offset to each child.
+// Regular elements do not need to implement it.
+type ChildLayouter interface {
+	ChildOffset(child Element) vec.Vec2i
+}
+
 type Resettable interface {
 	HasDefault() bool
 	ResetToDefault()
@@ -293,9 +299,15 @@ func (el *BaseElement[T]) AbsolutePos() vec.Vec2i {
 		Mul(anchor.AnchorCoords[el.SelfAnchor]).
 		RoundToInt()
 
+	layoutOffset := vec.Vec2i{}
+	if layouter, ok := el.Parent.(ChildLayouter); ok {
+		layoutOffset = layouter.ChildOffset(el.self)
+	}
+
 	return el.Parent.
 		AbsolutePos().
 		Add(parentAnchorOffset).
+		Add(layoutOffset).
 		Add(relativePos).
 		Sub(selfAnchorOffset)
 }
@@ -348,6 +360,13 @@ func (el *BaseElement[T]) AddChild(child Element) T {
 	childBase.Parent = el.self
 	el.Children = append(el.Children, child)
 
+	return el.self
+}
+
+func (el *BaseElement[T]) AddChildren(children ...Element) T {
+	for _, child := range children {
+		el.AddChild(child)
+	}
 	return el.self
 }
 

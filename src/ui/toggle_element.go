@@ -12,34 +12,16 @@ import (
 
 func Toggle() *ToggleElement {
 	el := &ToggleElement{
-		Value:        false,
-		TrackHeight:  24,
-		ThumbWidth:   22,
-		ThumbHeight:  28,
-		OutlineWidth: 4,
-		TrackColors: ColorSet{
-			Default:  ptrColor(PaletteSurface),
-			Hover:    ptrColor(PaletteSurfaceUp),
-			Click:    ptrColor(PaletteSurfaceUp),
-			Disabled: ptrColor(PaletteBase),
-		},
-		OnColors: ColorSet{
-			Default:  ptrColor(PaletteIndigo),
-			Hover:    ptrColor(PaletteIndigoHover),
-			Click:    ptrColor(PaletteViolet),
-			Disabled: ptrColor(PaletteIndigoDim),
-		},
-		ThumbColors: ColorSet{
-			Default:  ptrColor(PaletteText),
-			Hover:    ptrColor(PaletteText),
-			Click:    ptrColor(PaletteText),
-			Disabled: ptrColor(PaletteTextMuted),
-		},
-		OutlineColors: ColorSet{
-			Default:  ptrColor(PaletteBorder),
-			Disabled: ptrColor(PaletteBase),
-		},
-		Callback: func(bool) {},
+		Value:         false,
+		TrackHeight:   24,
+		ThumbWidth:    22,
+		ThumbHeight:   28,
+		OutlineWidth:  4,
+		TrackColors:   DefaultTrackColors,
+		OnColors:      DefaultActiveTrackColors,
+		ThumbColors:   DefaultThumbColors,
+		OutlineColors: DefaultTrackOutlineColors,
+		Callback:      func(bool) {},
 	}
 	el.DropShadowElement = NewDropShadowElement(el)
 
@@ -201,23 +183,17 @@ func (el *ToggleElement) update(deltaNano int64) {
 
 	el.syncValueFromProvider()
 
-	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
-
-	inBounds := mouseX >= el.x &&
-		mouseX <= el.x+el.w &&
-		mouseY >= el.y &&
-		mouseY <= el.y+el.h
-
-	inThumb := mouseX >= el.thumbX &&
-		mouseX <= el.thumbX+el.ThumbWidth &&
-		mouseY >= el.thumbY &&
-		mouseY <= el.thumbY+el.ThumbHeight
+	mouse := mousePosition()
+	inBounds := (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).contains(mouse)
+	inThumb := (elementRect{
+		X: el.thumbX, Y: el.thumbY,
+		Width: el.ThumbWidth, Height: el.ThumbHeight,
+	}).contains(mouse)
 
 	el.hovered = inBounds || inThumb
 
 	if el.hovered {
-		global.MouseCursorState = rl.MouseCursorPointingHand
-		global.UIBlocksWorldInput = true
+		claimPointer(rl.MouseCursorPointingHand)
 	}
 
 	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && (inBounds || inThumb) && el.hasDefault {
@@ -250,15 +226,7 @@ func (el *ToggleElement) update(deltaNano int64) {
 }
 
 func (el *ToggleElement) draw() {
-	state := StateDefault
-	switch {
-	case !el.Enabled():
-		state = StateDisabled
-	case el.clicked:
-		state = StateClick
-	case el.hovered:
-		state = StateHover
-	}
+	state := controlState(el.Enabled(), el.hovered, el.clicked)
 
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*el.OutlineColors.Color(state), opacity)
@@ -271,30 +239,21 @@ func (el *ToggleElement) draw() {
 		fillColor = onColor
 	}
 
-	trackOuterW := el.w + el.OutlineWidth*2
-	trackOuterH := el.TrackHeight + el.OutlineWidth*2
-	trackOuterX := el.x - el.OutlineWidth
-	trackOuterY := el.trackY - el.OutlineWidth
-
-	el.drawRectangleShadow(trackOuterX, trackOuterY, trackOuterW, trackOuterH, opacity)
-	rl.DrawRectangle(trackOuterX, trackOuterY, trackOuterW, trackOuterH, outlineColor)
-	rl.DrawRectangle(el.x, el.trackY, el.w, el.TrackHeight, fillColor)
-
-	thumbOuterW := el.ThumbWidth + el.OutlineWidth*2
-	thumbOuterH := el.ThumbHeight + el.OutlineWidth*2
-	el.drawRectangleShadow(
-		el.thumbX-el.OutlineWidth,
-		el.thumbY-el.OutlineWidth,
-		thumbOuterW,
-		thumbOuterH,
+	el.drawShadowedOutlinedRectangle(
+		elementRect{X: el.x, Y: el.trackY, Width: el.w, Height: el.TrackHeight},
+		el.OutlineWidth,
+		outlineColor,
+		fillColor,
 		opacity,
 	)
-	rl.DrawRectangle(
-		el.thumbX-el.OutlineWidth,
-		el.thumbY-el.OutlineWidth,
-		thumbOuterW,
-		thumbOuterH,
+	el.drawShadowedOutlinedRectangle(
+		elementRect{
+			X: el.thumbX, Y: el.thumbY,
+			Width: el.ThumbWidth, Height: el.ThumbHeight,
+		},
+		el.OutlineWidth,
 		outlineColor,
+		thumbColor,
+		opacity,
 	)
-	rl.DrawRectangle(el.thumbX, el.thumbY, el.ThumbWidth, el.ThumbHeight, thumbColor)
 }

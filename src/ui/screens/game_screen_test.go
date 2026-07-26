@@ -10,6 +10,21 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
+func TestCapitalizeSentence(t *testing.T) {
+	tests := map[string]string{
+		"":                   "",
+		"game not found":     "Game not found",
+		"  game not found  ": "Game not found",
+		"Échec de connexion": "Échec de connexion",
+	}
+
+	for input, want := range tests {
+		if got := capitalizeSentence(input); got != want {
+			t.Errorf("capitalizeSentence(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestBuildingButtonTooltipsMatchGameplay(t *testing.T) {
 	tests := map[game.BuildingType]string{
 		game.BuildingBarracks: "Recruits: Peasant, Archer, Knight, Scout\nPlace on: Plains",

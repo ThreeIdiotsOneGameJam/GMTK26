@@ -72,6 +72,22 @@ func (el *DropShadowElement[T]) drawRectangleShadow(
 	)
 }
 
+func (el *DropShadowElement[T]) drawShadowedOutlinedRectangle(
+	rect elementRect,
+	outlineWidth int32,
+	outline, fill rl.Color,
+	opacity float32,
+) {
+	el.drawRectangleShadow(
+		rect.X-outlineWidth,
+		rect.Y-outlineWidth,
+		rect.Width+outlineWidth*2,
+		rect.Height+outlineWidth*2,
+		opacity,
+	)
+	drawOutlinedRectangle(rect, outlineWidth, outline, fill)
+}
+
 func fontScaledShadowOffset(textSize int32) vec.Vec2i {
 	// Approximately 1/16 em, rounded to the nearest whole pixel, with enough
 	// separation to remain visible at small font sizes.

@@ -3,7 +3,6 @@ package screens
 import (
 	"fmt"
 	"image/color"
-	"strings"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -40,10 +39,8 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		return showCountdownSettings
 	})
 
-	screen := ui.Screen().
-		WithBackgroundColor(uiutil.MenuScreenBackground).
-		WithBack(goBack).
-		AddChild(uiutil.MenuBackdrop())
+	screen := uiutil.MenuScreen().
+		WithBack(goBack)
 
 	settingsPanel := ui.Screen().
 		WithBackgroundColor(color.RGBA{}).
@@ -93,14 +90,9 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		},
 	)
 	settingsPanel.AddChild(
-		ui.Button().
-			WithText("Back").
+		uiutil.BackButton(goBack).
 			WithTextSize(48).
-			WithPadding(8).
-			WithOutlineWidth(4).
-			WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
-			WithRelativePos(vec.Vec2i{X: 20, Y: -20}).
-			WithClick(goBack),
+			WithPadding(8),
 	)
 
 	countdownPanel := ui.Screen().
@@ -147,16 +139,11 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		saveSettings,
 	)
 	countdownPanel.AddChild(
-		ui.Button().
-			WithText("Back").
+		uiutil.BackButton(func() {
+			showCountdownSettings = false
+		}).
 			WithTextSize(48).
-			WithPadding(8).
-			WithOutlineWidth(4).
-			WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
-			WithRelativePos(vec.Vec2i{X: 20, Y: -20}).
-			WithClick(func() {
-				showCountdownSettings = false
-			}),
+			WithPadding(8),
 	)
 
 	return screen.
@@ -173,26 +160,13 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}).
 				WithTextSize(24).
 				WithTextColor(uiutil.MenuMutedColor).
-				WithSizeDynamic(func(el *ui.TextElement) vec.Vec2i {
-					lines := strings.Split(el.Text(), "\n")
-					width := int32(0)
-					for _, line := range lines {
-						width = max(width, rl.MeasureText(line, el.TextSize))
-					}
-					return vec.Vec2i{
-						X: width,
-						Y: el.TextSize * int32(len(lines)),
-					}
-				}).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -20}).
 				WithVisibleDynamic(func(*ui.TextElement) bool {
 					return global.DebugEnabled
 				}),
 		).
-		AddChild(
-			ui.Vignette(),
-		).
+		AddChild(uiutil.MenuVignette()).
 		AddChild(
 			countdownPreview,
 		)
@@ -207,7 +181,18 @@ func addVolumeRow(
 	set func(float32),
 	commit func(),
 ) {
-	addVolumeRowStyled(screen, label, centerY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, nil, get, set, commit)
+	addVolumeRowStyled(
+		screen,
+		label,
+		centerY,
+		sliderWidth,
+		uiutil.MenuHeaderColor,
+		uiutil.MenuMutedColor,
+		nil,
+		get,
+		set,
+		commit,
+	)
 }
 
 func addVolumeRowStyled(
@@ -265,10 +250,7 @@ func addSliderRowStyled(
 		WithTextSize(32).
 		WithTextColor(labelColor).
 		WithAnchors(anchor.Right, anchor.Center).
-		WithRelativePos(vec.Vec2i{
-			X: -splitGap,
-			Y: centerY,
-		})
+		WithRelativePos(vec.Vec2i{X: -splitGap, Y: centerY})
 	valueText := ui.Text().
 		WithTextDynamic(func() string {
 			return formatValue(get())
@@ -297,10 +279,7 @@ func addSliderRowStyled(
 				WithCallback(set).
 				WithCommit(func(float32) { commit() }).
 				WithAnchors(anchor.Left, anchor.Center).
-				WithRelativePos(vec.Vec2i{
-					X: splitGap,
-					Y: centerY,
-				}),
+				WithRelativePos(vec.Vec2i{X: splitGap, Y: centerY}),
 		).
 		AddChild(valueText)
 }
@@ -313,7 +292,17 @@ func addToggleRow(
 	set func(bool),
 	commit func(),
 ) {
-	addToggleRowStyled(screen, label, centerY, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, nil, get, set, commit)
+	addToggleRowStyled(
+		screen,
+		label,
+		centerY,
+		uiutil.MenuHeaderColor,
+		uiutil.MenuMutedColor,
+		nil,
+		get,
+		set,
+		commit,
+	)
 }
 
 func addToggleRowStyled(
@@ -337,10 +326,7 @@ func addToggleRowStyled(
 		WithTextSize(32).
 		WithTextColor(labelColor).
 		WithAnchors(anchor.Right, anchor.Center).
-		WithRelativePos(vec.Vec2i{
-			X: -splitGap,
-			Y: centerY,
-		})
+		WithRelativePos(vec.Vec2i{X: -splitGap, Y: centerY})
 	valueText := ui.Text().
 		WithTextDynamic(func() string {
 			if get() {
@@ -371,10 +357,7 @@ func addToggleRowStyled(
 				WithCallback(set).
 				WithCommit(func(bool) { commit() }).
 				WithAnchors(anchor.Left, anchor.Center).
-				WithRelativePos(vec.Vec2i{
-					X: splitGap,
-					Y: centerY,
-				}),
+				WithRelativePos(vec.Vec2i{X: splitGap, Y: centerY}),
 		).
 		AddChild(valueText)
 }
