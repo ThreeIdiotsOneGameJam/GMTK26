@@ -12,7 +12,7 @@ func TestFactionRoundIncome(t *testing.T) {
 		},
 	}
 
-	coins, resources := FactionRoundIncome(&m, 0)
+	coins, resources := FactionRoundIncome(&m, 0, nil)
 
 	if coins != 1 {
 		t.Fatalf("coins = %d, want 1", coins)

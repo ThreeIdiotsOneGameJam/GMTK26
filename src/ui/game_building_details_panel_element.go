@@ -355,6 +355,8 @@ func buildingLabel(b game.BuildingType) string {
 		return "Barracks"
 	case game.BuildingFarm:
 		return "Farm"
+	case game.BuildingBank:
+		return "Bank"
 	default:
 		return "Unknown"
 	}
@@ -377,6 +379,18 @@ func buildingProductionText(b game.BuildingType, tile game.TileType) string {
 			text += ", "
 		}
 		text += fmt.Sprintf("%s +%d", resType.String(), amount)
+	}
+	consumes := game.BuildingConsumes(b)
+	if len(consumes) > 0 {
+		for resType, amount := range consumes {
+			if amount == 0 {
+				continue
+			}
+			if text != "" {
+				text += ", "
+			}
+			text += fmt.Sprintf("%s -%d", resType.String(), amount)
+		}
 	}
 	return text
 }

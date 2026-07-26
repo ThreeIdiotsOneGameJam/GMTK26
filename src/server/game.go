@@ -459,12 +459,12 @@ func (gi *GameInstance) waitUntil(deadline time.Time) bool {
 
 func (gi *GameInstance) processAutoActions() {
 	for i := range gi.game.Factions {
-		coins, resources := game.FactionRoundIncome(&gi.game.Map, int8(i))
 		faction := &gi.game.Factions[i]
+		coins, netResources := game.FactionRoundIncome(&gi.game.Map, int8(i), faction.Resources)
 		if faction.Resources == nil {
 			faction.Resources = make(game.Resources)
 		}
-		for resource, amount := range resources {
+		for resource, amount := range netResources {
 			faction.Resources[resource] += amount
 		}
 		faction.Coins += coins

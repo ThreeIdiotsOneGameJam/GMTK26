@@ -582,6 +582,8 @@ func buildingButtonTooltip(building game.BuildingType) string {
 		return "Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold"
 	case game.BuildingForester:
 		return "Produces: Wood +2\nPlace on: Forest or Jungle"
+	case game.BuildingBank:
+		return "Produces: Coin +5\nConsumes: Gold -5\nPlace on: Plains"
 	default:
 		return ""
 	}
@@ -644,6 +646,7 @@ func buildingToolbar() *ui.GroupElement {
 		{label: "Farm", building: game.BuildingFarm, x: 224},
 		{label: "Mine", building: game.BuildingMine, x: 308},
 		{label: "Forester", building: game.BuildingForester, x: 384},
+		{label: "Bank", building: game.BuildingBank, x: 480},
 	}
 	for _, item := range buttons {
 		group.AddChild(

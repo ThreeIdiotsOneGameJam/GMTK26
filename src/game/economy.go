@@ -10,6 +10,8 @@ func BuildingCost(b BuildingType) int32 {
 		return 20
 	case BuildingFarm:
 		return 12
+	case BuildingBank:
+		return 25
 	default:
 		return 0
 	}
@@ -66,8 +68,12 @@ func UnitResourceCost(t UnitType) Resources {
 }
 
 // FactionRoundIncome returns the resources generated at the start of a round
-// by the buildings currently owned by a faction.
-func FactionRoundIncome(m *Map, owner int8) (int32, Resources) {
+// by the buildings currently owned by a faction. currentResources is the
+// faction's resource stockpile before this round's income; it is used to
+// check whether consumption-driven buildings (e.g. Bank) can afford their
+// inputs. The returned resources map is the net change (production minus
+// consumption), not the final total.
+func FactionRoundIncome(m *Map, owner int8, currentResources Resources) (int32, Resources) {
 	resources := make(Resources)
 	if m == nil {
 		return 0, resources
@@ -80,10 +86,29 @@ func FactionRoundIncome(m *Map, owner int8) (int32, Resources) {
 			if cell.Owner != owner || !cell.HasBuilding() {
 				continue
 			}
-			for resource, amount := range BuildingProduces(cell.BuildingType(), cell.Tile) {
+			bt := cell.BuildingType()
+
+			consumed := BuildingConsumes(bt)
+			if len(consumed) > 0 {
+				canAfford := true
+				for res, amt := range consumed {
+					if currentResources[res]+resources[res] < amt {
+						canAfford = false
+						break
+					}
+				}
+				if !canAfford {
+					continue
+				}
+				for res, amt := range consumed {
+					resources[res] -= amt
+				}
+			}
+
+			for resource, amount := range BuildingProduces(bt, cell.Tile) {
 				resources[resource] += amount
 			}
-			coins += BuildingCoinsProduces(cell.BuildingType())
+			coins += BuildingCoinsProduces(bt)
 		}
 	}
 	return coins, resources
@@ -98,7 +123,7 @@ func CanAffordUnitAfterRoundIncome(
 	coins int32,
 	resources Resources,
 ) bool {
-	incomeCoins, incomeResources := FactionRoundIncome(m, owner)
+	incomeCoins, incomeResources := FactionRoundIncome(m, owner, resources)
 	if coins+incomeCoins < UnitCost(t) {
 		return false
 	}
@@ -111,8 +136,21 @@ func CanAffordUnitAfterRoundIncome(
 }
 
 func BuildingCoinsProduces(b BuildingType) int32 {
-	if b == BuildingTownhall {
+	switch b {
+	case BuildingTownhall:
 		return 1
+	case BuildingBank:
+		return 5
+	default:
+		return 0
 	}
-	return 0
+}
+
+func BuildingConsumes(b BuildingType) Resources {
+	switch b {
+	case BuildingBank:
+		return Resources{ResourceGold: 5}
+	default:
+		return nil
+	}
 }

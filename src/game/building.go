@@ -11,6 +11,7 @@ const (
 	BuildingBarracks
 	BuildingFarm
 	BuildingTownhall
+	BuildingBank
 )
 
 func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
@@ -48,6 +49,8 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 		}
 
 		return isWater(neighbors.N) || isWater(neighbors.NE) || isWater(neighbors.NW) || isWater(neighbors.S) || isWater(neighbors.SW) || isWater(neighbors.SE)
+	case BuildingBank:
+		return cell.Tile == TilePlains
 	}
 
 	return false
@@ -65,6 +68,8 @@ func BuildingMaxHP(b BuildingType) int8 {
 		return 10
 	case BuildingFarm:
 		return 8
+	case BuildingBank:
+		return 10
 	default:
 		return 0
 	}
