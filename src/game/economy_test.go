@@ -8,20 +8,69 @@ func TestFactionRoundIncome(t *testing.T) {
 			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingTownhall, HP: 20}}},
 			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingFarm, HP: 8}}},
 			{{Tile: TileForest, Owner: 0, Building: &BuildingData{Type: BuildingForester, HP: 8}}},
-			{{Tile: TileGold, Owner: 1, Building: &BuildingData{Type: BuildingMine, HP: 10}}},
+			{{Tile: TileGold, Owner: 0, Building: &BuildingData{Type: BuildingMine, HP: 10}}},
+			{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingBank, HP: 10}}},
 		},
 	}
 
 	coins, resources := FactionRoundIncome(&m, 0)
 
-	if coins != 1 {
-		t.Fatalf("coins = %d, want 1", coins)
+	if coins != 3 {
+		t.Fatalf("coins = %d, want 3", coins)
 	}
 	if resources[ResourceFood] != 1 || resources[ResourceWood] != 1 {
 		t.Fatalf("resources = %v, want Food 1 and Wood 1", resources)
 	}
+	if resources[ResourceGold] != 1 {
+		t.Fatalf("Gold Mine production = %v, want Gold 1", resources)
+	}
+}
+
+func TestResolveFactionRoundIncomeRunsFundedBanksWithoutUnderflow(t *testing.T) {
+	m := Map{Grid: [][]Cell{
+		{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingTownhall}}},
+		{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingBank}}},
+		{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingBank}}},
+	}}
+
+	current := Resources{ResourceGold: 4, ResourceFood: 2}
+	coins, resources := ResolveFactionRoundIncome(&m, 0, current)
+	if coins != 1 {
+		t.Fatalf("unfunded Bank coins = %d, want Townhall-only income 1", coins)
+	}
+	if resources[ResourceGold] != 4 {
+		t.Fatalf("unfunded Bank Gold = %d, want 4", resources[ResourceGold])
+	}
+	if current[ResourceGold] != 4 {
+		t.Fatalf("income mutated input Gold to %d", current[ResourceGold])
+	}
+
+	current[ResourceGold] = 10
+	coins, resources = ResolveFactionRoundIncome(&m, 0, current)
+	if coins != 11 {
+		t.Fatalf("two funded Bank coins = %d, want 11", coins)
+	}
 	if resources[ResourceGold] != 0 {
-		t.Fatalf("enemy mine contributed Gold: %v", resources)
+		t.Fatalf("two funded Bank Gold = %d, want 0", resources[ResourceGold])
+	}
+}
+
+func TestResolveFactionRoundIncomeProductionCanFundBankSameRound(t *testing.T) {
+	m := Map{Grid: [][]Cell{
+		{{Tile: TileGold, Owner: 0, Building: &BuildingData{Type: BuildingMine}}},
+		{{Tile: TilePlains, Owner: 0, Building: &BuildingData{Type: BuildingBank}}},
+	}}
+
+	coins, resources := ResolveFactionRoundIncome(
+		&m,
+		0,
+		Resources{ResourceGold: 4},
+	)
+	if coins != 7 {
+		t.Fatalf("Gold Mine plus funded Bank coins = %d, want 7", coins)
+	}
+	if resources[ResourceGold] != 0 {
+		t.Fatalf("same-round produced Gold was not consumed: %v", resources)
 	}
 }
 

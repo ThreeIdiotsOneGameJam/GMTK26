@@ -11,9 +11,6 @@ const (
 	BuildingBarracks
 	BuildingFarm
 	BuildingTownhall
-	// BuildingBank is retained for protocol compatibility with builds that
-	// briefly exposed it, but the baseline resource model does not make it
-	// player-buildable.
 	BuildingBank
 )
 
@@ -36,7 +33,7 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 		return cell.Tile == TileRock || cell.Tile == TileIron || cell.Tile == TileGold
 	case BuildingForester:
 		return cell.Tile == TileForest || cell.Tile == TileJungle
-	case BuildingBarracks:
+	case BuildingBarracks, BuildingBank:
 		return cell.Tile == TilePlains
 	case BuildingFarm:
 		if cell.Tile != TilePlains {

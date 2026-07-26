@@ -29,11 +29,9 @@ func CurrentFunds(faction Faction) Funds {
 // credited before a pending manual action is validated.
 func ProjectedRoundFunds(m *Map, owner int8, faction Faction) Funds {
 	funds := CurrentFunds(faction)
-	coins, resources := FactionRoundIncome(m, owner)
+	coins, resources := ResolveFactionRoundIncome(m, owner, funds.Resources)
 	funds.Coins += coins
-	for resource, amount := range resources {
-		funds.Resources[resource] += amount
-	}
+	funds.Resources = resources
 	return funds
 }
 
@@ -142,7 +140,16 @@ func (validation ActionValidation) affordable(funds Funds, success string) Actio
 		validation.Message = "Not enough coins"
 		return validation
 	}
-	for resource, amount := range validation.ResourceCost {
+	for _, resource := range [...]ResourceType{
+		ResourceFood,
+		ResourceWood,
+		ResourceStone,
+		ResourceIron,
+		ResourceGold,
+		ResourceCoal,
+		ResourceSteel,
+	} {
+		amount := validation.ResourceCost[resource]
 		if funds.Resources[resource] < amount {
 			validation.Message = fmt.Sprintf("Not enough %s", resource.String())
 			return validation

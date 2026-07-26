@@ -76,6 +76,36 @@ func TestValidateBuildActionUsesExactCosts(t *testing.T) {
 	}
 }
 
+func TestValidateBankBuildOnPlains(t *testing.T) {
+	m := validationTestMap(2, 1)
+	m.Grid[0][0].Units = []UnitData{{Type: UnitScout, Owner: 0, HP: 3}}
+	payload := BuildActionPayload{
+		From:     NewHex(0, 0),
+		To:       NewHex(1, 0),
+		Building: BuildingBank,
+	}
+
+	validation := ValidateBuildAction(
+		&m,
+		0,
+		payload,
+		Funds{Coins: BuildingCost(BuildingBank), Resources: Resources{}},
+	)
+	if !validation.Valid || validation.CoinCost != 25 {
+		t.Fatalf("Bank validation = %+v", validation)
+	}
+
+	m.Grid[1][0].Tile = TileForest
+	if validation := ValidateBuildAction(
+		&m,
+		0,
+		payload,
+		Funds{Coins: BuildingCost(BuildingBank), Resources: Resources{}},
+	); validation.Valid {
+		t.Fatalf("Bank unexpectedly valid on Forest: %+v", validation)
+	}
+}
+
 func TestValidateRecruitAndAttackActions(t *testing.T) {
 	m := validationTestMap(3, 1)
 	m.Grid[0][0] = Cell{

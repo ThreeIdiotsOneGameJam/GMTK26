@@ -26,6 +26,17 @@ func TestBuildingFactionMarkerColors(t *testing.T) {
 	}
 }
 
+func TestBankUsesBankSprite(t *testing.T) {
+	got := getBuildingRect(game.BuildingBank, false)
+	if got.X != 96*5 || got.Y != 0 || got.Width != 96 || got.Height != 96 {
+		t.Fatalf("Bank sprite rectangle = %+v", got)
+	}
+	hovered := getBuildingRect(game.BuildingBank, true)
+	if hovered.X != got.X || hovered.Y != 96 {
+		t.Fatalf("hovered Bank sprite rectangle = %+v", hovered)
+	}
+}
+
 func TestClearPlacementSelectionClosesPlacementAndSourceSelection(t *testing.T) {
 	selected := game.NewHex(2, 3)
 	r := WorldRenderer{

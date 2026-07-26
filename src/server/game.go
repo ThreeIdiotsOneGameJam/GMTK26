@@ -602,13 +602,12 @@ func (gi *GameInstance) processAutoActions() {
 		if !faction.Alive {
 			continue
 		}
-		coins, resources := game.FactionRoundIncome(&gi.game.Map, int8(i))
-		if faction.Resources == nil {
-			faction.Resources = make(game.Resources)
-		}
-		for resource, amount := range resources {
-			faction.Resources[resource] += amount
-		}
+		coins, resources := game.ResolveFactionRoundIncome(
+			&gi.game.Map,
+			int8(i),
+			faction.Resources,
+		)
+		faction.Resources = resources
 		faction.Coins += coins
 	}
 }

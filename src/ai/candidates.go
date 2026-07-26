@@ -132,6 +132,7 @@ func generateBuildCandidates(
 		game.BuildingForester,
 		game.BuildingMine,
 		game.BuildingBarracks,
+		game.BuildingBank,
 	}
 	for _, position := range positions {
 		cell := world.Map.GetCell(position)
@@ -471,6 +472,12 @@ func buildingUrgency(
 		}
 	case game.BuildingBarracks:
 		return math.Max(analysis.signals.militaryGap, analysis.signals.townhallThreat)
+	case game.BuildingBank:
+		goldCost := game.BuildingConsumes(game.BuildingBank)[game.ResourceGold]
+		if analysis.funds.Resources[game.ResourceGold]+analysis.income[game.ResourceGold] < goldCost {
+			return 0.05 * analysis.resourceNeed[game.ResourceGold]
+		}
+		return math.Max(0.55, analysis.resourceNeed[game.ResourceGold])
 	}
 	return 0
 }

@@ -130,6 +130,8 @@ func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {
 		return rl.Rectangle{X: 96.0 * 2.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingMine:
 		return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
+	case game.BuildingBank:
+		return rl.Rectangle{X: 96.0 * 5.0, Y: y, Width: 96.0, Height: 96.0}
 	}
 	return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
 }

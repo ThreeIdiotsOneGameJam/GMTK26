@@ -521,6 +521,31 @@ func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
 	}
 }
 
+func TestBankConsumesGoldAndProducesCoinsDuringAutoIncome(t *testing.T) {
+	g := actionTestGame(2, 1)
+	g.Map.Grid[0][0] = game.Cell{
+		Tile:     game.TileGold,
+		Owner:    0,
+		Building: &game.BuildingData{Type: game.BuildingMine},
+	}
+	g.Map.Grid[1][0] = game.Cell{
+		Tile:     game.TilePlains,
+		Owner:    0,
+		Building: &game.BuildingData{Type: game.BuildingBank},
+	}
+	g.Factions[0].Resources[game.ResourceGold] = 4
+	gi := NewGameInstance(1, g, nil)
+
+	gi.processAutoActions()
+
+	if got := g.Factions[0].Coins; got != 107 {
+		t.Fatalf("Coins = %d, want 107 after Gold Mine and Bank income", got)
+	}
+	if got := g.Factions[0].Resources[game.ResourceGold]; got != 0 {
+		t.Fatalf("Gold = %d, want 0 after same-round production and consumption", got)
+	}
+}
+
 func TestRecruitRejectsInsufficientFood(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)

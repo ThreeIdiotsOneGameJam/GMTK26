@@ -49,6 +49,7 @@ var buildingResourceDisplayOrder = []game.ResourceType{
 	game.ResourceWood,
 	game.ResourceStone,
 	game.ResourceIron,
+	game.ResourceGold,
 }
 
 func (el *GameBuildingDetailsPanelElement) canAffordUnit(unit game.UnitType) bool {
@@ -217,7 +218,7 @@ func tileResourceLabel(tile game.TileType) string {
 	case game.TileIron:
 		return game.ResourceIron.String()
 	case game.TileGold:
-		return "Coins"
+		return "Coins + Gold"
 	default:
 		return ""
 	}
@@ -233,6 +234,12 @@ func buildingOutputText(building game.BuildingType, tile game.TileType) string {
 	for _, resource := range buildingResourceDisplayOrder {
 		if amount := produces[resource]; amount > 0 {
 			outputs = append(outputs, fmt.Sprintf("%s x %d", resource, amount))
+		}
+	}
+	consumes := game.BuildingConsumes(building)
+	for _, resource := range buildingResourceDisplayOrder {
+		if amount := consumes[resource]; amount > 0 {
+			outputs = append(outputs, fmt.Sprintf("%s -%d", resource, amount))
 		}
 	}
 	return strings.Join(outputs, ", ")
@@ -345,6 +352,7 @@ func unitCostLabel(unit game.UnitType) string {
 		game.ResourceWood:  "w",
 		game.ResourceStone: "s",
 		game.ResourceIron:  "i",
+		game.ResourceGold:  "g",
 	}
 	costs := game.UnitResourceCost(unit)
 	for _, resource := range buildingResourceDisplayOrder {
@@ -393,16 +401,15 @@ func buildingProductionText(b game.BuildingType, tile game.TileType) string {
 		text += fmt.Sprintf("%s +%d", resType.String(), amount)
 	}
 	consumes := game.BuildingConsumes(b)
-	if len(consumes) > 0 {
-		for resType, amount := range consumes {
-			if amount == 0 {
-				continue
-			}
-			if text != "" {
-				text += ", "
-			}
-			text += fmt.Sprintf("%s -%d", resType.String(), amount)
+	for _, resType := range buildingResourceDisplayOrder {
+		amount := consumes[resType]
+		if amount == 0 {
+			continue
 		}
+		if text != "" {
+			text += ", "
+		}
+		text += fmt.Sprintf("%s -%d", resType.String(), amount)
 	}
 	return text
 }

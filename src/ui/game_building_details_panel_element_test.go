@@ -113,11 +113,25 @@ func TestTileHoverLines(t *testing.T) {
 			},
 			want: []string{
 				"Tile: Gold",
-				"Resource: Coins",
+				"Resource: Coins + Gold",
 				"Territory: Faction 1",
 				"",
-				"Building: Mine - Coin x 2",
+				"Building: Mine - Coin x 2, Gold x 1",
 				"Unit: Knight - Faction 2",
+			},
+		},
+		{
+			name: "bank conversion",
+			cell: &game.Cell{
+				Tile:     game.TilePlains,
+				Owner:    0,
+				Building: &game.BuildingData{Type: game.BuildingBank, HP: game.BuildingMaxHP(game.BuildingBank)},
+			},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Faction 1",
+				"",
+				"Building: Bank - Coin x 5, Gold -5",
 			},
 		},
 	}
@@ -164,7 +178,7 @@ func TestTileResourceLabel(t *testing.T) {
 		game.TileRock:   "Stone",
 		game.TileCoal:   "",
 		game.TileIron:   "Iron",
-		game.TileGold:   "Coins",
+		game.TileGold:   "Coins + Gold",
 		game.TilePlains: "",
 		game.TileWater:  "",
 	}
@@ -182,6 +196,7 @@ func TestPlayerFacingResourceOrderOmitsCoalAndSteel(t *testing.T) {
 		game.ResourceWood,
 		game.ResourceStone,
 		game.ResourceIron,
+		game.ResourceGold,
 	}
 	if !reflect.DeepEqual(buildingResourceDisplayOrder, want) {
 		t.Fatalf("buildingResourceDisplayOrder = %v, want %v", buildingResourceDisplayOrder, want)

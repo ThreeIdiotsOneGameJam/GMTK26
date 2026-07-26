@@ -11,6 +11,8 @@ func BuildingControlScore(building BuildingType, tile TileType) int32 {
 		return 3
 	case BuildingBarracks:
 		return 3
+	case BuildingBank:
+		return 3
 	default:
 		return 0
 	}
@@ -29,6 +31,8 @@ func BuildingDestructionScore(building BuildingType, tile TileType) int32 {
 		return 10
 	case BuildingBarracks:
 		return 15
+	case BuildingBank:
+		return 12
 	default:
 		return 0
 	}

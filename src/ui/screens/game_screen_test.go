@@ -32,6 +32,7 @@ func TestServerResourceDisplayOmitsCoalAndSteel(t *testing.T) {
 		game.ResourceWood,
 		game.ResourceStone,
 		game.ResourceIron,
+		game.ResourceGold,
 	}
 	if !reflect.DeepEqual(serverResourceDisplayOrder, want) {
 		t.Fatalf("serverResourceDisplayOrder = %v, want %v", serverResourceDisplayOrder, want)
@@ -42,8 +43,9 @@ func TestBuildingButtonTooltipsMatchGameplay(t *testing.T) {
 	tests := map[game.BuildingType]string{
 		game.BuildingBarracks: "Cost: 24 Coins, 6 Wood, 4 Stone\nRecruits: Peasant, Archer, Knight, Scout\nPlace on: Plains\nControl: +3 every 30s",
 		game.BuildingFarm:     "Cost: 12 Coins\nProduces: Food +1\nPlace on: Plains adjacent to Water\nControl: +2 every 30s",
-		game.BuildingMine:     "Cost: 14 Coins\nProduces: Rock -> Stone, Iron -> Iron, Gold -> Coins\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
+		game.BuildingMine:     "Cost: 14 Coins\nProduces: Rock -> Stone +1, Iron -> Iron +1, Gold -> 2 Coins + 1 Gold\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
 		game.BuildingForester: "Cost: 10 Coins\nProduces: Wood +1\nPlace on: Forest or Jungle\nControl: +2 every 30s",
+		game.BuildingBank:     "Cost: 25 Coins\nConverts: 5 Gold -> 5 Coins each round\nPlace on: Plains\nControl: +3 every 30s",
 	}
 
 	for building, want := range tests {

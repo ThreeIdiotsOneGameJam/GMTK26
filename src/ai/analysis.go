@@ -109,7 +109,12 @@ func analyzeWorld(
 		}
 		analysis.funds = game.ProjectedRoundFunds(&snapshot.Map, own.Owner, analysis.faction)
 	}
-	analysis.incomeCoins, analysis.income = game.FactionRoundIncome(&snapshot.Map, own.Owner)
+	_, analysis.income = game.FactionRoundIncome(&snapshot.Map, own.Owner)
+	analysis.incomeCoins, _ = game.ResolveFactionRoundIncome(
+		&snapshot.Map,
+		own.Owner,
+		analysis.faction.Resources,
+	)
 
 	powers := [4]float64{}
 	for x := range snapshot.Map.Grid {
@@ -295,6 +300,7 @@ func (analysis *worldAnalysis) collectSites(snapshot *WorldSnapshot) {
 		game.BuildingForester,
 		game.BuildingMine,
 		game.BuildingBarracks,
+		game.BuildingBank,
 	}
 	for x := range snapshot.Map.Grid {
 		for y := range snapshot.Map.Grid[x] {
@@ -373,6 +379,18 @@ func (analysis *worldAnalysis) siteScore(
 			need = math.Max(need, 0.55)
 		} else {
 			need *= 0.45
+		}
+	case game.BuildingBank:
+		horizon := uint32(min(max(analysis.remainingRounds, 1), int32(6)))
+		availableGold := analysis.funds.Resources[game.ResourceGold] +
+			analysis.income[game.ResourceGold]*horizon
+		need = analysis.resourceNeed[game.ResourceGold]
+		if availableGold >= game.BuildingConsumes(game.BuildingBank)[game.ResourceGold] {
+			need = math.Max(need, 0.55)
+			incomeValue = 0.85
+		} else {
+			need *= 0.15
+			incomeValue = 0.05
 		}
 	}
 	control := float64(game.BuildingControlScore(building, tile)) / 5

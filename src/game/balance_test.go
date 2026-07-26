@@ -71,6 +71,7 @@ func TestBuildingBalance(t *testing.T) {
 		{BuildingForester, 10, Resources{}, 10, 2, 8},
 		{BuildingMine, 14, Resources{}, 12, 3, 10},
 		{BuildingBarracks, 24, Resources{ResourceWood: 6, ResourceStone: 4}, 16, 3, 15},
+		{BuildingBank, 25, Resources{}, 10, 3, 12},
 	}
 
 	for _, test := range tests {
@@ -113,6 +114,12 @@ func TestResourceCostAccessorsReturnCopies(t *testing.T) {
 	if got := UnitResourceCost(UnitArcher)[ResourceWood]; got != 4 {
 		t.Fatalf("mutated shared unit cost: Wood = %d", got)
 	}
+
+	consumes := BuildingConsumes(BuildingBank)
+	consumes[ResourceGold] = 99
+	if got := BuildingConsumes(BuildingBank)[ResourceGold]; got != 5 {
+		t.Fatalf("mutated shared Bank consumption: Gold = %d", got)
+	}
 }
 
 func TestMineProductionByTerrain(t *testing.T) {
@@ -123,7 +130,7 @@ func TestMineProductionByTerrain(t *testing.T) {
 	}{
 		{TileRock, map[ResourceType]uint32{ResourceStone: 1}, 0},
 		{TileIron, map[ResourceType]uint32{ResourceIron: 1}, 0},
-		{TileGold, nil, 2},
+		{TileGold, map[ResourceType]uint32{ResourceGold: 1}, 2},
 		{TileCoal, nil, 0},
 	}
 

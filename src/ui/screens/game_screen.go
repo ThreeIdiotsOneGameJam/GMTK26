@@ -588,12 +588,17 @@ func buildingButtonTooltip(building game.BuildingType) string {
 		)
 	case game.BuildingMine:
 		return fmt.Sprintf(
-			"Cost: %s\nProduces: Rock -> Stone, Iron -> Iron, Gold -> Coins\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
+			"Cost: %s\nProduces: Rock -> Stone +1, Iron -> Iron +1, Gold -> 2 Coins + 1 Gold\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
 			cost,
 		)
 	case game.BuildingForester:
 		return fmt.Sprintf(
 			"Cost: %s\nProduces: Wood +1\nPlace on: Forest or Jungle\nControl: +%d every 30s",
+			cost, score,
+		)
+	case game.BuildingBank:
+		return fmt.Sprintf(
+			"Cost: %s\nConverts: 5 Gold -> 5 Coins each round\nPlace on: Plains\nControl: +%d every 30s",
 			cost, score,
 		)
 	default:
@@ -612,6 +617,7 @@ func buildingCostText(building game.BuildingType) string {
 		game.ResourceWood,
 		game.ResourceStone,
 		game.ResourceIron,
+		game.ResourceGold,
 	} {
 		if amount := costs[resource]; amount > 0 {
 			parts = append(parts, fmt.Sprintf("%d %s", amount, resource))
@@ -677,6 +683,7 @@ func buildingToolbar() *ui.GroupElement {
 		{label: "Farm", building: game.BuildingFarm, x: 224},
 		{label: "Mine", building: game.BuildingMine, x: 308},
 		{label: "Forester", building: game.BuildingForester, x: 384},
+		{label: "Bank", building: game.BuildingBank, x: 496},
 	}
 	for _, item := range buttons {
 		group.AddChild(
@@ -731,7 +738,7 @@ func serverResourceList() *ui.GroupElement {
 			WithOutlineWidth(2).
 			WithRelativePos(vec.Vec2i{Y: 132}).
 			WithTooltip(
-				"Every 30s: Farm +2, Forester +2, Mine +3, Gold Mine +5, Barracks +3\n" +
+				"Every 30s: Farm +2, Forester +2, Mine +3, Gold Mine +5, Barracks +3, Bank +3\n" +
 					"Destroy enemies for points; eliminating every rival wins immediately",
 			),
 	)
@@ -743,6 +750,7 @@ var serverResourceDisplayOrder = []game.ResourceType{
 	game.ResourceWood,
 	game.ResourceStone,
 	game.ResourceIron,
+	game.ResourceGold,
 }
 
 func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
