@@ -10,15 +10,15 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
-func BuildingDetailsPanel() *BuildingDetailsPanelElement {
-	el := &BuildingDetailsPanelElement{
+func GameBuildingDetailsPanel() *GameBuildingDetailsPanelElement {
+	el := &GameBuildingDetailsPanelElement{
 		world: nil,
 	}
 	el.BaseElement = NewBaseElement(el)
 	return el
 }
 
-func (el *BuildingDetailsPanelElement) WithWorld(w *WorldElement) *BuildingDetailsPanelElement {
+func (el *GameBuildingDetailsPanelElement) WithWorld(w *GameWorldElement) *GameBuildingDetailsPanelElement {
 	el.world = w
 	return el
 }
@@ -36,13 +36,13 @@ type buttonRect struct {
 	label      string
 }
 
-type BuildingDetailsPanelElement struct {
-	BaseElement[*BuildingDetailsPanelElement]
-	world *WorldElement
+type GameBuildingDetailsPanelElement struct {
+	BaseElement[*GameBuildingDetailsPanelElement]
+	world *GameWorldElement
 	lay   buildingDetailsLayout
 }
 
-func (el *BuildingDetailsPanelElement) update(deltaNano int64) {
+func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 	if el.world == nil {
 		return
 	}
@@ -86,7 +86,7 @@ func (el *BuildingDetailsPanelElement) update(deltaNano int64) {
 	}
 }
 
-func (el *BuildingDetailsPanelElement) draw() {
+func (el *GameBuildingDetailsPanelElement) draw() {
 	if el.world == nil {
 		return
 	}
@@ -109,7 +109,7 @@ func (el *BuildingDetailsPanelElement) draw() {
 	el.drawPanel()
 }
 
-func (el *BuildingDetailsPanelElement) drawHover() {
+func (el *GameBuildingDetailsPanelElement) drawHover() {
 	text := el.hoverText()
 	if text == "" {
 		return
@@ -137,7 +137,7 @@ func (el *BuildingDetailsPanelElement) drawHover() {
 	rl.DrawText(text, x+pad, y+pad, textSize, rl.White)
 }
 
-func (el *BuildingDetailsPanelElement) hoverText() string {
+func (el *GameBuildingDetailsPanelElement) hoverText() string {
 	cell := el.world.Map.GetCell(el.world.Renderer.HoveredHex)
 	if cell == nil || cell.Building == game.BuildingUnknown {
 		return ""
@@ -150,7 +150,7 @@ func (el *BuildingDetailsPanelElement) hoverText() string {
 	return label
 }
 
-func (el *BuildingDetailsPanelElement) drawPanel() {
+func (el *GameBuildingDetailsPanelElement) drawPanel() {
 	lay := &el.lay
 	pad := int32(10)
 	lineH := int32(24)
@@ -184,7 +184,7 @@ func (el *BuildingDetailsPanelElement) drawPanel() {
 	}
 }
 
-func (el *BuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildingDetailsLayout {
+func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildingDetailsLayout {
 	textSize := int32(20)
 	pad := int32(10)
 	lineH := textSize + 4

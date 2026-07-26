@@ -8,31 +8,31 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/render"
 )
 
-func World() *WorldElement {
-	el := &WorldElement{}
+func GameWorld() *GameWorldElement {
+	el := &GameWorldElement{}
 	el.BaseElement = NewBaseElement(el)
 
 	return el
 }
 
-type WorldElement struct {
-	BaseElement[*WorldElement]
+type GameWorldElement struct {
+	BaseElement[*GameWorldElement]
 	Map      game.Map
 	Renderer render.WorldRenderer
 }
 
-func (el *WorldElement) prepare() {
+func (el *GameWorldElement) prepare() {
 	if el.Map.Grid == nil {
 		el.Map.Generate()
 	}
 	el.Renderer.Init(&el.Map)
 }
 
-func (el *WorldElement) update(deltaNano int64) {
+func (el *GameWorldElement) update(deltaNano int64) {
 	el.Renderer.Update(&el.Map, time.Duration(deltaNano))
 	audio.AmbienceVolumeMulti = el.Renderer.TargetZoom*0.5 + 0.5
 }
 
-func (el *WorldElement) draw() {
+func (el *GameWorldElement) draw() {
 	el.Renderer.Draw(&el.Map)
 }

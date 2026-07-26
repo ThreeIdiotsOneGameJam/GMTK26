@@ -22,7 +22,7 @@ import (
 )
 
 var gameSeedInput = ui.Input()
-var gameWorld = ui.World()
+var gameWorld = ui.GameWorld()
 var gameRegenerateButton = ui.Button()
 var currentGame *game.Game
 var gamePreviousScreen *ui.ScreenElement
@@ -538,7 +538,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithClick(focusOnTownhall),
 		).
 		AddChild(
-			ui.BuildingDetailsPanel().
+			ui.GameBuildingDetailsPanel().
 				WithWorld(gameWorld),
 		).
 		AddChild(
