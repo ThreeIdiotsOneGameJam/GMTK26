@@ -93,6 +93,14 @@ func TestGameplayPacketRoundTrips(t *testing.T) {
 				},
 			}},
 		},
+		&S2CGameEndPacket{
+			WinnerFaction: 1,
+			WinnerName:    "Winner",
+			Rankings: []RankEntry{
+				{FactionIdx: 1, PlayerName: "Winner", Points: 12, Alive: true},
+				{FactionIdx: 0, PlayerName: "Runner-up", Points: 8, Alive: false},
+			},
+		},
 	}
 
 	for _, packet := range tests {

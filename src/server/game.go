@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -471,13 +472,33 @@ func (gi *GameInstance) broadcastGameEnd() {
 		})
 	}
 
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j].points > sorted[i].points {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
+	// A surviving faction wins an elimination game even when an eliminated
+	// faction accumulated more points. When time expires (or everyone is
+	// eliminated), standings and the winner are decided by score.
+	survivingFaction := -1
+	for _, faction := range sorted {
+		if !faction.alive {
+			continue
+		}
+		if survivingFaction >= 0 {
+			survivingFaction = -1
+			break
+		}
+		survivingFaction = faction.idx
+	}
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if survivingFaction >= 0 {
+			iSurvived := sorted[i].idx == survivingFaction
+			jSurvived := sorted[j].idx == survivingFaction
+			if iSurvived != jSurvived {
+				return iSurvived
 			}
 		}
-	}
+		if sorted[i].points != sorted[j].points {
+			return sorted[i].points > sorted[j].points
+		}
+		return sorted[i].idx < sorted[j].idx
+	})
 
 	winnerFaction := -1
 	winnerName := ""
