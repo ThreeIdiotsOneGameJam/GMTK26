@@ -190,6 +190,7 @@ func main() {
 
 	rl.InitWindow(constants.WindowWidth, constants.WindowHeight, constants.GameName)
 	defer rl.CloseWindow()
+	rl.SetWindowMinSize(768, 576)
 
 	shaders.Load()
 	defer shaders.Unload()
