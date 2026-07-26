@@ -101,7 +101,14 @@ func (r *WorldRenderer) canBuildAt(m *game.Map, from, to game.Hex, building game
 		(from == to || game.HexAdjacent(from, to)) &&
 		(target.Owner == -1 || target.Owner == r.LocalFaction) &&
 		(!target.HasUnits() || target.Units[0].Owner == r.LocalFaction) &&
-		game.BuildingCanPlace(m, building, to)
+		game.BuildingCanPlace(m, building, to) &&
+		game.CanAffordBuildingAfterRoundIncome(
+			m,
+			r.LocalFaction,
+			building,
+			r.LocalCoins,
+			r.LocalResources,
+		)
 }
 
 func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {
@@ -147,6 +154,13 @@ func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mouseP
 	for _, b := range visible {
 		cell := &m.Grid[b.hex.X][b.hex.Y]
 		bt := cell.BuildingType()
+		if marker, ok := buildingFactionMarkerColor(cell.Owner); cell.HasBuilding() && ok {
+			rl.DrawCircleV(
+				rlvec.ToRL(b.position),
+				r.HexSize.X*0.46,
+				marker,
+			)
+		}
 		draw(b.position, bt, rl.White, 0, mouseHex == b.hex)
 		if cell.HasBuilding() && cell.Owner == r.LocalFaction {
 			drawHPBar(b.position, r.HexSize, cell.Building.HP, game.BuildingMaxHP(bt))
@@ -166,4 +180,13 @@ func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mouseP
 		worldPos := r.HexToPixel(r.buildingPreview.Hex.Vec2i)
 		draw(worldPos, r.buildingPreview.Type, r.buildingPreview.Tint, 0, false)
 	}
+}
+
+func buildingFactionMarkerColor(owner int8) (color.RGBA, bool) {
+	if owner < 0 || int(owner) >= len(factionColors) {
+		return color.RGBA{}, false
+	}
+	marker := factionColors[owner]
+	marker.A = 200
+	return marker, true
 }

@@ -57,7 +57,7 @@ func (c *Client) LeaveGame() {
 	c.mu.Unlock()
 
 	if gi != nil {
-		gi.clientLeft()
+		gi.clientLeft(c)
 	}
 }
 

@@ -48,10 +48,7 @@ var buildingResourceDisplayOrder = []game.ResourceType{
 	game.ResourceFood,
 	game.ResourceWood,
 	game.ResourceStone,
-	game.ResourceCoal,
 	game.ResourceIron,
-	game.ResourceSteel,
-	game.ResourceGold,
 }
 
 func (el *GameBuildingDetailsPanelElement) canAffordUnit(unit game.UnitType) bool {
@@ -217,12 +214,10 @@ func tileResourceLabel(tile game.TileType) string {
 		return game.ResourceWood.String()
 	case game.TileRock:
 		return game.ResourceStone.String()
-	case game.TileCoal:
-		return game.ResourceCoal.String()
 	case game.TileIron:
 		return game.ResourceIron.String()
 	case game.TileGold:
-		return game.ResourceGold.String()
+		return "Coins"
 	default:
 		return ""
 	}
@@ -230,7 +225,7 @@ func tileResourceLabel(tile game.TileType) string {
 
 func buildingOutputText(building game.BuildingType, tile game.TileType) string {
 	var outputs []string
-	if amount := game.BuildingCoinsProduces(building); amount > 0 {
+	if amount := game.BuildingCoinsProduces(building, tile); amount > 0 {
 		outputs = append(outputs, fmt.Sprintf("Coin x %d", amount))
 	}
 
@@ -304,14 +299,11 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 
 	if cell.BuildingType() == game.BuildingBarracks || cell.BuildingType() == game.BuildingTownhall {
 		y := bgY + headerH + contentH + pad
-		units := []struct {
-			label string
-			t     game.UnitType
-		}{
-			{"Peasant 10c 1f", game.UnitPeasant},
-			{"Archer 20c 3f", game.UnitArcher},
-			{"Knight 30c 5f", game.UnitKnight},
-			{"Scout 10c", game.UnitScout},
+		units := []game.UnitType{
+			game.UnitPeasant,
+			game.UnitArcher,
+			game.UnitKnight,
+			game.UnitScout,
 		}
 		if cell.BuildingType() == game.BuildingTownhall {
 			units = units[3:]
@@ -319,14 +311,14 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 		panelH += pad*2 + int32(len(units))*(btnH+btnGap)
 		bgY = (winH - panelH) / 2
 		y = bgY + headerH + contentH + pad
-		for _, tp := range units {
+		for _, unit := range units {
 			buttons = append(buttons, buttonRect{
 				x:     bgX + pad,
 				y:     y,
 				w:     panelW - pad*2,
 				h:     btnH,
-				unit:  tp.t,
-				label: tp.label,
+				unit:  unit,
+				label: unitCostLabel(unit),
 			})
 			y += btnH + btnGap
 		}
@@ -341,6 +333,26 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 		contentLines: lines[1:],
 		buttons:      buttons,
 	}
+}
+
+func unitCostLabel(unit game.UnitType) string {
+	label := unit.String()
+	if cost := game.UnitCost(unit); cost > 0 {
+		label += fmt.Sprintf(" %dc", cost)
+	}
+	resourceSuffix := map[game.ResourceType]string{
+		game.ResourceFood:  "f",
+		game.ResourceWood:  "w",
+		game.ResourceStone: "s",
+		game.ResourceIron:  "i",
+	}
+	costs := game.UnitResourceCost(unit)
+	for _, resource := range buildingResourceDisplayOrder {
+		if amount := costs[resource]; amount > 0 {
+			label += fmt.Sprintf(" %d%s", amount, resourceSuffix[resource])
+		}
+	}
+	return label
 }
 
 func buildingLabel(b game.BuildingType) string {
@@ -363,7 +375,7 @@ func buildingLabel(b game.BuildingType) string {
 }
 
 func buildingProductionText(b game.BuildingType, tile game.TileType) string {
-	coinOutput := game.BuildingCoinsProduces(b)
+	coinOutput := game.BuildingCoinsProduces(b, tile)
 	text := ""
 	if coinOutput > 0 {
 		text = fmt.Sprintf("Coin +%d", coinOutput)

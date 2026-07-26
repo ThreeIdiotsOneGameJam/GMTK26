@@ -25,6 +25,12 @@ func actionTestGame(width, height int32) *game.Game {
 	}
 	for i := range g.Factions {
 		g.Factions[i].Coins = 100
+		g.Factions[i].Alive = true
+		g.Factions[i].Resources = game.Resources{
+			game.ResourceWood:  100,
+			game.ResourceStone: 100,
+			game.ResourceIron:  100,
+		}
 	}
 	return g
 }
@@ -443,6 +449,10 @@ func TestMixedBuildAndMoveConflictFailsBoth(t *testing.T) {
 	if g.Factions[1].Coins != 100 {
 		t.Fatal("contested build deducted coins")
 	}
+	if g.Factions[1].Resources[game.ResourceWood] != 100 ||
+		g.Factions[1].Resources[game.ResourceStone] != 100 {
+		t.Fatal("contested build deducted resources")
+	}
 	if gi.actionResults[0].Status != game.ActionResultContested ||
 		gi.actionResults[1].Status != game.ActionResultContested {
 		t.Fatalf("unexpected results: %v %v", gi.actionResults[0], gi.actionResults[1])
@@ -471,8 +481,8 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 	if !target.HasUnits() || target.Units[0].Type != game.UnitScout || target.Units[0].Owner != 0 || target.Owner != -1 {
 		t.Fatalf("recruitment target = %+v", target)
 	}
-	if g.Factions[0].Coins != 90 {
-		t.Fatalf("coins = %d, want 90", g.Factions[0].Coins)
+	if g.Factions[0].Coins != 92 {
+		t.Fatalf("coins = %d, want 92", g.Factions[0].Coins)
 	}
 }
 
@@ -485,6 +495,7 @@ func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
 	farmCell := g.Map.GetCell(farm)
 	farmCell.Owner = 0
 	farmCell.Building = &game.BuildingData{Type: game.BuildingFarm, HP: game.BuildingMaxHP(game.BuildingFarm)}
+	g.Factions[0].Resources[game.ResourceFood] = 3
 
 	gi := NewGameInstance(1, g, nil)
 	gi.actions[0] = &submittedAction{
@@ -502,11 +513,11 @@ func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
 	if g.Map.GetCell(to).HasUnits() && g.Map.GetCell(to).Units[0].Type != game.UnitPeasant {
 		t.Fatal("incoming Farm food did not fund recruitment")
 	}
-	if got := g.Factions[0].Resources[game.ResourceFood]; got != 1 {
-		t.Fatalf("Food = %d, want 1 after producing 2 and spending 1", got)
+	if got := g.Factions[0].Resources[game.ResourceFood]; got != 0 {
+		t.Fatalf("Food = %d, want 0 after producing 1 and spending 4", got)
 	}
-	if g.Factions[0].Coins != 90 {
-		t.Fatalf("coins = %d, want 90", g.Factions[0].Coins)
+	if g.Factions[0].Coins != 92 {
+		t.Fatalf("coins = %d, want 92", g.Factions[0].Coins)
 	}
 }
 

@@ -11,6 +11,9 @@ const (
 	BuildingBarracks
 	BuildingFarm
 	BuildingTownhall
+	// BuildingBank is retained for protocol compatibility with builds that
+	// briefly exposed it, but the baseline resource model does not make it
+	// player-buildable.
 	BuildingBank
 )
 
@@ -30,7 +33,7 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 
 	switch building {
 	case BuildingMine:
-		return cell.Tile == TileRock || cell.Tile == TileIron || cell.Tile == TileCoal || cell.Tile == TileGold
+		return cell.Tile == TileRock || cell.Tile == TileIron || cell.Tile == TileGold
 	case BuildingForester:
 		return cell.Tile == TileForest || cell.Tile == TileJungle
 	case BuildingBarracks:
@@ -49,8 +52,6 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 		}
 
 		return isWater(neighbors.N) || isWater(neighbors.NE) || isWater(neighbors.NW) || isWater(neighbors.S) || isWater(neighbors.SW) || isWater(neighbors.SE)
-	case BuildingBank:
-		return cell.Tile == TilePlains
 	}
 
 	return false
@@ -59,15 +60,15 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 func BuildingMaxHP(b BuildingType) int8 {
 	switch b {
 	case BuildingTownhall:
-		return 20
+		return 24
 	case BuildingBarracks:
-		return 10
+		return 16
 	case BuildingForester:
-		return 8
-	case BuildingMine:
 		return 10
+	case BuildingMine:
+		return 12
 	case BuildingFarm:
-		return 8
+		return 10
 	case BuildingBank:
 		return 10
 	default:

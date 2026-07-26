@@ -19,9 +19,9 @@ type UnitStats struct {
 
 var unitStatsTable = [5]UnitStats{
 	UnitUnknown: {0, 0},
-	UnitPeasant: {3, 1},
-	UnitArcher:  {3, 2},
-	UnitKnight:  {5, 3},
+	UnitPeasant: {5, 1},
+	UnitArcher:  {4, 2},
+	UnitKnight:  {8, 3},
 	UnitScout:   {3, 0},
 }
 

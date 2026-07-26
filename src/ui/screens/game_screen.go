@@ -573,20 +573,51 @@ func setBuildingClick(building game.BuildingType) func() {
 }
 
 func buildingButtonTooltip(building game.BuildingType) string {
+	cost := buildingCostText(building)
+	score := game.BuildingControlScore(building, game.TileRock)
 	switch building {
 	case game.BuildingBarracks:
-		return "Recruits: Peasant, Archer, Knight, Scout\nPlace on: Plains"
+		return fmt.Sprintf(
+			"Cost: %s\nRecruits: Peasant, Archer, Knight, Scout\nPlace on: Plains\nControl: +%d every 30s",
+			cost, score,
+		)
 	case game.BuildingFarm:
-		return "Produces: Food +2\nPlace on: Plains adjacent to Water"
+		return fmt.Sprintf(
+			"Cost: %s\nProduces: Food +1\nPlace on: Plains adjacent to Water\nControl: +%d every 30s",
+			cost, score,
+		)
 	case game.BuildingMine:
-		return "Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold"
+		return fmt.Sprintf(
+			"Cost: %s\nProduces: Rock -> Stone, Iron -> Iron, Gold -> Coins\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
+			cost,
+		)
 	case game.BuildingForester:
-		return "Produces: Wood +2\nPlace on: Forest or Jungle"
-	case game.BuildingBank:
-		return "Produces: Coin +5\nConsumes: Gold -5\nPlace on: Plains"
+		return fmt.Sprintf(
+			"Cost: %s\nProduces: Wood +1\nPlace on: Forest or Jungle\nControl: +%d every 30s",
+			cost, score,
+		)
 	default:
 		return ""
 	}
+}
+
+func buildingCostText(building game.BuildingType) string {
+	parts := make([]string, 0, 3)
+	if coins := game.BuildingCost(building); coins > 0 {
+		parts = append(parts, fmt.Sprintf("%d Coins", coins))
+	}
+	costs := game.BuildingResourceCost(building)
+	for _, resource := range []game.ResourceType{
+		game.ResourceFood,
+		game.ResourceWood,
+		game.ResourceStone,
+		game.ResourceIron,
+	} {
+		if amount := costs[resource]; amount > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", amount, resource))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 func tryFocusOnTownhall() bool {
@@ -646,7 +677,6 @@ func buildingToolbar() *ui.GroupElement {
 		{label: "Farm", building: game.BuildingFarm, x: 224},
 		{label: "Mine", building: game.BuildingMine, x: 308},
 		{label: "Forester", building: game.BuildingForester, x: 384},
-		{label: "Bank", building: game.BuildingBank, x: 520},
 	}
 	for _, item := range buttons {
 		group.AddChild(
@@ -655,6 +685,18 @@ func buildingToolbar() *ui.GroupElement {
 				WithTextSize(24).
 				WithPadding(8).
 				WithRelativePos(vec.Vec2i{X: item.x}).
+				WithEnabledDynamic(func(*ui.ButtonElement) bool {
+					if item.building == game.BuildingUnknown {
+						return true
+					}
+					return game.CanAffordBuildingAfterRoundIncome(
+						&gameWorld.Map,
+						int8(gameNet.LocalGameState.FactionIdx),
+						item.building,
+						serverCoins,
+						serverResources,
+					)
+				}).
 				WithClick(setBuildingClick(item.building)).
 				WithTooltip(buildingButtonTooltip(item.building)),
 		)
@@ -670,16 +712,7 @@ func serverResourceList() *ui.GroupElement {
 			return serverGameActive
 		})
 
-	resources := []game.ResourceType{
-		game.ResourceWood,
-		game.ResourceStone,
-		game.ResourceCoal,
-		game.ResourceIron,
-		game.ResourceSteel,
-		game.ResourceGold,
-		game.ResourceFood,
-	}
-	for i, resourceType := range resources {
+	for i, resourceType := range serverResourceDisplayOrder {
 		group.AddChild(
 			ui.Text().
 				WithTextDynamic(func() string {
@@ -690,7 +723,26 @@ func serverResourceList() *ui.GroupElement {
 				WithRelativePos(vec.Vec2i{Y: int32(i+1) * 24}),
 		)
 	}
+	group.AddChild(
+		ui.Button().
+			WithText("Scoring").
+			WithTextSize(18).
+			WithPadding(5).
+			WithOutlineWidth(2).
+			WithRelativePos(vec.Vec2i{Y: 132}).
+			WithTooltip(
+				"Every 30s: Farm +2, Forester +2, Mine +3, Gold Mine +5, Barracks +3\n" +
+					"Destroy enemies for points; eliminating every rival wins immediately",
+			),
+	)
 	return group
+}
+
+var serverResourceDisplayOrder = []game.ResourceType{
+	game.ResourceFood,
+	game.ResourceWood,
+	game.ResourceStone,
+	game.ResourceIron,
 }
 
 func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {

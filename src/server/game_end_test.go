@@ -74,3 +74,44 @@ func TestGameEndUsesScoreWhenMultipleFactionsRemain(t *testing.T) {
 		t.Fatalf("rankings = %+v, want highest-scoring faction first", recorder.packet.Rankings)
 	}
 }
+
+func TestGameEndRanksLivingFactionsAheadOfEliminatedScoreLeader(t *testing.T) {
+	g := &game.Game{}
+	g.Factions[0] = game.Faction{Points: 10, Alive: true}
+	g.Factions[1] = game.Faction{Points: 50, Alive: true}
+	g.Factions[2] = game.Faction{Points: 500, Alive: false}
+
+	recorder := &gameEndPacketRecorder{}
+	client := NewClient(recorder)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+
+	gi.broadcastGameEnd()
+
+	if recorder.packet.WinnerFaction != 1 {
+		t.Fatalf("winner faction = %d, want living score leader 1", recorder.packet.WinnerFaction)
+	}
+	if got := recorder.packet.Rankings[2].FactionIdx; got != 2 {
+		t.Fatalf("eliminated score leader ranked at faction %d position, want third", got)
+	}
+}
+
+func TestGameEndUsesDrawForTiedEligibleLeaders(t *testing.T) {
+	g := &game.Game{}
+	g.Factions[0] = game.Faction{Points: 50, Alive: true}
+	g.Factions[1] = game.Faction{Points: 50, Alive: true}
+
+	recorder := &gameEndPacketRecorder{}
+	client := NewClient(recorder)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+
+	gi.broadcastGameEnd()
+
+	if recorder.packet.WinnerFaction != -1 {
+		t.Fatalf("winner faction = %d, want draw -1", recorder.packet.WinnerFaction)
+	}
+	if recorder.packet.WinnerName != "" {
+		t.Fatalf("draw winner name = %q, want empty", recorder.packet.WinnerName)
+	}
+}

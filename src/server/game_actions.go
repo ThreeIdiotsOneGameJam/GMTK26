@@ -1,25 +1,22 @@
 package server
 
-import (
-	"fmt"
-
-	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-)
+import "github.com/threeidiotsonegamejam/gmtk26/src/game"
 
 type roundIntent struct {
-	faction     int
-	action      game.ActionType
-	automatic   bool
-	from        game.Hex
-	to          game.Hex
-	destination game.Hex
-	unit        game.UnitType
-	building    game.BuildingType
-	path        []game.Hex
-	cost        int32
-	targetsTile bool
-	valid       bool
-	result      game.ActionResult
+	faction      int
+	action       game.ActionType
+	automatic    bool
+	from         game.Hex
+	to           game.Hex
+	destination  game.Hex
+	unit         game.UnitType
+	building     game.BuildingType
+	path         []game.Hex
+	cost         int32
+	resourceCost game.Resources
+	targetsTile  bool
+	valid        bool
+	result       game.ActionResult
 }
 
 func (gi *GameInstance) processClientActions() {
@@ -29,6 +26,10 @@ func (gi *GameInstance) processClientActions() {
 
 	// Phase 1: auto-attacks from persistent AttackOrders (no contest)
 	for factionIdx := range gi.game.Factions {
+		if !gi.game.Factions[factionIdx].Alive {
+			delete(gi.attackOrders, factionIdx)
+			continue
+		}
 		allOrders := gi.attackOrders[factionIdx]
 		remaining := allOrders[:0]
 		for _, order := range allOrders {
@@ -55,6 +56,9 @@ func (gi *GameInstance) processClientActions() {
 	// Phase 2: manual actions + auto-movement
 	intents := make([]*roundIntent, len(gi.game.Factions))
 	for factionIdx := range gi.game.Factions {
+		if !gi.game.Factions[factionIdx].Alive {
+			continue
+		}
 		action, submitted := gi.actions[factionIdx]
 		if submitted && action != nil {
 			intents[factionIdx] = gi.planManualIntent(factionIdx, action)
@@ -127,92 +131,55 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 			return intent.invalid("Recruit payload was missing")
 		}
 		intent.from, intent.to, intent.unit = action.Recruit.From, action.Recruit.To, action.Recruit.Unit
-		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
-		if source == nil || target == nil || source.Owner != factionOwner {
-			return intent.invalid("Recruitment source is not friendly")
-		}
-		if !game.HexAdjacent(intent.from, intent.to) {
-			return intent.invalid("Recruitment target must be adjacent")
-		}
-		if game.TerrainMovementCost(target.Tile) <= 0 ||
-			(target.Owner != -1 && target.Owner != factionOwner) ||
-			target.HasUnits() {
-			return intent.invalid("Recruitment target is not available")
-		}
-		validUnit := intent.unit >= game.UnitPeasant && intent.unit <= game.UnitScout
-		if !validUnit ||
-			source.BuildingType() == game.BuildingTownhall && intent.unit != game.UnitScout ||
-			source.BuildingType() != game.BuildingTownhall && source.BuildingType() != game.BuildingBarracks {
-			return intent.invalid("Building cannot recruit that unit")
-		}
-		intent.cost = game.UnitCost(intent.unit)
-		if faction.Coins < intent.cost {
-			return intent.insufficientCoins()
-		}
-		for res, amt := range game.UnitResourceCost(intent.unit) {
-			if faction.Resources[res] < amt {
-				return intent.insufficientResources(res)
-			}
+		validation := game.ValidateRecruitAction(
+			m,
+			factionOwner,
+			*action.Recruit,
+			game.CurrentFunds(*faction),
+		)
+		intent.cost = validation.CoinCost
+		intent.resourceCost = validation.ResourceCost
+		if !validation.Valid {
+			return intent.validationFailed(validation)
 		}
 		intent.targetsTile = true
 		intent.valid = true
-		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = fmt.Sprintf("%s recruited", intent.unit)
+		intent.result.Status = validation.Status
+		intent.result.Message = validation.Message
 
 	case game.ActionBuild:
 		if action.Build == nil {
 			return intent.invalid("Build payload was missing")
 		}
 		intent.from, intent.to, intent.building = action.Build.From, action.Build.To, action.Build.Building
-		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
-		if source == nil || target == nil ||
-			!source.HasUnits() ||
-			source.Units[0].Type != game.UnitScout ||
-			source.Units[0].Owner != factionOwner {
-			return intent.invalid("A friendly Scout is required to build")
-		}
-		if intent.from != intent.to && !game.HexAdjacent(intent.from, intent.to) {
-			return intent.invalid("Scout may only build on its tile or an adjacent tile")
-		}
-		if target.Owner != -1 && target.Owner != factionOwner {
-			return intent.invalid("Cannot build in enemy territory")
-		}
-		if target.HasUnits() && target.Units[0].Owner != factionOwner {
-			return intent.invalid("Cannot build beneath an enemy unit")
-		}
-		if !game.BuildingCanPlace(m, intent.building, intent.to) {
-			return intent.invalid("Building cannot be placed on that terrain")
-		}
-		intent.cost = game.BuildingCost(intent.building)
-		if faction.Coins < intent.cost {
-			return intent.insufficientCoins()
+		validation := game.ValidateBuildAction(
+			m,
+			factionOwner,
+			*action.Build,
+			game.CurrentFunds(*faction),
+		)
+		intent.cost = validation.CoinCost
+		intent.resourceCost = validation.ResourceCost
+		if !validation.Valid {
+			return intent.validationFailed(validation)
 		}
 		intent.targetsTile = true
 		intent.valid = true
-		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = fmt.Sprintf("%s constructed", intent.building)
+		intent.result.Status = validation.Status
+		intent.result.Message = validation.Message
 
 	case game.ActionAttack:
 		if action.Attack == nil {
 			return intent.invalid("Attack payload was missing")
 		}
 		intent.from, intent.to = action.Attack.From, action.Attack.To
-		source, target := m.GetCell(intent.from), m.GetCell(intent.to)
-		if source == nil || target == nil ||
-			!source.HasUnits() ||
-			source.Units[0].Type == game.UnitScout ||
-			source.Units[0].Owner != factionOwner {
-			return intent.invalid("A friendly non-Scout unit is required to attack")
-		}
-		if !game.HexAdjacent(intent.from, intent.to) {
-			return intent.invalid("Attack target must be adjacent")
-		}
-		if !hasEnemies(target, factionOwner) {
-			return intent.invalid("Target has no enemy units or buildings")
+		validation := game.ValidateAdjacentAttackAction(m, factionOwner, *action.Attack)
+		if !validation.Valid {
+			return intent.validationFailed(validation)
 		}
 		intent.valid = true
-		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = "Attack ordered"
+		intent.result.Status = validation.Status
+		intent.result.Message = validation.Message
 
 	default:
 		return intent.invalid("Unknown action")
@@ -394,7 +361,7 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionRecruit:
 		target := m.GetCell(intent.to)
 		faction.Coins -= intent.cost
-		for res, amt := range game.UnitResourceCost(intent.unit) {
+		for res, amt := range intent.resourceCost {
 			faction.Resources[res] -= amt
 		}
 		stats := game.GetUnitStats(intent.unit)
@@ -403,6 +370,9 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionBuild:
 		target := m.GetCell(intent.to)
 		faction.Coins -= intent.cost
+		for res, amt := range intent.resourceCost {
+			faction.Resources[res] -= amt
+		}
 		target.Owner = owner
 		maxHP := game.BuildingMaxHP(intent.building)
 		target.Building = &game.BuildingData{Type: intent.building, HP: maxHP}
@@ -448,16 +418,20 @@ func (gi *GameInstance) resolveAttack(factionIdx int, from, to game.Hex) bool {
 		}
 		target.Units[enemyIdx].HP -= int8(attackPower)
 		if target.Units[enemyIdx].HP <= 0 {
+			destroyed := target.Units[enemyIdx].Type
 			copy(target.Units[enemyIdx:], target.Units[enemyIdx+1:])
 			target.Units = target.Units[:len(target.Units)-1]
+			gi.game.Factions[factionIdx].Points += game.UnitDestructionScore(destroyed)
 		}
 		return true
 	}
 
 tryBuilding:
 	if target.HasBuilding() && target.Owner >= 0 && target.Owner != unitOwner {
+		destroyed := target.BuildingType()
 		target.Building.HP -= int8(attackPower)
 		if target.Building.HP <= 0 {
+			gi.game.Factions[factionIdx].Points += game.BuildingDestructionScore(destroyed, target.Tile)
 			target.Building = nil
 			target.Owner = -1
 		}
@@ -486,15 +460,9 @@ func (intent *roundIntent) invalid(message string) *roundIntent {
 	return intent
 }
 
-func (intent *roundIntent) insufficientCoins() *roundIntent {
-	intent.result.Status = game.ActionResultInsufficientCoins
-	intent.result.Message = "Not enough coins"
-	return intent
-}
-
-func (intent *roundIntent) insufficientResources(res game.ResourceType) *roundIntent {
-	intent.result.Status = game.ActionResultInvalid
-	intent.result.Message = fmt.Sprintf("Not enough %s", res.String())
+func (intent *roundIntent) validationFailed(validation game.ActionValidation) *roundIntent {
+	intent.result.Status = validation.Status
+	intent.result.Message = validation.Message
 	return intent
 }
 

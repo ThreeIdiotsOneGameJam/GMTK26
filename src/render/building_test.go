@@ -1,11 +1,30 @@
 package render
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
+
+func TestBuildingFactionMarkerColors(t *testing.T) {
+	for owner, want := range factionColors {
+		got, ok := buildingFactionMarkerColor(int8(owner))
+		if !ok {
+			t.Fatalf("owner %d had no marker", owner)
+		}
+		want.A = 200
+		if got != want {
+			t.Errorf("owner %d marker = %v, want %v", owner, got, want)
+		}
+	}
+	for _, owner := range []int8{-1, int8(len(factionColors))} {
+		if got, ok := buildingFactionMarkerColor(owner); ok || got != (color.RGBA{}) {
+			t.Errorf("invalid owner %d marker = %v, %t", owner, got, ok)
+		}
+	}
+}
 
 func TestClearPlacementSelectionClosesPlacementAndSourceSelection(t *testing.T) {
 	selected := game.NewHex(2, 3)
@@ -86,6 +105,8 @@ func TestSameTileBuildingPlacementConsumesWorldClick(t *testing.T) {
 	r := WorldRenderer{
 		ActionsEnabled:  true,
 		LocalFaction:    0,
+		LocalCoins:      game.BuildingCost(game.BuildingBarracks),
+		LocalResources:  game.BuildingResourceCost(game.BuildingBarracks),
 		SelectedHex:     &source,
 		SelectedKind:    SelectionUnit,
 		BuildingToPlace: game.BuildingBarracks,

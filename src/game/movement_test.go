@@ -22,10 +22,10 @@ func movementTestMap(width, height int32) Map {
 
 func TestUnitMovementBudgets(t *testing.T) {
 	tests := map[UnitType]int{
-		UnitScout:   3,
+		UnitScout:   4,
 		UnitPeasant: 2,
 		UnitArcher:  2,
-		UnitKnight:  4,
+		UnitKnight:  3,
 		UnitUnknown: 0,
 	}
 	for unit, want := range tests {
