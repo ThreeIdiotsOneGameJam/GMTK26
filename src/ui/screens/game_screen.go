@@ -587,7 +587,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithPadding(0).
 		WithOutlineWidth(0).
 		WithForegroundColors(ui.ColorSet{
-			Default: &rl.Black,
+			Default: &rl.White,
 			Hover:   &ui.PaletteIndigo,
 			Click:   &ui.PaletteIndigoPress,
 		}).
@@ -645,7 +645,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithTextDynamic(multiplayerStatusText).
 				WithTextSize(26).
-				WithTextColor(rl.Black).
+				WithTextColor(rl.White).
 				WithAnchors(anchor.Top, anchor.Top).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 20}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -710,7 +710,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return "Pending: " + gamePendingAction
 				}).
 				WithTextSize(20).
-				WithTextColor(rl.Black).
+				WithTextColor(rl.White).
 				WithAnchors(anchor.Bottom, anchor.Bottom).
 				WithRelativePos(vec.Vec2i{X: 0, Y: -18}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -736,7 +736,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					ui.Text().
 						WithTextSize(24).
 						WithRelativePos(vec.Vec2i{X: 0, Y: -32}).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithText("Buildings:"),
 				).
 				AddChild(
@@ -830,7 +830,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Wood: %d", serverResources[game.ResourceWood])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 24}),
 				).
 				AddChild(
@@ -839,7 +839,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Stone: %d", serverResources[game.ResourceStone])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 48}),
 				).
 				AddChild(
@@ -848,7 +848,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Coal: %d", serverResources[game.ResourceCoal])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 72}),
 				).
 				AddChild(
@@ -857,7 +857,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Iron: %d", serverResources[game.ResourceIron])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 96}),
 				).
 				AddChild(
@@ -866,7 +866,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Steel: %d", serverResources[game.ResourceSteel])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 120}),
 				).
 				AddChild(
@@ -875,7 +875,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 							return fmt.Sprintf("Gold: %d", serverResources[game.ResourceGold])
 						}).
 						WithTextSize(20).
-						WithTextColor(rl.Black).
+						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
 				),
 		).
@@ -893,7 +893,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return fmt.Sprintf("Ends in: %ds", int(gameEnd.Seconds()))
 				}).
 				WithTextSize(20).
-				WithTextColor(rl.Black).
+				WithTextColor(rl.White).
 				WithAnchors(anchor.TopLeft, anchor.TopLeft).
 				WithRelativePos(vec.Vec2i{X: 8, Y: 8}),
 		).
