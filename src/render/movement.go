@@ -123,15 +123,38 @@ func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
 	}
 
 	for _, order := range r.AttackOrders {
-		path, _, ok := m.FindAdjacentApproachPath(r.LocalFaction, order.From, order.TargetTile)
-		if !ok {
+		// Always draw crosshair on target tile
+		pos := r.HexToPixel(order.TargetTile.Vec2i)
+		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, color.RGBA{R: 220, G: 50, B: 50, A: 180})
+		rl.DrawCircleLinesV(rlvec.ToRL(pos), 14, color.RGBA{R: 220, G: 50, B: 50, A: 180})
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -12, Y: -12})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 12, Y: 12})),
+			2, color.RGBA{R: 220, G: 50, B: 50, A: 180},
+		)
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 12, Y: -12})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -12, Y: 12})),
+			2, color.RGBA{R: 220, G: 50, B: 50, A: 180},
+		)
+
+		// Draw approach path + stops if reachable
+		source := m.GetCell(order.From)
+		if source == nil || !source.HasUnits() {
 			continue
 		}
-		col := color.RGBA{R: 220, G: 50, B: 50, A: 140}
+		path, _, ok := m.FindAdjacentApproachPath(r.LocalFaction, order.From, order.TargetTile)
+		if !ok || len(path) < 2 {
+			continue
+		}
+		col := color.RGBA{R: 220, G: 80, B: 80, A: 100}
 		r.drawPathLine(path, col, 3)
-		pos := r.HexToPixel(order.TargetTile.Vec2i)
-		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, col)
-		rl.DrawCircleLinesV(rlvec.ToRL(pos), 14, col)
+		budget := game.UnitMovementBudget(source.Units[0].Type)
+		stops := m.MovementTurnStops(path, budget)
+		stopColor := color.RGBA{R: 220, G: 80, B: 80, A: 170}
+		for _, stop := range stops {
+			r.drawMovementStop(stop, stopColor, false)
+		}
 	}
 }
 
@@ -302,18 +325,17 @@ func (r *WorldRenderer) drawAttackAnimations() {
 		from := r.HexToPixel(anim.event.From.Vec2i)
 		to := r.HexToPixel(anim.event.Target.Vec2i)
 
-		alpha := uint8(max(0, min(255, int(255*(1-progress)))))
-		col := color.RGBA{R: 255, G: 180, B: 80, A: alpha}
-
 		var lungePos vec.Vec2
 		if progress < 0.5 {
 			t := progress * 2
-			lungePos = from.Lerp(to, t*0.4)
+			lungePos = from.Lerp(to, t)
 		} else {
 			t := (progress - 0.5) * 2
-			lungePos = from.Lerp(to, 0.4*(1-t))
+			lungePos = to.Lerp(from, t)
 		}
-		rl.DrawCircleV(rlvec.ToRL(lungePos), r.zoomSafeSize(5, 2), col)
+		markerColor := factionColor(anim.event.Owner)
+		markerColor.A = uint8(max(0, min(255, int(255*(1-progress*0.3)))))
+		drawUnitMarker(lungePos, r.HexSize, anim.event.Unit, markerColor)
 
 		if progress >= 0.45 && progress < 0.55 {
 			impact := color.RGBA{R: 255, G: 220, B: 100, A: uint8(max(0, min(255, int(200*(1-(progress-0.45)*10)))))}

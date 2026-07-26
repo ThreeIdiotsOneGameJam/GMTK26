@@ -524,6 +524,7 @@ func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
 				(hasEnemyUnit(cell, r.LocalFaction) || hasEnemyBuilding(cell, r.LocalFaction)) {
 				if r.OnAttack != nil && r.OnAttack(from, hex) {
 					r.ClearQueuedBuilding()
+					r.clearSelection()
 				}
 				return
 			}

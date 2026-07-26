@@ -221,13 +221,23 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 	return intent
 }
 
+type moveCandidate struct {
+	isAttack bool
+	from     game.Hex
+	dest     game.Hex
+	unitType game.UnitType
+	budget   int
+}
+
 func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 	factionOwner := int8(factionIdx)
 
-	// Phase 3: auto-follow movement from attack orders
-	allOrders := gi.attackOrders[factionIdx]
-	remainingAttacks := allOrders[:0]
-	for _, order := range allOrders {
+	// Phase 3: build combined candidate list from attack + movement orders
+	allAttacks := gi.attackOrders[factionIdx]
+	var remainingAttacks []game.AttackOrder
+	var attackCands, moveCands []moveCandidate
+
+	for _, order := range allAttacks {
 		source := gi.game.Map.GetCell(order.From)
 		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner {
 			continue
@@ -236,79 +246,108 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 			remainingAttacks = append(remainingAttacks, order)
 			continue
 		}
-		path, _, ok := gi.game.Map.FindAdjacentApproachPath(
-			factionOwner, order.From, order.TargetTile,
-		)
-		if !ok {
-			remainingAttacks = append(remainingAttacks, order)
-			continue
-		}
-		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Units[0].Type))
-		if len(traversed) < 2 {
-			remainingAttacks = append(remainingAttacks, order)
-			continue
-		}
-		remainingAttacks = append(remainingAttacks, game.AttackOrder{
-			From:       traversed[len(traversed)-1],
-			TargetTile: order.TargetTile,
+		remainingAttacks = append(remainingAttacks, order)
+		attackCands = append(attackCands, moveCandidate{
+			isAttack: true,
+			from:     order.From,
+			dest:     order.TargetTile,
+			unitType: source.Units[0].Type,
+			budget:   game.UnitMovementBudget(source.Units[0].Type),
 		})
-		remainingAttacks = append(remainingAttacks, allOrders[len(remainingAttacks):]...)
-		gi.attackOrders[factionIdx] = remainingAttacks
-
-		intent := gi.newIntent(factionIdx, game.ActionMove, true)
-		intent.from = order.From
-		intent.destination = order.TargetTile
-		intent.to = traversed[len(traversed)-1]
-		intent.unit = source.Units[0].Type
-		intent.path = traversed
-		intent.targetsTile = true
-		intent.valid = true
-		intent.result.Status = game.ActionResultSucceeded
-		intent.result.Message = "Advancing toward target"
-		return intent
 	}
 	gi.attackOrders[factionIdx] = remainingAttacks
 
-	// Regular movement order advancement
-	orders := gi.movementOrders[factionIdx]
+	movementOrders := gi.movementOrders[factionIdx]
 	if priority, ok := gi.movementPriorities[factionIdx]; ok {
-		for i, order := range orders {
+		for i, order := range movementOrders {
 			if order.Current != priority {
 				continue
 			}
 			prioritized := order
-			copy(orders[1:i+1], orders[0:i])
-			orders[0] = prioritized
+			copy(movementOrders[1:i+1], movementOrders[0:i])
+			movementOrders[0] = prioritized
 			break
 		}
 	}
-	checked := len(orders)
-
-	for range checked {
-		order := orders[0]
-		orders = orders[1:]
+	var remainingMoves []game.MovementOrder
+	for _, order := range movementOrders {
 		source := gi.game.Map.GetCell(order.Current)
 		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner ||
 			order.Current == order.Destination {
 			continue
 		}
-		path, ok := gi.game.Map.FindUnitPath(factionOwner, order.Current, order.Destination)
-		if !ok {
-			orders = append(orders, order)
-			continue
-		}
-		traversed := gi.game.Map.AdvanceUnitPath(path, game.UnitMovementBudget(source.Units[0].Type))
-		if len(traversed) < 2 {
-			orders = append(orders, order)
-			continue
-		}
+		remainingMoves = append(remainingMoves, order)
+		moveCands = append(moveCands, moveCandidate{
+			isAttack: false,
+			from:     order.Current,
+			dest:     order.Destination,
+			unitType: source.Units[0].Type,
+			budget:   game.UnitMovementBudget(source.Units[0].Type),
+		})
+	}
 
-		gi.movementOrders[factionIdx] = orders
+	// Interleave round-robin: alternate which type goes first each round
+	var candidates []moveCandidate
+	if gi.game.Round%2 == 0 {
+		candidates = append(moveCands, attackCands...)
+	} else {
+		candidates = append(attackCands, moveCands...)
+	}
+
+	for _, cand := range candidates {
+		if cand.isAttack {
+			path, _, ok := gi.game.Map.FindAdjacentApproachPath(
+				factionOwner, cand.from, cand.dest,
+			)
+			if !ok {
+				continue
+			}
+			traversed := gi.game.Map.AdvanceUnitPath(path, cand.budget)
+			if len(traversed) < 2 {
+				continue
+			}
+			gi.attackOrders[factionIdx] = removeAttackOrder(
+				gi.attackOrders[factionIdx], cand.from,
+			)
+			gi.attackOrders[factionIdx] = append(
+				gi.attackOrders[factionIdx], game.AttackOrder{
+					From:       traversed[len(traversed)-1],
+					TargetTile: cand.dest,
+				},
+			)
+			intent := gi.newIntent(factionIdx, game.ActionMove, true)
+			intent.from = cand.from
+			intent.destination = cand.dest
+			intent.to = traversed[len(traversed)-1]
+			intent.unit = cand.unitType
+			intent.path = traversed
+			intent.targetsTile = true
+			intent.valid = true
+			intent.result.Status = game.ActionResultSucceeded
+			intent.result.Message = "Advancing toward target"
+			return intent
+		}
+		path, ok := gi.game.Map.FindUnitPath(factionOwner, cand.from, cand.dest)
+		if !ok {
+			continue
+		}
+		traversed := gi.game.Map.AdvanceUnitPath(path, cand.budget)
+		if len(traversed) < 2 {
+			continue
+		}
+		// Remove old order — applyIntent will append the new one
+		var updated []game.MovementOrder
+		for _, o := range gi.movementOrders[factionIdx] {
+			if o.Current != cand.from {
+				updated = append(updated, o)
+			}
+		}
+		gi.movementOrders[factionIdx] = updated
 		intent := gi.newIntent(factionIdx, game.ActionMove, true)
-		intent.from = order.Current
-		intent.destination = order.Destination
+		intent.from = cand.from
+		intent.destination = cand.dest
 		intent.to = traversed[len(traversed)-1]
-		intent.unit = source.Units[0].Type
+		intent.unit = cand.unitType
 		intent.path = traversed
 		intent.targetsTile = true
 		intent.valid = true
@@ -317,14 +356,9 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 		return intent
 	}
 
-	filtered := orders[:0]
-	for _, o := range orders {
-		if o.Current != o.Destination {
-			filtered = append(filtered, o)
-		}
-	}
-	gi.movementOrders[factionIdx] = filtered
-	if len(filtered) == 0 {
+	// No movement possible — save remaining orders
+	gi.movementOrders[factionIdx] = remainingMoves
+	if len(remainingAttacks) == 0 && len(remainingMoves) == 0 {
 		return nil
 	}
 	intent := gi.newIntent(factionIdx, game.ActionMove, true)

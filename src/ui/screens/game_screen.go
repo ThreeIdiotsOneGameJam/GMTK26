@@ -245,6 +245,7 @@ func applyServerRound(
 	currentGame.Map = m
 	gameWorld.Map = m
 	gameWorld.Renderer.SetMovementOrders(orders)
+	gameWorld.Renderer.SetAttackOrders(attackOrders)
 	gameWorld.Renderer.StartMovementAnimations(movements)
 	gameWorld.Renderer.StartAttackAnimations(attackEvents)
 	if result != nil {
