@@ -50,6 +50,11 @@ const (
 	// Rate at which momentum decays after releasing the mouse.
 	panMomentumDamping = float32(4.0)
 
+	// A short left press remains a click. Holding for this long, or moving this
+	// far first, turns the same gesture into a camera pan.
+	leftPanHoldSeconds   float32 = 0.18
+	leftPanDragThreshold float32 = 6.0
+
 	// Smooth camera movement toward focus target.
 	cameraFocusSmoothness float32 = 4.0
 
@@ -65,6 +70,10 @@ type WorldRenderer struct {
 	PanStart      v.Vec2
 	PanVelocity   v.Vec2
 	MousePosition v.Vec2
+	leftPressPos  v.Vec2
+	leftPressTime float32
+	leftGesture   bool
+	leftPanning   bool
 
 	HoveredHex  game.Hex
 	SelectedHex *game.Hex
@@ -142,10 +151,24 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
+	if !global.UIModalBlocksInput && rl.IsMouseButtonPressed(rl.MouseButtonMiddle) {
+		r.BuildingToPlace = game.BuildingUnknown
+		r.buildingPreview.Visible = false
+	}
+
+	leftPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft)
+	leftDown := rl.IsMouseButtonDown(rl.MouseButtonLeft)
+	worldLeftClick, leftPanDown := r.updateLeftGesture(
+		deltaSeconds,
+		leftPressed,
+		leftDown,
+		global.UIBlocksWorldInput,
+	)
+
+	panButtonDown := rl.IsMouseButtonDown(rl.MouseButtonRight) ||
+		leftPanDown
 	if global.UIBlocksWorldInput {
 		r.clampCameraToMap(m)
-		mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
-		r.updateBuildingPlacement(m, r.PixelToHex(mousePos))
 	} else {
 		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 			r.PanStart = r.MousePosition
@@ -153,7 +176,9 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.InterpolateFocus = false
 		}
 
-		if rl.IsMouseButtonDown(rl.MouseButtonRight) {
+		rightPanning := rl.IsMouseButtonDown(rl.MouseButtonRight)
+		leftPanning := leftPanDown
+		if rightPanning || leftPanning {
 			mouseDelta := r.MousePosition.Sub(r.PanStart)
 			panDelta := mouseDelta.Mul(v.Vec2{
 				X: -1.0 / r.Camera.Zoom,
@@ -225,7 +250,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		}
 	}
 
-	if !rl.IsMouseButtonDown(rl.MouseButtonRight) {
+	if !panButtonDown {
 		r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(r.PanVelocity.Mul(v.Vec2{
 			X: deltaSeconds,
 			Y: deltaSeconds,
@@ -264,9 +289,9 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	r.HoveredHex = hex
-	r.updateBuildingPlacement(m, hex)
+	r.updateBuildingPlacement(m, hex, worldLeftClick)
 	if !global.UIBlocksWorldInput && r.BuildingToPlace == game.BuildingUnknown {
-		if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		if worldLeftClick {
 			cell := m.GetCell(hex)
 			if cell != nil && cell.Building != game.BuildingUnknown {
 				h := hex
@@ -279,6 +304,48 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.SelectedHex = nil
 		}
 	}
+}
+
+func (r *WorldRenderer) updateLeftGesture(
+	deltaSeconds float32,
+	pressed bool,
+	down bool,
+	worldInputBlocked bool,
+) (clicked bool, panning bool) {
+	if pressed {
+		r.leftGesture = !worldInputBlocked
+		r.leftPanning = false
+		r.leftPressTime = 0.0
+		r.leftPressPos = r.MousePosition
+		if r.leftGesture {
+			r.PanVelocity = v.Vec2{}
+			r.InterpolateFocus = false
+		}
+	}
+
+	if !r.leftGesture {
+		return false, false
+	}
+
+	if down {
+		r.leftPressTime += deltaSeconds
+		dragDistance := r.MousePosition.Sub(r.leftPressPos)
+		if !r.leftPanning &&
+			(r.leftPressTime >= leftPanHoldSeconds ||
+				dragDistance.MagnitudeSqr() >= leftPanDragThreshold*leftPanDragThreshold) {
+			r.leftPanning = true
+			r.PanStart = r.leftPressPos
+		}
+		return false, r.leftPanning
+	}
+
+	// Treat the first up frame after a captured press as the release. This is
+	// the same transition used by UI buttons and works consistently on both
+	// desktop Raylib and the web runtime.
+	clicked = !r.leftPanning && !worldInputBlocked
+	r.leftGesture = false
+	r.leftPanning = false
+	return clicked, false
 }
 
 func (r *WorldRenderer) Draw(m *game.Map) {
