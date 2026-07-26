@@ -211,7 +211,6 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
 		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
 	}
-	selectionMenuOwnsInput := r.updateSelectionMenu(m)
 
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
@@ -220,7 +219,7 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		r.clearMouseSlot()
 	}
 
-	worldInputBlocked := global.UIBlocksWorldInput || selectionMenuOwnsInput
+	worldInputBlocked := global.UIBlocksWorldInput
 	leftPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft)
 	leftDown := rl.IsMouseButtonDown(rl.MouseButtonLeft)
 	worldLeftClick, leftPanDown, leftPanReleased := r.updateLeftGesture(
@@ -243,7 +242,9 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		if r.panDragging && panButtonDown {
 			r.updatePan(deltaSeconds)
 		}
+	}
 
+	if !global.UIModalBlocksInput {
 		moveDir := v.Vec2{}
 		if rl.IsKeyDown(rl.KeyW) {
 			moveDir.Y -= 1.0
@@ -257,27 +258,8 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		if rl.IsKeyDown(rl.KeyD) {
 			moveDir.X += 1.0
 		}
-
-		if moveDir.X != 0.0 || moveDir.Y != 0.0 {
-			zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
-			moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
-			r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
-				X: moveDistance,
-				Y: moveDistance,
-			})))
-			r.InterpolateFocus = false
-		}
-
-		wheel := rl.GetMouseWheelMove()
-		if wheel != 0.0 {
-			r.ZoomAnchor = r.MousePosition
-			r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
-			r.zoomSmoothness = cameraZoomSmoothness
-			// Manual zoom takes ownership of the camera just like panning or
-			// WASD, so an old focus target cannot pull cursor-anchored zooms
-			// back toward the focused hex.
-			r.InterpolateFocus = false
-		}
+		r.applyKeyboardMovement(moveDir, deltaSeconds)
+		r.applyWheelZoom(rl.GetMouseWheelMove())
 	}
 
 	rightPanReleased := rl.IsMouseButtonReleased(rl.MouseButtonRight)
@@ -344,7 +326,6 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	recruitmentConsumedClick := r.updateRecruitPlacement(m, hex, worldLeftClick)
 	r.updateMovementPreview(m, hex)
 	if !global.UIBlocksWorldInput &&
-		!selectionMenuOwnsInput &&
 		!placementConsumedClick &&
 		!recruitmentConsumedClick &&
 		r.BuildingToPlace == game.BuildingUnknown &&
@@ -353,6 +334,34 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 			r.handleWorldClick(m, hex)
 		}
 	}
+}
+
+func (r *WorldRenderer) applyKeyboardMovement(moveDir v.Vec2, deltaSeconds float32) {
+	if moveDir.X == 0.0 && moveDir.Y == 0.0 {
+		return
+	}
+
+	zoomMovementScale := float32(math.Pow(float64(r.Camera.Zoom), cameraMoveZoomExponent))
+	moveDistance := cameraMoveSpeed * deltaSeconds / zoomMovementScale
+	r.Camera.Target = rlvec.ToRL(rlvec.FromRL(r.Camera.Target).Add(moveDir.Normalize().Mul(v.Vec2{
+		X: moveDistance,
+		Y: moveDistance,
+	})))
+	r.InterpolateFocus = false
+}
+
+func (r *WorldRenderer) applyWheelZoom(wheel float32) {
+	if wheel == 0.0 {
+		return
+	}
+
+	r.ZoomAnchor = r.MousePosition
+	r.TargetZoom *= float32(math.Exp(float64(wheel * cameraZoomStep)))
+	r.zoomSmoothness = cameraZoomSmoothness
+	// Manual zoom takes ownership of the camera just like panning or WASD, so
+	// an old focus target cannot pull cursor-anchored zooms back toward the
+	// focused hex. Non-modal UI may still block clicks while allowing this.
+	r.InterpolateFocus = false
 }
 
 func (r *WorldRenderer) updateLeftGesture(
@@ -632,7 +641,6 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	r.drawUnits(m, visible)
 	r.drawUnitAnimations()
 	rl.EndMode2D()
-	r.drawSelectionMenu(m)
 
 	rl.EndTextureMode()
 	rl.DrawTexturePro(r.viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)
@@ -652,6 +660,25 @@ func (r *WorldRenderer) HexToPixel(hex v.Vec2i) v.Vec2 {
 
 	yOffset := height / 2.0 * float32(x%2)
 	return v.Vec2{X: float32(x) * width / 4.0 * 3.0, Y: float32(y)*height + yOffset}
+}
+
+// HexScreenPosition projects a world tile center into window UI coordinates.
+// Keeping this conversion in the renderer ensures world-anchored UI follows
+// camera panning and zooming while still rendering at a fixed UI scale.
+func (r *WorldRenderer) HexScreenPosition(hex game.Hex) v.Vec2 {
+	world := r.HexToPixel(hex.Vec2i)
+	viewport := v.Vec2{
+		X: (world.X-r.Camera.Target.X)*r.Camera.Zoom + r.Camera.Offset.X,
+		Y: (world.Y-r.Camera.Target.Y)*r.Camera.Zoom + r.Camera.Offset.Y,
+	}
+	src, dst := r.viewportRects()
+	if src.Width == 0 || src.Height == 0 {
+		return viewport
+	}
+	return v.Vec2{
+		X: dst.X + viewport.X*(dst.Width/src.Width),
+		Y: dst.Y + viewport.Y*(dst.Height/-src.Height),
+	}
 }
 
 func (r *WorldRenderer) FocusOnHex(hex game.Hex) {

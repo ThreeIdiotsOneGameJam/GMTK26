@@ -58,6 +58,45 @@ func TestSelectCellUsesUnambiguousObjectKind(t *testing.T) {
 	}
 }
 
+func TestChooseSelectionMenuOptionRevalidatesTile(t *testing.T) {
+	hex := game.NewHex(2, 3)
+	m := game.Map{
+		Grid: [][]game.Cell{
+			make([]game.Cell, 4),
+			make([]game.Cell, 4),
+			make([]game.Cell, 4),
+		},
+	}
+	cell := m.GetCell(hex)
+	cell.Unit = game.UnitScout
+	cell.Building = game.BuildingFarm
+
+	r := WorldRenderer{}
+	r.selectCell(hex, cell)
+	r.ChooseSelectionMenuOption(&m, SelectionBuilding)
+
+	if r.SelectedHex == nil ||
+		*r.SelectedHex != hex ||
+		r.SelectedKind != SelectionBuilding {
+		t.Fatalf(
+			"selection = (%v, %v), want building at %v",
+			r.SelectedHex,
+			r.SelectedKind,
+			hex,
+		)
+	}
+	if r.selectionMenu.Visible {
+		t.Fatal("selection menu remained open after choosing a valid option")
+	}
+
+	r.selectCell(hex, cell)
+	cell.Unit = game.UnitUnknown
+	r.ChooseSelectionMenuOption(&m, SelectionUnit)
+	if r.SelectedHex != nil || r.SelectedKind != SelectionNone {
+		t.Fatal("stale unit option selected an object removed from the map")
+	}
+}
+
 func TestClearMouseSlotClearsSelectionAndTargetingOnly(t *testing.T) {
 	selected := game.NewHex(1, 1)
 	order := game.MovementOrder{

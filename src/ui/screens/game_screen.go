@@ -953,6 +953,10 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Vignette().WithAlpha(120),
 		).
 		AddChild(
+			ui.GameSelectionMenu().
+				WithWorld(gameWorld),
+		).
+		AddChild(
 			newRoundCountdown(),
 		).
 		AddChild(
