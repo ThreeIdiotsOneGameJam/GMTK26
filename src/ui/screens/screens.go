@@ -194,10 +194,16 @@ func Draw() {
 	pendingScreen.Draw()
 
 	alpha := smoothstep(1 - transitionProgress)
-	tint := rl.Color{R: 255, G: 255, B: 255, A: uint8(alpha * 255)}
+	opacity := uint8(alpha * 255)
+	// Draw an explicitly premultiplied source. The default alpha blend also
+	// reduces framebuffer alpha during a fade, allowing browsers to composite
+	// the dark vignette against the page's white background.
+	tint := rl.Color{R: opacity, G: opacity, B: opacity, A: opacity}
 	src := rl.Rectangle{X: 0, Y: 0, Width: float32(w), Height: float32(h)}
 	dst := rl.Rectangle{X: 0, Y: 0, Width: float32(w), Height: float32(h)}
+	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 	rl.DrawTexturePro(transitionSource, src, dst, rl.Vector2{}, 0, tint)
+	rl.EndBlendMode()
 }
 
 func ensureTransitionSource(w, h int32) bool {
