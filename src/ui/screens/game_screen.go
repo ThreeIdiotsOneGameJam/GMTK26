@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -40,8 +41,15 @@ var serverCoins int32
 var serverPoints int32
 var serverResources game.Resources
 var serverDeadline int64
+var roundAnnouncement int32
+var roundAnnouncementUntil time.Time
 var gameOverMessage string
 var gameActionError string
+
+const (
+	roundCountdownDuration    = 3 * time.Second
+	roundAnnouncementDuration = time.Second
+)
 
 func init() {
 	// In a running authoritative game, building placement goes through the
@@ -79,6 +87,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	}
 	serverGameActive = true
 	gameOverMessage = ""
+	clearRoundAnnouncement()
 	gameWorld.Renderer.ClearQueuedBuilding()
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 	focusOnTownhall()
@@ -90,6 +99,8 @@ func ApplyServerGameState(p *packets.S2CGameStatePacket) {
 	}
 	if p.Round != serverRound {
 		gameWorld.Renderer.ClearQueuedBuilding()
+		roundAnnouncement = p.Round
+		roundAnnouncementUntil = time.Now().Add(roundAnnouncementDuration)
 	}
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
 }
@@ -99,6 +110,7 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 		return
 	}
 	serverGameActive = false
+	clearRoundAnnouncement()
 	gameWorld.Renderer.ClearQueuedBuilding()
 	if p.WinnerName != "" {
 		gameOverMessage = "Game over! Winner: " + p.WinnerName
@@ -133,7 +145,7 @@ func multiplayerStatusText() string {
 			serverRound,
 			serverCoins,
 			serverPoints,
-			int(remaining.Seconds()),
+			countdownSecondsRemaining(remaining),
 		)
 	}
 	if !currentGame.Multiplayer {
@@ -156,9 +168,115 @@ func multiplayerStatusText() string {
 	)
 }
 
+func countdownSecondsRemaining(remaining time.Duration) int {
+	if remaining <= 0 {
+		return 0
+	}
+	return int(math.Ceil(float64(remaining) / float64(time.Second)))
+}
+
+// roundCountdownState maps the authoritative time remaining to one second for
+// each digit. Progress restarts at zero when the digit changes.
+func roundCountdownState(remaining time.Duration) (digit int, progress float64, visible bool) {
+	if remaining <= 0 || remaining > roundCountdownDuration {
+		return 0, 0, false
+	}
+
+	seconds := float64(remaining) / float64(time.Second)
+	digit = countdownSecondsRemaining(remaining)
+	progress = min(max(float64(digit)-seconds, 0), 1)
+	return digit, progress, true
+}
+
+func easeInExpo(progress float64) float64 {
+	progress = min(max(progress, 0), 1)
+	switch progress {
+	case 0:
+		return 0
+	case 1:
+		return 1
+	default:
+		return math.Pow(2, 10*progress-10)
+	}
+}
+
+func roundCountdownTextSize(progress float64, renderHeight int32) int32 {
+	targetSize := min(max(renderHeight/3, int32(180)), int32(320))
+	startSize := float64(targetSize) * 0.4
+	size := startSize + (float64(targetSize)-startSize)*easeInExpo(progress)
+	return int32(math.Round(size))
+}
+
+func roundAnnouncementState(round int32, remaining time.Duration) (text string, visible bool) {
+	if round <= 0 || remaining <= 0 {
+		return "", false
+	}
+	return fmt.Sprintf("Round #%d", round), true
+}
+
+func roundAnnouncementTextSize(renderHeight int32) int32 {
+	return min(max(renderHeight/8, int32(72)), int32(128))
+}
+
+func clearRoundAnnouncement() {
+	roundAnnouncement = 0
+	roundAnnouncementUntil = time.Time{}
+}
+
+func newRoundCountdown() *ui.GroupElement {
+	displayText := ""
+	visible := false
+
+	text := ui.Text().
+		WithTextDynamic(func() string {
+			return displayText
+		}).
+		WithTextSize(roundCountdownTextSize(0, int32(rl.GetRenderHeight()))).
+		WithTextColor(color.RGBA{R: 255, G: 244, B: 194, A: 255}).
+		WithTextShadow(color.RGBA{R: 14, G: 12, B: 25, A: 220}, vec.Vec2i{X: 7, Y: 9}).
+		WithAnchors(anchor.Center, anchor.Center).
+		WithVisibleDynamic(func(el *ui.TextElement) bool {
+			return visible
+		})
+
+	return ui.Group().
+		WithAnchors(anchor.Center, anchor.Center).
+		WithUpdate(func(deltaNano int64) {
+			if !serverGameActive {
+				visible = false
+				return
+			}
+
+			now := time.Now()
+			var progress float64
+			digit, progress, countdownVisible := roundCountdownState(
+				time.Unix(0, serverDeadline).Sub(now),
+			)
+			if countdownVisible {
+				displayText = strconv.Itoa(digit)
+				visible = true
+				text.TextSize = roundCountdownTextSize(
+					progress,
+					int32(rl.GetRenderHeight()),
+				)
+				return
+			}
+
+			displayText, visible = roundAnnouncementState(
+				roundAnnouncement,
+				roundAnnouncementUntil.Sub(now),
+			)
+			if visible {
+				text.TextSize = roundAnnouncementTextSize(int32(rl.GetRenderHeight()))
+			}
+		}).
+		AddChild(text)
+}
+
 func EnterGame(state game.Game) {
 	clearMatchmaking()
 	serverGameActive = false
+	clearRoundAnnouncement()
 	gameOverMessage = ""
 	gameActionError = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
@@ -270,6 +388,7 @@ func clearCurrentGame() {
 	gameWorld.Renderer.ClearQueuedBuilding()
 	gameLeaveTransition = false
 	serverGameActive = false
+	clearRoundAnnouncement()
 	gameOverMessage = ""
 	gameActionError = ""
 	serverResources = nil
@@ -543,6 +662,9 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Vignette().WithAlpha(120),
+		).
+		AddChild(
+			newRoundCountdown(),
 		).
 		AddChild(
 			escScreen,
