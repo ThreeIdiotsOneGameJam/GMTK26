@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -293,6 +294,27 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithAnchors(anchor.Center, anchor.Top).
 				WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
 					return vec.Vec2i{X: 0, Y: max(int32(136), el.Parent.Size().Y/8+92)}
+				}),
+		).
+		AddChild(
+			ui.Input().
+				WithDefaultText(game.PlayerData.PlayerName).
+				WithPlaceholderText("Your Name").
+				WithMaxTextLength(20).
+				WithTextSize(28).
+				WithPadding(8).
+				WithSize(vec.Vec2i{X: 440, Y: 48}).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePosDynamic(func(el *ui.InputElement) vec.Vec2i {
+					closedOffset := el.Parent.Size().Y / 12
+					progress := panelProgress()
+					return vec.Vec2i{
+						Y: -172 + int32(float32(closedOffset)*(1-progress)),
+					}
+				}).
+				WithCallback(func(text string) {
+					game.PlayerData.PlayerName = text
+					game.SavePlayerData()
 				}),
 		).
 		AddChild(
