@@ -46,23 +46,34 @@ func tileColor(tile game.TileType) color.RGBA {
 	}
 }
 
-func (r *WorldRenderer) drawTileDetails(m *game.Map, visible []visibleTile) {
-	r.drawEdges(m, visible, game.TileVoid, tileColor(game.TileVoid))
-	r.drawEdges(m, visible, game.TileWater, *util.ColorSub(tileColor(game.TileWater), 50))
+func lerpColor(a, b color.RGBA, amount float32) color.RGBA {
+	return color.RGBA{
+		R: uint8(float32(a.R) + (float32(b.R)-float32(a.R))*amount),
+		G: uint8(float32(a.G) + (float32(b.G)-float32(a.G))*amount),
+		B: uint8(float32(a.B) + (float32(b.B)-float32(a.B))*amount),
+		A: uint8(float32(a.A) + (float32(b.A)-float32(a.A))*amount),
+	}
+}
 
-	rl.Begin(rl.Triangles)
+func (r *WorldRenderer) drawTileDetails(m *game.Map, visible []visibleTile) {
+	if len(visible) <= maxDetailedEdgeTiles {
+		r.drawEdges(m, visible, game.TileVoid, tileColor(game.TileVoid))
+		r.drawEdges(m, visible, game.TileWater, *util.ColorSub(tileColor(game.TileWater), 50))
+	}
+
+	batch := newHexBatch()
 	for _, tile := range visible {
 		size := r.HexSize.Sub(vec.Vec2{X: 16.0, Y: 16.0})
 		switch tile.tile {
 		case game.TileIron:
-			drawHexagonBuffered(tile.position.X, tile.position.Y, size, rl.ColorLerp(rl.Brown, rl.White, 0.5))
+			batch.Add(tile.position.X, tile.position.Y, size, lerpColor(rl.Brown, rl.White, 0.5))
 		case game.TileCoal:
-			drawHexagonBuffered(tile.position.X, tile.position.Y, size, rl.Black)
+			batch.Add(tile.position.X, tile.position.Y, size, rl.Black)
 		case game.TileGold:
-			drawHexagonBuffered(tile.position.X, tile.position.Y, size, rl.Gold)
+			batch.Add(tile.position.X, tile.position.Y, size, rl.Gold)
 		}
 	}
-	rl.End()
+	batch.Draw()
 }
 
 func (r *WorldRenderer) drawEdges(m *game.Map, visible []visibleTile, tileType game.TileType, edgeColor color.RGBA) {

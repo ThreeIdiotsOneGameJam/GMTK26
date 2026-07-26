@@ -398,7 +398,7 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 	}
 	visible := make([]visibleTile, 0)
 
-	rl.Begin(rl.Triangles)
+	batch := newHexBatch()
 	for x := range m.Grid {
 		for y, cell := range m.Grid[x] {
 			yOffset := height / 2.0 * float32(x%2)
@@ -410,7 +410,7 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 			hex := game.NewHex(int32(x), int32(y))
 			color := tileColor(cell.Tile)
 			if cell.Owner >= 0 && int(cell.Owner) < len(factionColors) {
-				color = rl.ColorLerp(color, factionColors[cell.Owner], 0.4)
+				color = lerpColor(color, factionColors[cell.Owner], 0.4)
 			}
 			if hoverWorld && hex == hoveredHex {
 				color = *util.ColorAdd(color, 30)
@@ -422,11 +422,11 @@ func (r *WorldRenderer) drawMapTiles(m *game.Map, mousePos v.Vec2) []visibleTile
 				color = *util.ColorSub(color, 6)
 			}
 
-			drawHexagonBuffered(worldPos.X, worldPos.Y, r.HexSize, color)
+			batch.Add(worldPos.X, worldPos.Y, r.HexSize, color)
 			visible = append(visible, visibleTile{hex: hex, position: worldPos, tile: cell.Tile})
 		}
 	}
-	rl.End()
+	batch.Draw()
 
 	return visible
 }
