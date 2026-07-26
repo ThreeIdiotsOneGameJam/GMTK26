@@ -44,6 +44,29 @@ type GameBuildingDetailsPanelElement struct {
 	lay   buildingDetailsLayout
 }
 
+var buildingResourceDisplayOrder = []game.ResourceType{
+	game.ResourceFood,
+	game.ResourceWood,
+	game.ResourceStone,
+	game.ResourceCoal,
+	game.ResourceIron,
+	game.ResourceSteel,
+	game.ResourceGold,
+}
+
+func (el *GameBuildingDetailsPanelElement) canAffordUnit(unit game.UnitType) bool {
+	if el.world == nil {
+		return false
+	}
+	return game.CanAffordUnitAfterRoundIncome(
+		&el.world.Map,
+		int8(gameNet.LocalGameState.FactionIdx),
+		unit,
+		gameNet.LocalGameState.GetCoins(),
+		gameNet.LocalGameState.Resources,
+	)
+}
+
 func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 	if el.world == nil {
 		return
@@ -74,13 +97,8 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 		my := int32(global.MousePosition.Y)
 		if mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h {
 			global.UIBlocksWorldInput = true
-		canAfford := gameNet.LocalGameState.GetCoins() >= game.UnitCost(btn.unit)
-		for res, amt := range game.UnitResourceCost(btn.unit) {
-			if gameNet.LocalGameState.Resources[res] < amt {
-				canAfford = false
-			}
-		}
-		if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
+			canAfford := el.canAffordUnit(btn.unit)
+			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
 				r.RecruitToPlace = btn.unit
 				r.BuildingToPlace = game.BuildingUnknown
 				r.ClearQueuedBuilding()
@@ -218,8 +236,7 @@ func buildingOutputText(building game.BuildingType, tile game.TileType) string {
 	}
 
 	produces := game.BuildingProduces(building, tile)
-	resTypes := []game.ResourceType{game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
-	for _, resource := range resTypes {
+	for _, resource := range buildingResourceDisplayOrder {
 		if amount := produces[resource]; amount > 0 {
 			outputs = append(outputs, fmt.Sprintf("%s x %d", resource, amount))
 		}
@@ -243,13 +260,7 @@ func (el *GameBuildingDetailsPanelElement) drawPanel() {
 	}
 
 	for _, btn := range lay.buttons {
-		cost := game.UnitCost(btn.unit)
-		canAfford := gameNet.LocalGameState.GetCoins() >= cost
-		for res, amt := range game.UnitResourceCost(btn.unit) {
-			if gameNet.LocalGameState.Resources[res] < amt {
-				canAfford = false
-			}
-		}
+		canAfford := el.canAffordUnit(btn.unit)
 		mx := int32(global.MousePosition.X)
 		my := int32(global.MousePosition.Y)
 		isHovered := mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h
@@ -359,8 +370,7 @@ func buildingProductionText(b game.BuildingType, tile game.TileType) string {
 	}
 
 	produces := game.BuildingProduces(b, tile)
-	resTypes := []game.ResourceType{game.ResourceFood, game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
-	for _, resType := range resTypes {
+	for _, resType := range buildingResourceDisplayOrder {
 		amount := produces[resType]
 		if amount == 0 {
 			continue

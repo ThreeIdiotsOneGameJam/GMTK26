@@ -237,6 +237,7 @@ func applyServerRound(
 	serverCoins = coins
 	serverPoints = points
 	serverResources = resources
+	gameWorld.Renderer.LocalCoins = coins
 	gameWorld.Renderer.LocalResources = resources
 	currentGame.Round = round
 	currentGame.Map = m
@@ -567,6 +568,21 @@ func setBuildingClick(building game.BuildingType) func() {
 	}
 }
 
+func buildingButtonTooltip(building game.BuildingType) string {
+	switch building {
+	case game.BuildingBarracks:
+		return "Recruits: Peasant, Archer, Knight, Scout\nPlace on: Plains"
+	case game.BuildingFarm:
+		return "Produces: Food +2\nPlace on: Plains adjacent to Water"
+	case game.BuildingMine:
+		return "Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold"
+	case game.BuildingForester:
+		return "Produces: Wood +2\nPlace on: Forest or Jungle"
+	default:
+		return ""
+	}
+}
+
 func tryFocusOnTownhall() bool {
 	for x := range gameWorld.Map.Grid {
 		for y := range gameWorld.Map.Grid[x] {
@@ -783,7 +799,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Barracks").
 						WithRelativePos(vec.Vec2i{X: 84, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingBarracks)).
-						WithTooltip("Recruits: Peasant, Archer, Knight\nPlace on: Plains"),
+						WithTooltip(buildingButtonTooltip(game.BuildingBarracks)),
 				).
 				AddChild(
 					ui.Button().
@@ -792,7 +808,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Farm").
 						WithRelativePos(vec.Vec2i{X: 224, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingFarm)).
-						WithTooltip("Produces: Wood +1\nPlace on: Plains near Water"),
+						WithTooltip(buildingButtonTooltip(game.BuildingFarm)),
 				).
 				AddChild(
 					ui.Button().
@@ -801,7 +817,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Mine").
 						WithRelativePos(vec.Vec2i{X: 308, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingMine)).
-						WithTooltip("Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold"),
+						WithTooltip(buildingButtonTooltip(game.BuildingMine)),
 				).
 				AddChild(
 					ui.Button().
@@ -810,7 +826,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Forester").
 						WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingForester)).
-						WithTooltip("Produces: Wood +2\nPlace on: Forest or Jungle"),
+						WithTooltip(buildingButtonTooltip(game.BuildingForester)),
 				),
 		).
 		AddChild(

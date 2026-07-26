@@ -8,6 +8,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 const (
@@ -105,6 +106,10 @@ func finishCanceledTransition() {
 }
 
 func Update(deltaNano int64) {
+	// Transitions intentionally pause screen updates, so clear transient hover
+	// state here as well as in Screen.Update.
+	global.TooltipText = ""
+
 	if activeScreen == nil {
 		return
 	}
@@ -234,21 +239,30 @@ func drawTooltip() {
 	textH := int32(len(lines)) * lineH
 	bgW := textW + pad*2
 	bgH := textH + pad*2
-	mx := int32(global.MousePosition.X)
-	my := int32(global.MousePosition.Y)
-	x := mx - bgW/2
-	y := my - bgH - 10
+	position := tooltipPosition(
+		global.MousePosition.RoundToInt(),
+		vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())},
+		vec.Vec2i{X: bgW, Y: bgH},
+	)
 
-	if x < 0 {
-		x = 0
-	}
-	if y < 0 {
-		y = my + 10
-	}
-
-	rl.DrawRectangle(x, y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
+	rl.DrawRectangle(position.X, position.Y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
 	for i, line := range lines {
-		rl.DrawText(line, x+pad, y+pad+int32(i)*lineH, textSize, rl.White)
+		rl.DrawText(line, position.X+pad, position.Y+pad+int32(i)*lineH, textSize, rl.White)
+	}
+}
+
+func tooltipPosition(mouse, viewport, tooltip vec.Vec2i) vec.Vec2i {
+	x := mouse.X - tooltip.X/2
+	y := mouse.Y - tooltip.Y - 10
+	if y < 0 {
+		y = mouse.Y + 10
+	}
+
+	maxX := max(int32(0), viewport.X-tooltip.X)
+	maxY := max(int32(0), viewport.Y-tooltip.Y)
+	return vec.Vec2i{
+		X: max(int32(0), min(x, maxX)),
+		Y: max(int32(0), min(y, maxY)),
 	}
 }
 

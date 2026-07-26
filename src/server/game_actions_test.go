@@ -475,6 +475,74 @@ func TestRecruitDoesNotClaimDestination(t *testing.T) {
 	}
 }
 
+func TestRecruitUsesCurrentRoundFarmFood(t *testing.T) {
+	g := actionTestGame(3, 1)
+	from, to, farm := game.NewHex(0, 0), game.NewHex(1, 0), game.NewHex(2, 0)
+	source := g.Map.GetCell(from)
+	source.Owner = 0
+	source.Building = game.BuildingBarracks
+	farmCell := g.Map.GetCell(farm)
+	farmCell.Owner = 0
+	farmCell.Building = game.BuildingFarm
+
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionRecruit,
+		Recruit: &game.RecruitActionPayload{
+			From: from,
+			To:   to,
+			Unit: game.UnitPeasant,
+		},
+	}
+
+	gi.processAutoActions()
+	gi.processClientActions()
+
+	if g.Map.GetCell(to).Unit != game.UnitPeasant {
+		t.Fatal("incoming Farm food did not fund recruitment")
+	}
+	if got := g.Factions[0].Resources[game.ResourceFood]; got != 1 {
+		t.Fatalf("Food = %d, want 1 after producing 2 and spending 1", got)
+	}
+	if g.Factions[0].Coins != 90 {
+		t.Fatalf("coins = %d, want 90", g.Factions[0].Coins)
+	}
+}
+
+func TestRecruitRejectsInsufficientFood(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	source := g.Map.GetCell(from)
+	source.Owner = 0
+	source.Building = game.BuildingBarracks
+	g.Factions[0].Resources = game.Resources{game.ResourceFood: 2}
+
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionRecruit,
+		Recruit: &game.RecruitActionPayload{
+			From: from,
+			To:   to,
+			Unit: game.UnitArcher,
+		},
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(to).Unit != game.UnitUnknown {
+		t.Fatal("Archer was recruited without enough Food")
+	}
+	if g.Factions[0].Resources[game.ResourceFood] != 2 || g.Factions[0].Coins != 100 {
+		t.Fatal("rejected recruitment deducted resources")
+	}
+	result := gi.actionResults[0]
+	if result == nil ||
+		result.Status != game.ActionResultInvalid ||
+		result.Message != "Not enough Food" {
+		t.Fatalf("result = %+v, want insufficient Food", result)
+	}
+}
+
 func TestScoutBuildsAdjacentAndClaims(t *testing.T) {
 	g := actionTestGame(2, 1)
 	from, to := game.NewHex(0, 0), game.NewHex(1, 0)

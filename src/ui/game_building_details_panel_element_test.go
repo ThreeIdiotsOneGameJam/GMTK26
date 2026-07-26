@@ -91,6 +91,20 @@ func TestTileHoverLines(t *testing.T) {
 			},
 		},
 		{
+			name: "farm food output",
+			cell: &game.Cell{
+				Tile:     game.TilePlains,
+				Owner:    0,
+				Building: game.BuildingFarm,
+			},
+			want: []string{
+				"Tile: Plains",
+				"Territory: Faction 1",
+				"",
+				"Building: Farm - Food x 2",
+			},
+		},
+		{
 			name: "building resource and unit",
 			cell: &game.Cell{
 				Tile:      game.TileGold,

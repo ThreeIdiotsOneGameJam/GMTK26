@@ -5,9 +5,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
+
+func TestBuildingButtonTooltipsMatchGameplay(t *testing.T) {
+	tests := map[game.BuildingType]string{
+		game.BuildingBarracks: "Recruits: Peasant, Archer, Knight, Scout\nPlace on: Plains",
+		game.BuildingFarm:     "Produces: Food +2\nPlace on: Plains adjacent to Water",
+		game.BuildingMine:     "Produces: Stone, Iron, Coal, or Gold\nPlace on: Rock, Iron, Coal, or Gold",
+		game.BuildingForester: "Produces: Wood +2\nPlace on: Forest or Jungle",
+	}
+
+	for building, want := range tests {
+		if got := buildingButtonTooltip(building); got != want {
+			t.Errorf("buildingButtonTooltip(%s) = %q, want %q", building, got, want)
+		}
+	}
+}
 
 func TestRoundCountdownState(t *testing.T) {
 	tests := []struct {

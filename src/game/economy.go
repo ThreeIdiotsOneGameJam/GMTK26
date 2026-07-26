@@ -65,6 +65,51 @@ func UnitResourceCost(t UnitType) Resources {
 	}
 }
 
+// FactionRoundIncome returns the resources generated at the start of a round
+// by the buildings currently owned by a faction.
+func FactionRoundIncome(m *Map, owner int8) (int32, Resources) {
+	resources := make(Resources)
+	if m == nil {
+		return 0, resources
+	}
+
+	var coins int32
+	for x := range m.Grid {
+		for y := range m.Grid[x] {
+			cell := &m.Grid[x][y]
+			if cell.Owner != owner || cell.Building == BuildingUnknown {
+				continue
+			}
+			for resource, amount := range BuildingProduces(cell.Building, cell.Tile) {
+				resources[resource] += amount
+			}
+			coins += BuildingCoinsProduces(cell.Building)
+		}
+	}
+	return coins, resources
+}
+
+// CanAffordUnitAfterRoundIncome mirrors round resolution, where building
+// production is credited before a submitted recruitment action is validated.
+func CanAffordUnitAfterRoundIncome(
+	m *Map,
+	owner int8,
+	t UnitType,
+	coins int32,
+	resources Resources,
+) bool {
+	incomeCoins, incomeResources := FactionRoundIncome(m, owner)
+	if coins+incomeCoins < UnitCost(t) {
+		return false
+	}
+	for resource, amount := range UnitResourceCost(t) {
+		if resources[resource]+incomeResources[resource] < amount {
+			return false
+		}
+	}
+	return true
+}
+
 func BuildingCoinsProduces(b BuildingType) int32 {
 	if b == BuildingTownhall {
 		return 1

@@ -40,10 +40,14 @@ func (r *WorldRenderer) canRecruitAt(m *game.Map, from, to game.Hex, unit game.U
 		target.Owner != -1 && target.Owner != r.LocalFaction {
 		return false
 	}
-	for res, amt := range game.UnitResourceCost(unit) {
-		if r.LocalResources[res] < amt {
-			return false
-		}
+	if !game.CanAffordUnitAfterRoundIncome(
+		m,
+		r.LocalFaction,
+		unit,
+		r.LocalCoins,
+		r.LocalResources,
+	) {
+		return false
 	}
 	if source.Building == game.BuildingTownhall {
 		return unit == game.UnitScout

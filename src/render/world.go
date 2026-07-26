@@ -102,6 +102,7 @@ type WorldRenderer struct {
 	SelectedHex    *game.Hex
 	SelectedKind   SelectionKind
 	LocalFaction   int8
+	LocalCoins     int32
 	LocalResources game.Resources
 	ActionsEnabled bool
 

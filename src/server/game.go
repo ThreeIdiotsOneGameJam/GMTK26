@@ -410,18 +410,15 @@ func (gi *GameInstance) waitUntil(deadline time.Time) bool {
 
 func (gi *GameInstance) processAutoActions() {
 	for i := range gi.game.Factions {
-		for x := range gi.game.Map.Grid {
-			for y := range gi.game.Map.Grid[x] {
-				cell := &gi.game.Map.Grid[x][y]
-				if cell.Owner == int8(i) && cell.Building != game.BuildingUnknown {
-					produced := game.BuildingProduces(cell.Building, cell.Tile)
-					for resType, amount := range produced {
-						gi.game.Factions[i].Resources[resType] += amount
-					}
-					gi.game.Factions[i].Coins += game.BuildingCoinsProduces(cell.Building)
-				}
-			}
+		coins, resources := game.FactionRoundIncome(&gi.game.Map, int8(i))
+		faction := &gi.game.Factions[i]
+		if faction.Resources == nil {
+			faction.Resources = make(game.Resources)
 		}
+		for resource, amount := range resources {
+			faction.Resources[resource] += amount
+		}
+		faction.Coins += coins
 	}
 }
 
