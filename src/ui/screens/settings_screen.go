@@ -63,17 +63,12 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.MusicVolume = v },
 		saveSettings,
 	)
-	addVolumeRow(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth,
-		func() float32 { return settings.Current.SFXVolume },
-		func(v float32) { settings.Current.SFXVolume = v },
-		saveSettings,
-	)
-	addVolumeRow(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth,
+	addVolumeRow(settingsPanel, "Ambience", rowStartY+rowStrideY, sliderWidth,
 		func() float32 { return settings.Current.AmbienceVolume },
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
-	addToggleRow(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*3,
+	addToggleRow(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*2,
 		func() bool { return settings.Current.ReducedMotion },
 		func(v bool) { settings.Current.ReducedMotion = v },
 		saveSettings,
@@ -82,7 +77,7 @@ func NewSettingsScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		settingsPanel,
 		"Countdown Overlay",
 		"Configure",
-		rowStartY+rowStrideY*4,
+		rowStartY+rowStrideY*3,
 		uiutil.MenuHeaderColor,
 		nil,
 		func() {

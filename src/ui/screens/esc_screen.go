@@ -106,17 +106,12 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		func(v float32) { settings.Current.MusicVolume = v },
 		saveSettings,
 	)
-	addVolumeRowStyled(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
-		func() float32 { return settings.Current.SFXVolume },
-		func(v float32) { settings.Current.SFXVolume = v },
-		saveSettings,
-	)
-	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.AmbienceVolume },
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
-	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*3, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*2, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() bool { return settings.Current.ReducedMotion },
 		func(v bool) { settings.Current.ReducedMotion = v },
 		saveSettings,
@@ -125,7 +120,7 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		settingsPanel,
 		"Countdown Overlay",
 		"Configure",
-		rowStartY+rowStrideY*4,
+		rowStartY+rowStrideY*3,
 		uiutil.MenuHeaderColor,
 		&textShadow,
 		func() {

@@ -26,7 +26,6 @@ const (
 
 type SettingsStore struct {
 	Offline         bool            `json:"offline"`
-	SFXVolume       float32         `json:"sfx_volume"`
 	MusicVolume     float32         `json:"music_volume"`
 	AmbienceVolume  float32         `json:"ambience_volume"`
 	ReducedMotion   bool            `json:"reduced_motion"`
@@ -35,7 +34,6 @@ type SettingsStore struct {
 }
 
 var Current = SettingsStore{
-	SFXVolume:       0.5,
 	MusicVolume:     0.5,
 	AmbienceVolume:  0.5,
 	CountdownScale:  DefaultCountdownScale,
@@ -77,7 +75,6 @@ func clamp01(v float32) float32 {
 }
 
 func normalized(value SettingsStore) SettingsStore {
-	value.SFXVolume = clamp01(value.SFXVolume)
 	value.MusicVolume = clamp01(value.MusicVolume)
 	value.AmbienceVolume = clamp01(value.AmbienceVolume)
 
