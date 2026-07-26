@@ -121,9 +121,10 @@ func frame() {
 	screens.Draw()
 
 	if global.DebugEnabled {
-		util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 10)
-		util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 20)
-		util.DrawTextSimple("WS: "+net.State().String(), 10, 30)
+		util.DrawTextSimple("Render Size: "+fmt.Sprintf("%d x %d", rl.GetRenderWidth(), rl.GetRenderHeight()), 10, 10)
+		util.DrawTextSimple("FPS: "+strconv.FormatFloat(fps, 'f', 2, 64), 10, 20)
+		util.DrawTextSimple("Runtime: "+time.Now().Sub(startTime).Round(time.Second).String(), 10, 30)
+		util.DrawTextSimple("WS: "+net.State().String(), 10, 40)
 	}
 
 	rl.EndDrawing()
