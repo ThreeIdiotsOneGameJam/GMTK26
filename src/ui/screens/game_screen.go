@@ -586,6 +586,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithTextSize(28).
 		WithPadding(0).
 		WithOutlineWidth(0).
+		WithoutShadow().
 		WithForegroundColors(ui.ColorSet{
 			Default: &rl.White,
 			Hover:   &ui.PaletteIndigo,
