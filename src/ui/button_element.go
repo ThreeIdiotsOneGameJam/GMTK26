@@ -81,6 +81,11 @@ func (el *ButtonElement) WithClick(click func()) *ButtonElement {
 	return el
 }
 
+func (el *ButtonElement) WithTooltip(text string) *ButtonElement {
+	el.TooltipText = text
+	return el
+}
+
 func DebugQuickActionModifierHeld() bool {
 	return global.DebugAvailable && (rl.IsKeyDown(rl.KeyLeftShift) ||
 		rl.IsKeyDown(rl.KeyRightShift) ||
@@ -99,6 +104,7 @@ type ButtonElement struct {
 	BackgroundColors      ColorSet
 	OutlineColors         ColorSet
 	Click                 func()
+	TooltipText           string
 
 	x, y, cx, cy, w, h, textWidth int32
 
@@ -133,6 +139,9 @@ func (el *ButtonElement) update(deltaNano int64) {
 	if el.hovered {
 		global.MouseCursorState = rl.MouseCursorPointingHand
 		global.UIBlocksWorldInput = true
+		if el.TooltipText != "" {
+			global.TooltipText = el.TooltipText
+		}
 	}
 
 	// Click state machine: track clicked across frames (clickedPrevious -> clicked)
@@ -204,4 +213,5 @@ func (el *ButtonElement) draw() {
 		fontScaledShadowOffset(el.TextSize),
 		opacity,
 	)
+
 }
