@@ -18,6 +18,7 @@ import (
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/render"
+	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -327,10 +328,10 @@ func easeInExpo(progress float64) float64 {
 	}
 }
 
-func roundCountdownTextSize(progress float64, renderHeight int32) int32 {
-	targetSize := min(max(renderHeight/3, int32(180)), int32(320))
-	startSize := float64(targetSize) * 0.4
-	size := startSize + (float64(targetSize)-startSize)*easeInExpo(progress)
+func roundCountdownTextSize(progress float64, renderHeight int32, scale float32) int32 {
+	targetSize := float64(min(max(renderHeight/3, int32(180)), int32(320))) * float64(scale)
+	startSize := targetSize * 0.4
+	size := startSize + (targetSize-startSize)*easeInExpo(progress)
 	return int32(math.Round(size))
 }
 
@@ -341,8 +342,21 @@ func roundAnnouncementState(round int32, remaining time.Duration) (text string, 
 	return fmt.Sprintf("Round #%d", round), true
 }
 
-func roundAnnouncementTextSize(renderHeight int32) int32 {
-	return min(max(renderHeight/8, int32(72)), int32(128))
+func roundAnnouncementTextSize(renderHeight int32, scale float32) int32 {
+	baseSize := min(max(renderHeight/8, int32(72)), int32(128))
+	return int32(math.Round(float64(baseSize) * float64(scale)))
+}
+
+func roundCountdownPosition(value settings.CountdownAnchor, renderSize vec.Vec2i) vec.Vec2i {
+	column, row, valid := settings.CountdownAnchorGridPosition(value)
+	if !valid {
+		column, row, _ = settings.CountdownAnchorGridPosition(settings.CountdownCenter)
+	}
+	denominator := settings.CountdownGridSize * 2
+	return vec.Vec2i{
+		X: renderSize.X * (column*2 + 1) / denominator,
+		Y: renderSize.Y * (row*2 + 1) / denominator,
+	}
 }
 
 func clearRoundAnnouncement() {
@@ -358,7 +372,11 @@ func newRoundCountdown() *ui.GroupElement {
 		WithTextDynamic(func() string {
 			return displayText
 		}).
-		WithTextSize(roundCountdownTextSize(0, int32(rl.GetRenderHeight()))).
+		WithTextSize(roundCountdownTextSize(
+			0,
+			int32(rl.GetRenderHeight()),
+			settings.Current.CountdownScale,
+		)).
 		WithTextColor(color.RGBA{R: 255, G: 244, B: 194, A: 255}).
 		WithTextShadow(color.RGBA{R: 14, G: 12, B: 25, A: 220}, vec.Vec2i{X: 7, Y: 9}).
 		WithAnchors(anchor.Center, anchor.Center).
@@ -367,7 +385,13 @@ func newRoundCountdown() *ui.GroupElement {
 		})
 
 	return ui.Group().
-		WithAnchors(anchor.Center, anchor.Center).
+		WithAnchors(anchor.Center, anchor.TopLeft).
+		WithRelativePosDynamic(func(el *ui.GroupElement) vec.Vec2i {
+			return roundCountdownPosition(
+				settings.Current.CountdownAnchor,
+				el.Parent.Size(),
+			)
+		}).
 		WithUpdate(func(deltaNano int64) {
 			if !serverGameActive {
 				visible = false
@@ -385,6 +409,7 @@ func newRoundCountdown() *ui.GroupElement {
 				text.TextSize = roundCountdownTextSize(
 					progress,
 					int32(rl.GetRenderHeight()),
+					settings.Current.CountdownScale,
 				)
 				return
 			}
@@ -394,7 +419,10 @@ func newRoundCountdown() *ui.GroupElement {
 				roundAnnouncementUntil.Sub(now),
 			)
 			if visible {
-				text.TextSize = roundAnnouncementTextSize(int32(rl.GetRenderHeight()))
+				text.TextSize = roundAnnouncementTextSize(
+					int32(rl.GetRenderHeight()),
+					settings.Current.CountdownScale,
+				)
 			}
 		}).
 		AddChild(text)
@@ -952,6 +980,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		AddChild(
 			ui.Vignette().WithAlpha(120),
 		).
+		// The real round countdown stays below the pause screen, keeping the
+		// settings controls unobstructed when both are visible.
 		AddChild(
 			ui.GameSelectionMenu().
 				WithWorld(gameWorld),
