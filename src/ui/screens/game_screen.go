@@ -917,7 +917,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithPadding(6).
 				WithOutlineWidth(2).
 				WithAnchors(anchor.BottomRight, anchor.BottomRight).
-				WithRelativePos(vec.Vec2i{X: -104, Y: -20}).
+				WithRelativePos(vec.Vec2i{X: -128, Y: -20}).
 				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
 					return serverGameActive
 				}).
