@@ -115,3 +115,35 @@ func TestElementDropShadowCanBeDisabled(t *testing.T) {
 		}
 	}
 }
+
+func TestPremultipliedShadowColor(t *testing.T) {
+	tests := []struct {
+		name string
+		in   color.RGBA
+		want color.RGBA
+	}{
+		{
+			name: "opaque color is unchanged",
+			in:   color.RGBA{R: 12, G: 34, B: 56, A: 255},
+			want: color.RGBA{R: 12, G: 34, B: 56, A: 255},
+		},
+		{
+			name: "transparent color has zero rgb",
+			in:   color.RGBA{R: 12, G: 34, B: 56, A: 0},
+			want: color.RGBA{},
+		},
+		{
+			name: "rgb is scaled by alpha",
+			in:   color.RGBA{R: 200, G: 100, B: 50, A: 128},
+			want: color.RGBA{R: 100, G: 50, B: 25, A: 128},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := premultipliedShadowColor(test.in); got != test.want {
+				t.Errorf("premultipliedShadowColor(%#v) = %#v, want %#v", test.in, got, test.want)
+			}
+		})
+	}
+}
