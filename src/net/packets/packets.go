@@ -11,7 +11,7 @@ import (
 
 type PacketType int
 
-const protocolVersion uint16 = 1
+const protocolVersion uint16 = 2
 
 const (
 	UnknownPacketType PacketType = iota
@@ -30,6 +30,8 @@ const (
 	S2CGameEndPacketType
 	C2SStartGamePacketType
 	S2CMatchmakingWaitingPacketType
+	C2SCancelMovementOrderPacketType
+	C2SCancelBuildActionPacketType
 )
 
 type Packet interface {

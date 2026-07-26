@@ -17,6 +17,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
@@ -49,6 +50,10 @@ var roundAnnouncementUntil time.Time
 var focusTownhallPending bool
 var gameOverMessage string
 var gameActionError string
+var gamePendingAction string
+var gameResolutionMessage string
+var gameResolutionUntil time.Time
+var gameLastResolutionKey string
 
 const (
 	roundCountdownDuration    = 3 * time.Second
@@ -59,20 +64,80 @@ func init() {
 	// In a running authoritative game, building placement goes through the
 	// server instead of mutating the local map; the next state broadcast
 	// carries the result.
-	gameWorld.Renderer.OnPlaceBuilding = func(hex game.Hex, building game.BuildingType) bool {
+	gameWorld.Renderer.OnPlaceBuilding = func(from, to game.Hex, building game.BuildingType) bool {
 		if !serverGameActive {
-			return currentGame != nil &&
-				(currentGame.Multiplayer || gameNet.LocalGameActive())
+			return false
 		}
-		if err := gameNet.SendBuildAction(serverRound, hex, building); err != nil {
+		if err := gameNet.SendBuildAction(serverRound, from, to, building); err != nil {
 			fmt.Printf("failed to send build action: %v\n", err)
 		} else {
 			// Pending actions are intentionally client-only: opponents should
 			// not see a building until the server resolves the round.
-			gameWorld.Renderer.QueueBuilding(hex, building)
+			gameWorld.Renderer.QueueBuilding(to, building)
+			setPendingAction(fmt.Sprintf("Build %s", building))
 		}
 		return true
 	}
+	gameWorld.Renderer.OnRecruit = func(from, to game.Hex, troop game.TroopType) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendRecruitAction(serverRound, from, to, troop); err != nil {
+			fmt.Printf("failed to send recruit action: %v\n", err)
+			return true
+		}
+		gameWorld.Renderer.ClearQueuedBuilding()
+		setPendingAction(fmt.Sprintf("Recruit %s", troop))
+		return true
+	}
+	gameWorld.Renderer.OnMove = func(from, to game.Hex) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendMoveAction(serverRound, from, to); err != nil {
+			fmt.Printf("failed to send move action: %v\n", err)
+			return false
+		}
+		return true
+	}
+	gameWorld.Renderer.OnAttack = func(from, to game.Hex) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendAttackAction(serverRound, from, to); err != nil {
+			fmt.Printf("failed to send attack action: %v\n", err)
+			return true
+		}
+		setPendingAction("Demolish building")
+		return true
+	}
+	gameWorld.Renderer.OnCancelMovement = func(from game.Hex) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendCancelMovementOrder(serverRound, from); err != nil {
+			fmt.Printf("failed to cancel movement order: %v\n", err)
+			return false
+		}
+		showResolutionToast("Movement order cancelled", fmt.Sprintf("cancel:%d:%d:%d", serverRound, from.X, from.Y))
+		return true
+	}
+	gameWorld.Renderer.OnCancelBuilding = func(to game.Hex) bool {
+		if !serverGameActive {
+			return false
+		}
+		if err := gameNet.SendCancelBuildAction(serverRound, to); err != nil {
+			fmt.Printf("failed to cancel build action: %v\n", err)
+			return false
+		}
+		gamePendingAction = ""
+		showResolutionToast("Pending build cancelled", fmt.Sprintf("cancel-build:%d:%d:%d", serverRound, to.X, to.Y))
+		return true
+	}
+}
+
+func setPendingAction(label string) {
+	gamePendingAction = label
 }
 
 func SetLocalClientID(id game.ClientID) {
@@ -93,7 +158,9 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 	gameOverMessage = ""
 	clearRoundAnnouncement()
 	gameWorld.Renderer.ClearQueuedBuilding()
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
+	gameWorld.Renderer.LocalFaction = int8(p.FactionIdx)
+	gameWorld.Renderer.ActionsEnabled = true
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, nil, nil)
 	serverGameEndTime = p.GameEndTime
 	// The renderer may not be initialized until the game screen's first
 	// update. Defer focus so ResetCamera cannot discard this request.
@@ -108,8 +175,9 @@ func ApplyServerGameState(p *packets.S2CGameStatePacket) {
 		gameWorld.Renderer.ClearQueuedBuilding()
 		roundAnnouncement = p.Round
 		roundAnnouncementUntil = time.Now().Add(roundAnnouncementDuration)
+		gamePendingAction = ""
 	}
-	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
+	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources, p.Orders, p.Movements, p.Result)
 }
 
 func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
@@ -120,6 +188,7 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 	serverGameEndTime = 0
 	clearRoundAnnouncement()
 	focusTownhallPending = false
+	gameWorld.Renderer.ActionsEnabled = false
 	gameWorld.Renderer.ClearQueuedBuilding()
 	if p.WinnerName != "" {
 		gameOverMessage = "Game over! Winner: " + p.WinnerName
@@ -128,7 +197,29 @@ func ApplyServerGameEnd(p *packets.S2CGameEndPacket) {
 	}
 }
 
-func applyServerRound(round int32, deadline int64, m game.Map, coins, points int32, resources game.Resources) {
+func applyServerRound(
+	round int32,
+	deadline int64,
+	m game.Map,
+	coins, points int32,
+	resources game.Resources,
+	orders []game.MovementOrder,
+	movements []game.MovementEvent,
+	result *game.ActionResult,
+) {
+	if gameWorld.Renderer.SelectedKind == render.SelectionTroop &&
+		gameWorld.Renderer.SelectedHex != nil {
+		for _, movement := range movements {
+			if movement.Owner != int8(gameNet.LocalGameState.FactionIdx) || len(movement.Path) < 2 {
+				continue
+			}
+			if movement.Path[0] == *gameWorld.Renderer.SelectedHex {
+				endpoint := movement.Path[len(movement.Path)-1]
+				gameWorld.Renderer.SelectedHex = &endpoint
+				break
+			}
+		}
+	}
 	serverRound = round
 	serverDeadline = deadline
 	serverCoins = coins
@@ -137,7 +228,22 @@ func applyServerRound(round int32, deadline int64, m game.Map, coins, points int
 	currentGame.Round = round
 	currentGame.Map = m
 	gameWorld.Map = m
+	gameWorld.Renderer.SetMovementOrders(orders)
+	gameWorld.Renderer.StartMovementAnimations(movements)
+	if result != nil {
+		key := fmt.Sprintf("%d:%d:%d:%t", result.Round, result.Type, result.Status, result.Automatic)
+		showResolutionToast(result.Message, key)
+	}
 	gameSeedInput.Text = strconv.FormatInt(m.Seed, 10)
+}
+
+func showResolutionToast(message, key string) {
+	if message == "" || key == gameLastResolutionKey {
+		return
+	}
+	gameLastResolutionKey = key
+	gameResolutionMessage = message
+	gameResolutionUntil = time.Now().Add(2500 * time.Millisecond)
 }
 
 func multiplayerStatusText() string {
@@ -290,6 +396,9 @@ func EnterGame(state game.Game) {
 	gameOverMessage = ""
 	gameActionError = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
+	gameWorld.Renderer.SetMovementOrders(nil)
+	gameWorld.Renderer.ClearSelection()
+	gameWorld.Renderer.ActionsEnabled = false
 	applyGameState(state)
 	gameWorld.Renderer.ResetCamera(&gameWorld.Map)
 	if screenIsActiveOrPending(gameScreen) {
@@ -396,6 +505,7 @@ func clearCurrentGame() {
 	currentGame = nil
 	gameWorld.Map = game.Map{}
 	gameWorld.Renderer.ClearQueuedBuilding()
+	gameWorld.Renderer.ClearSelection()
 	gameLeaveTransition = false
 	serverGameActive = false
 	serverGameEndTime = 0
@@ -403,6 +513,9 @@ func clearCurrentGame() {
 	focusTownhallPending = false
 	gameOverMessage = ""
 	gameActionError = ""
+	gamePendingAction = ""
+	gameResolutionMessage = ""
+	gameLastResolutionKey = ""
 	serverResources = nil
 	gameNet.LocalGameState.Reset()
 }
@@ -410,6 +523,7 @@ func clearCurrentGame() {
 func setBuildingClick(building game.BuildingType) func() {
 	return func() {
 		gameWorld.Renderer.BuildingToPlace = building
+		gameWorld.Renderer.RecruitToPlace = game.TroopUnknown
 	}
 }
 
@@ -553,9 +667,53 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}),
 		).
 		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					if gameResolutionMessage == "" || time.Now().After(gameResolutionUntil) {
+						return ""
+					}
+					return gameResolutionMessage
+				}).
+				WithTextSize(22).
+				WithTextColor(rl.White).
+				WithTextShadow(color.RGBA{A: 210}, vec.Vec2i{X: 2, Y: 2}).
+				WithAnchors(anchor.Top, anchor.Top).
+				WithRelativePos(vec.Vec2i{X: 0, Y: 154}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return gameResolutionMessage != "" && time.Now().Before(gameResolutionUntil)
+				}),
+		).
+		AddChild(
+			ui.Text().
+				WithTextDynamic(func() string {
+					if gamePendingAction == "" {
+						return ""
+					}
+					return "Pending: " + gamePendingAction
+				}).
+				WithTextSize(20).
+				WithTextColor(rl.Black).
+				WithAnchors(anchor.Bottom, anchor.Bottom).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -18}).
+				WithVisibleDynamic(func(el *ui.TextElement) bool {
+					return serverGameActive && gamePendingAction != ""
+				}),
+		).
+		AddChild(
 			ui.Group().
 				WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
 				WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
+				WithVisibleDynamic(func(el *ui.GroupElement) bool {
+					if !serverGameActive ||
+						gameWorld.Renderer.SelectedHex == nil ||
+						gameWorld.Renderer.SelectedKind != render.SelectionTroop {
+						return false
+					}
+					cell := gameWorld.Map.GetCell(*gameWorld.Renderer.SelectedHex)
+					return cell != nil &&
+						cell.Troop == game.TroopScout &&
+						cell.TroopOwner == int8(gameNet.LocalGameState.FactionIdx)
+				}).
 				AddChild(
 					ui.Text().
 						WithTextSize(24).
@@ -643,8 +801,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Group().
-				WithAnchors(anchor.Left, anchor.Left).
-				WithRelativePos(vec.Vec2i{X: 8, Y: 0}).
+				WithAnchors(anchor.TopLeft, anchor.TopLeft).
+				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
 				WithVisibleDynamic(func(el *ui.GroupElement) bool {
 					return serverGameActive
 				}).
@@ -733,6 +891,26 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return serverGameActive
 				}).
 				WithClick(focusOnTownhall),
+		).
+		AddChild(
+			ui.Button().
+				WithText("Hold").
+				WithTextSize(18).
+				WithPadding(6).
+				WithOutlineWidth(2).
+				WithAnchors(anchor.BottomRight, anchor.BottomRight).
+				WithRelativePos(vec.Vec2i{X: -104, Y: -20}).
+				WithVisibleDynamic(func(el *ui.ButtonElement) bool {
+					return serverGameActive
+				}).
+				WithClick(func() {
+					if err := gameNet.SendPassAction(serverRound); err != nil {
+						fmt.Printf("failed to hold round: %v\n", err)
+						return
+					}
+					gameWorld.Renderer.ClearQueuedBuilding()
+					setPendingAction("Hold position")
+				}),
 		).
 		AddChild(
 			ui.GameBuildingDetailsPanel().

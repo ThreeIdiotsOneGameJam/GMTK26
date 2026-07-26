@@ -34,27 +34,38 @@ func (r *WorldRenderer) ClearQueuedBuilding() {
 	r.queuedBuilding.Visible = false
 }
 
+func (r *WorldRenderer) cancelQueuedBuildingAt(hex game.Hex, click bool) bool {
+	if !click || !r.queuedBuilding.Visible || r.queuedBuilding.Hex != hex {
+		return false
+	}
+	if r.OnCancelBuilding != nil && !r.OnCancelBuilding(hex) {
+		return false
+	}
+	r.ClearQueuedBuilding()
+	return true
+}
+
 func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place bool) {
 	r.buildingPreview.Visible = false
 
 	if global.UIBlocksWorldInput ||
+		!r.ActionsEnabled ||
+		r.MovementAnimating() ||
 		r.BuildingToPlace == game.BuildingUnknown ||
+		r.SelectedHex == nil ||
+		r.SelectedKind != SelectionTroop ||
 		!m.HexInsideBounds(hex) {
 		return
 	}
 
-	canPlace := game.BuildingCanPlace(m, r.BuildingToPlace, hex)
+	from := *r.SelectedHex
+	canPlace := r.canBuildAt(m, from, hex, r.BuildingToPlace)
 	if place && canPlace {
-		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(hex, r.BuildingToPlace) {
+		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(from, hex, r.BuildingToPlace) {
 			m.GetCell(hex).Building = r.BuildingToPlace
 		}
-		canPlace = false
-	}
-	if rl.IsMouseButtonPressed(rl.MouseButtonRight) && canPlace {
-		if r.OnPlaceBuilding == nil || !r.OnPlaceBuilding(hex, game.BuildingUnknown) {
-			m.GetCell(hex).Building = game.BuildingUnknown
-		}
-		canPlace = true
+		r.clearPlacementSelection()
+		return
 	}
 
 	tint := rl.Red
@@ -69,6 +80,26 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex, place
 		Tint:    tint,
 		Visible: true,
 	}
+}
+
+func (r *WorldRenderer) clearPlacementSelection() {
+	r.BuildingToPlace = game.BuildingUnknown
+	r.RecruitToPlace = game.TroopUnknown
+	r.clearSelection()
+	r.buildingPreview.Visible = false
+}
+
+func (r *WorldRenderer) canBuildAt(m *game.Map, from, to game.Hex, building game.BuildingType) bool {
+	source := m.GetCell(from)
+	target := m.GetCell(to)
+	return source != nil &&
+		target != nil &&
+		source.Troop == game.TroopScout &&
+		source.TroopOwner == r.LocalFaction &&
+		(from == to || game.HexAdjacent(from, to)) &&
+		(target.Owner == -1 || target.Owner == r.LocalFaction) &&
+		(target.Troop == game.TroopUnknown || target.TroopOwner == r.LocalFaction) &&
+		game.BuildingCanPlace(m, building, to)
 }
 
 func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {

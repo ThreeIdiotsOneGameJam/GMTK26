@@ -9,4 +9,5 @@ const (
 	TroopPeasant
 	TroopArcher
 	TroopKnight
+	TroopScout
 )

@@ -45,6 +45,8 @@ func TroopCost(t TroopType) int32 {
 		return 20
 	case TroopKnight:
 		return 30
+	case TroopScout:
+		return 10
 	default:
 		return 0
 	}

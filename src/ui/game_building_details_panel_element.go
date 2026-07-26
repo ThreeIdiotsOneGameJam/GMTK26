@@ -7,6 +7,7 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
+	"github.com/threeidiotsonegamejam/gmtk26/src/render"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 )
 
@@ -50,7 +51,7 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 	r := &el.world.Renderer
 	m := &el.world.Map
 
-	if r.SelectedHex == nil {
+	if r.SelectedHex == nil || r.SelectedKind != render.SelectionBuilding {
 		el.lay = buildingDetailsLayout{}
 		return
 	}
@@ -74,13 +75,9 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 			global.UIBlocksWorldInput = true
 			canAfford := gameNet.LocalGameState.GetCoins() >= game.TroopCost(btn.troop)
 			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
-				if err := gameNet.SendDispatchAction(gameNet.LocalGameState.GetRound(), *r.SelectedHex, *r.SelectedHex, btn.troop); err != nil {
-					fmt.Printf("failed to send dispatch action: %v\n", err)
-				} else {
-					// The server keeps one action per faction, so dispatching
-					// replaces any building that was queued this round.
-					r.ClearQueuedBuilding()
-				}
+				r.RecruitToPlace = btn.troop
+				r.BuildingToPlace = game.BuildingUnknown
+				r.ClearQueuedBuilding()
 			}
 		}
 	}
@@ -204,10 +201,6 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 	contentH := int32(len(lines))*lineH + pad
 	panelH := headerH + contentH
 
-	if cell.Building == game.BuildingBarracks {
-		panelH += pad*2 + 3*(btnH+btnGap)
-	}
-
 	winW := int32(rl.GetRenderWidth())
 	winH := int32(rl.GetRenderHeight())
 	bgX := winW - panelW - 20
@@ -215,7 +208,7 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 
 	var buttons []buttonRect
 
-	if cell.Building == game.BuildingBarracks {
+	if cell.Building == game.BuildingBarracks || cell.Building == game.BuildingTownhall {
 		y := bgY + headerH + contentH + pad
 		troops := []struct {
 			label string
@@ -224,7 +217,14 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 			{"Peasant 10c", game.TroopPeasant},
 			{"Archer 20c", game.TroopArcher},
 			{"Knight 30c", game.TroopKnight},
+			{"Scout 10c", game.TroopScout},
 		}
+		if cell.Building == game.BuildingTownhall {
+			troops = troops[3:]
+		}
+		panelH += pad*2 + int32(len(troops))*(btnH+btnGap)
+		bgY = (winH - panelH) / 2
+		y = bgY + headerH + contentH + pad
 		for _, tp := range troops {
 			buttons = append(buttons, buttonRect{
 				x:     bgX + pad,

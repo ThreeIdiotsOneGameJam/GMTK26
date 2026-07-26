@@ -12,11 +12,12 @@ func _() {
 	_ = x[TroopPeasant-1]
 	_ = x[TroopArcher-2]
 	_ = x[TroopKnight-3]
+	_ = x[TroopScout-4]
 }
 
-const _TroopType_name = "UnknownPeasantArcherKnight"
+const _TroopType_name = "UnknownPeasantArcherKnightScout"
 
-var _TroopType_index = [...]uint8{0, 7, 14, 20, 26}
+var _TroopType_index = [...]uint8{0, 7, 14, 20, 26, 31}
 
 func (i TroopType) String() string {
 	idx := int(i) - 0

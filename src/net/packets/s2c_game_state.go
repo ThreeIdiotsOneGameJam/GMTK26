@@ -6,12 +6,15 @@ import (
 )
 
 type S2CGameStatePacket struct {
-	Round     int32          `json:"round"`
-	Deadline  int64          `json:"deadline"`
-	Map       game.Map       `json:"map"`
-	Coins     int32          `json:"coins"`
-	Points    int32          `json:"points"`
-	Resources game.Resources `json:"resources"`
+	Round     int32                `json:"round"`
+	Deadline  int64                `json:"deadline"`
+	Map       game.Map             `json:"map"`
+	Coins     int32                `json:"coins"`
+	Points    int32                `json:"points"`
+	Resources game.Resources       `json:"resources"`
+	Orders    []game.MovementOrder `json:"orders"`
+	Result    *game.ActionResult   `json:"result,omitempty"`
+	Movements []game.MovementEvent `json:"movements"`
 }
 
 func init() {
@@ -30,12 +33,15 @@ func (*S2CGameStatePacket) isS2C()                 {}
 
 func (p *S2CGameStatePacket) UnmarshalJSON(data []byte) error {
 	type statePayload struct {
-		Round     *int32          `json:"round"`
-		Deadline  *int64          `json:"deadline"`
-		Map       *game.Map       `json:"map"`
-		Coins     *int32          `json:"coins"`
-		Points    *int32          `json:"points"`
-		Resources *game.Resources `json:"resources"`
+		Round     *int32                `json:"round"`
+		Deadline  *int64                `json:"deadline"`
+		Map       *game.Map             `json:"map"`
+		Coins     *int32                `json:"coins"`
+		Points    *int32                `json:"points"`
+		Resources *game.Resources       `json:"resources"`
+		Orders    *[]game.MovementOrder `json:"orders"`
+		Result    *game.ActionResult    `json:"result,omitempty"`
+		Movements *[]game.MovementEvent `json:"movements"`
 	}
 	var payload statePayload
 	if err := jsonutil.DecodeStrict(data, &payload); err != nil {
@@ -59,6 +65,12 @@ func (p *S2CGameStatePacket) UnmarshalJSON(data []byte) error {
 	if payload.Resources == nil {
 		return errMissingField("s2c_game_state", "resources")
 	}
+	if payload.Orders == nil {
+		return errMissingField("s2c_game_state", "orders")
+	}
+	if payload.Movements == nil {
+		return errMissingField("s2c_game_state", "movements")
+	}
 
 	p.Round = *payload.Round
 	p.Deadline = *payload.Deadline
@@ -66,5 +78,8 @@ func (p *S2CGameStatePacket) UnmarshalJSON(data []byte) error {
 	p.Coins = *payload.Coins
 	p.Points = *payload.Points
 	p.Resources = *payload.Resources
+	p.Orders = *payload.Orders
+	p.Result = payload.Result
+	p.Movements = *payload.Movements
 	return nil
 }

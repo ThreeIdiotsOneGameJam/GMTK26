@@ -18,6 +18,9 @@ type localGameState struct {
 	Coins       int32
 	Points      int32
 	Resources   game.Resources
+	Orders      []game.MovementOrder
+	Result      *game.ActionResult
+	Movements   []game.MovementEvent
 }
 
 var LocalGameState = &localGameState{}
@@ -34,6 +37,9 @@ func (s *localGameState) ApplyStartPacket(p *packets.S2CGameStartPacket) {
 	s.Coins = p.Coins
 	s.Points = p.Points
 	s.Resources = p.Resources
+	s.Orders = append([]game.MovementOrder(nil), p.Orders...)
+	s.Result = nil
+	s.Movements = nil
 }
 
 func (s *localGameState) ApplyStatePacket(p *packets.S2CGameStatePacket) {
@@ -45,6 +51,9 @@ func (s *localGameState) ApplyStatePacket(p *packets.S2CGameStatePacket) {
 	s.Coins = p.Coins
 	s.Points = p.Points
 	s.Resources = p.Resources
+	s.Orders = append([]game.MovementOrder(nil), p.Orders...)
+	s.Result = p.Result
+	s.Movements = append([]game.MovementEvent(nil), p.Movements...)
 }
 
 func (s *localGameState) ApplyEndPacket() {
@@ -65,6 +74,9 @@ func (s *localGameState) Reset() {
 	s.Coins = 0
 	s.Points = 0
 	s.Resources = nil
+	s.Orders = nil
+	s.Result = nil
+	s.Movements = nil
 }
 
 func (s *localGameState) GetRound() int32 {
@@ -79,18 +91,61 @@ func (s *localGameState) GetCoins() int32 {
 	return s.Coins
 }
 
-func SendBuildAction(round int32, hex game.Hex, building game.BuildingType) error {
+func (s *localGameState) GetOrders() []game.MovementOrder {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]game.MovementOrder(nil), s.Orders...)
+}
+
+func SendBuildAction(round int32, from, to game.Hex, building game.BuildingType) error {
 	return Send(&packets.C2SActionPacket{
 		Round: round,
 		Type:  game.ActionBuild,
-		Build: &game.BuildActionPayload{Hex: hex, Building: building},
+		Build: &game.BuildActionPayload{From: from, To: to, Building: building},
 	})
 }
 
-func SendDispatchAction(round int32, hex, to game.Hex, troop game.TroopType) error {
+func SendMoveAction(round int32, from, to game.Hex) error {
 	return Send(&packets.C2SActionPacket{
-		Round:    round,
-		Type:     game.ActionDispatch,
-		Dispatch: &game.DispatchActionPayload{Hex: hex, To: to, Troop: troop},
+		Round: round,
+		Type:  game.ActionMove,
+		Move:  &game.MoveActionPayload{From: from, To: to},
+	})
+}
+
+func SendRecruitAction(round int32, from, to game.Hex, troop game.TroopType) error {
+	return Send(&packets.C2SActionPacket{
+		Round:   round,
+		Type:    game.ActionRecruit,
+		Recruit: &game.RecruitActionPayload{From: from, To: to, Troop: troop},
+	})
+}
+
+func SendAttackAction(round int32, from, to game.Hex) error {
+	return Send(&packets.C2SActionPacket{
+		Round:  round,
+		Type:   game.ActionAttack,
+		Attack: &game.AttackActionPayload{From: from, To: to},
+	})
+}
+
+func SendPassAction(round int32) error {
+	return Send(&packets.C2SActionPacket{
+		Round: round,
+		Type:  game.ActionPass,
+	})
+}
+
+func SendCancelMovementOrder(round int32, from game.Hex) error {
+	return Send(&packets.C2SCancelMovementOrderPacket{
+		Round: round,
+		From:  from,
+	})
+}
+
+func SendCancelBuildAction(round int32, to game.Hex) error {
+	return Send(&packets.C2SCancelBuildActionPacket{
+		Round: round,
+		To:    to,
 	})
 }

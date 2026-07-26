@@ -1,0 +1,572 @@
+package server
+
+import (
+	"testing"
+
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
+)
+
+func actionTestGame(width, height int32) *game.Game {
+	grid := make([][]game.Cell, width)
+	for x := range grid {
+		grid[x] = make([]game.Cell, height)
+		for y := range grid[x] {
+			grid[x][y] = game.Cell{Tile: game.TilePlains, Owner: -1}
+		}
+	}
+	g := &game.Game{
+		Round: 1,
+		Map: game.Map{
+			Grid:     grid,
+			GridSize: vec.Vec2i{X: width, Y: height},
+		},
+	}
+	for i := range g.Factions {
+		g.Factions[i].Coins = 100
+	}
+	return g
+}
+
+func putTroop(g *game.Game, hex game.Hex, troop game.TroopType, owner int8) {
+	cell := g.Map.GetCell(hex)
+	cell.Troop = troop
+	cell.TroopOwner = owner
+}
+
+func TestAssignedRouteAdvancesAndPersists(t *testing.T) {
+	g := actionTestGame(1, 5)
+	from, destination := game.NewHex(0, 0), game.NewHex(0, 4)
+	putTroop(g, from, game.TroopPeasant, 0)
+	gi := NewGameInstance(1, g, nil)
+	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
+		From: from,
+		To:   destination,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gi.processClientActions()
+
+	endpoint := game.NewHex(0, 2)
+	if g.Map.GetCell(endpoint).Troop != game.TroopPeasant ||
+		g.Map.GetCell(endpoint).TroopOwner != 0 ||
+		g.Map.GetCell(from).Troop != game.TroopUnknown {
+		t.Fatalf("troop did not move to %v", endpoint)
+	}
+	orders := gi.movementOrders[0]
+	if len(orders) != 1 ||
+		orders[0].Current != endpoint ||
+		orders[0].Destination != destination {
+		t.Fatalf("orders = %v", orders)
+	}
+	if len(gi.movementEvents) != 1 || len(gi.movementEvents[0].Path) != 3 {
+		t.Fatalf("movement events = %v", gi.movementEvents)
+	}
+}
+
+func TestActionPacketReachesAuthoritativeMovementResolver(t *testing.T) {
+	g := actionTestGame(1, 4)
+	from, destination := game.NewHex(0, 0), game.NewHex(0, 3)
+	putTroop(g, from, game.TroopScout, 0)
+	client := NewClient(nil)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+
+	response, err := client.HandlePacket(&packets.C2SActionPacket{
+		Round: 1,
+		Type:  game.ActionMove,
+		Move: &game.MoveActionPayload{
+			From: from,
+			To:   destination,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response != nil {
+		t.Fatalf("unexpected response %T", response)
+	}
+	if _, exists := gi.actions[0]; exists {
+		t.Fatal("route assignment occupied the faction's manual action slot")
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(destination).Troop != game.TroopScout {
+		t.Fatal("packet-submitted movement did not resolve")
+	}
+	result := gi.actionResults[0]
+	if result == nil || result.Status != game.ActionResultSucceeded {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestNewRouteAdvancesBeforeExistingRoundRobinQueue(t *testing.T) {
+	g := actionTestGame(2, 2)
+	oldFrom, oldTo := game.NewHex(0, 0), game.NewHex(0, 1)
+	newFrom, newTo := game.NewHex(1, 0), game.NewHex(1, 1)
+	putTroop(g, oldFrom, game.TroopScout, 0)
+	putTroop(g, newFrom, game.TroopScout, 0)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{{
+		Current:     oldFrom,
+		Destination: oldTo,
+	}}
+	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
+		From: newFrom,
+		To:   newTo,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(newTo).Troop != game.TroopScout {
+		t.Fatal("newly assigned route did not receive first advancement")
+	}
+	if g.Map.GetCell(oldFrom).Troop != game.TroopScout {
+		t.Fatal("existing round-robin route advanced before the new route")
+	}
+}
+
+func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
+	g := actionTestGame(2, 3)
+	from := game.NewHex(0, 0)
+	destination := game.NewHex(0, 2)
+	buildTarget := game.NewHex(1, 0)
+	putTroop(g, from, game.TroopScout, 0)
+	gi := NewGameInstance(1, g, nil)
+	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
+		From: from,
+		To:   destination,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     from,
+			To:       buildTarget,
+			Building: game.BuildingFarm,
+		},
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(from).Troop != game.TroopScout {
+		t.Fatal("manual build did not suppress route advancement")
+	}
+	if len(gi.movementOrders[0]) != 1 {
+		t.Fatal("manual build deleted the newly assigned route")
+	}
+	if _, exists := gi.movementPriorities[0]; exists {
+		t.Fatal("new-route priority leaked into the next round")
+	}
+
+	delete(gi.actions, 0)
+	gi.processClientActions()
+	if g.Map.GetCell(destination).Troop != game.TroopScout {
+		t.Fatal("persisted route did not advance on the next free round")
+	}
+}
+
+func TestAutomaticMovementSkipsBlockedOrder(t *testing.T) {
+	g := actionTestGame(2, 4)
+	blockedFrom := game.NewHex(0, 0)
+	blockedDestination := game.NewHex(0, 1)
+	movableFrom := game.NewHex(0, 3)
+	movableDestination := game.NewHex(1, 3)
+	putTroop(g, blockedFrom, game.TroopScout, 0)
+	putTroop(g, blockedDestination, game.TroopPeasant, 0)
+	putTroop(g, movableFrom, game.TroopScout, 0)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{
+		{Current: blockedFrom, Destination: blockedDestination},
+		{Current: movableFrom, Destination: movableDestination},
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(movableDestination).Troop != game.TroopScout {
+		t.Fatal("movable order did not advance")
+	}
+	if got := gi.movementOrders[0]; len(got) != 1 || got[0].Current != blockedFrom {
+		t.Fatalf("remaining orders = %v", got)
+	}
+}
+
+func TestPassSuppressesAutomaticMovement(t *testing.T) {
+	g := actionTestGame(1, 3)
+	from, destination := game.NewHex(0, 0), game.NewHex(0, 2)
+	putTroop(g, from, game.TroopScout, 0)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{{
+		Current:     from,
+		Destination: destination,
+	}}
+	gi.actions[0] = &submittedAction{Type: game.ActionPass}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(from).Troop != game.TroopScout {
+		t.Fatal("pass allowed automatic movement")
+	}
+	if len(gi.movementOrders[0]) != 1 {
+		t.Fatal("pass removed movement order")
+	}
+}
+
+func TestAllBlockedOrdersReportBlocked(t *testing.T) {
+	g := actionTestGame(1, 2)
+	from, destination := game.NewHex(0, 0), game.NewHex(0, 1)
+	putTroop(g, from, game.TroopScout, 0)
+	putTroop(g, destination, game.TroopPeasant, 0)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{{
+		Current:     from,
+		Destination: destination,
+	}}
+
+	gi.processClientActions()
+
+	result := gi.actionResults[0]
+	if result == nil || result.Status != game.ActionResultBlocked || !result.Automatic {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(gi.movementOrders[0]) != 1 {
+		t.Fatal("blocked order was removed")
+	}
+}
+
+func TestFreeCancellationWithdrawsNewRoutePriority(t *testing.T) {
+	g := actionTestGame(1, 3)
+	from := game.NewHex(0, 0)
+	putTroop(g, from, game.TroopScout, 0)
+	client := NewClient(nil)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
+		From: from,
+		To:   game.NewHex(0, 2),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := gi.CancelMovementOrder(client, 1, from); err != nil {
+		t.Fatal(err)
+	}
+	if len(gi.movementOrders[0]) != 0 {
+		t.Fatal("movement order was not cancelled")
+	}
+	if _, exists := gi.movementPriorities[0]; exists {
+		t.Fatal("new route priority was not withdrawn")
+	}
+}
+
+func TestCancelPendingBuildRestoresAutomaticMovement(t *testing.T) {
+	g := actionTestGame(2, 2)
+	moveFrom := game.NewHex(0, 0)
+	moveTo := game.NewHex(0, 1)
+	buildFrom := game.NewHex(1, 0)
+	buildTo := game.NewHex(1, 1)
+	putTroop(g, moveFrom, game.TroopPeasant, 0)
+	putTroop(g, buildFrom, game.TroopScout, 0)
+
+	client := NewClient(nil)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+	gi.movementOrders[0] = []game.MovementOrder{{
+		Current:     moveFrom,
+		Destination: moveTo,
+	}}
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     buildFrom,
+			To:       buildTo,
+			Building: game.BuildingFarm,
+		},
+	}
+
+	response, err := client.HandlePacket(&packets.C2SCancelBuildActionPacket{
+		Round: 1,
+		To:    buildTo,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response != nil {
+		t.Fatalf("unexpected response %T", response)
+	}
+	if _, exists := gi.actions[0]; exists {
+		t.Fatal("pending build action was not withdrawn")
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(buildTo).Building != game.BuildingUnknown {
+		t.Fatal("cancelled building was constructed")
+	}
+	if g.Map.GetCell(moveTo).Troop != game.TroopPeasant {
+		t.Fatal("cancelling the build did not restore automatic movement")
+	}
+}
+
+func TestStaleBuildCancelDoesNotEraseReplacementAction(t *testing.T) {
+	g := actionTestGame(2, 2)
+	client := NewClient(nil)
+	gi := NewGameInstance(1, g, []*Client{client})
+	replacementTarget := game.NewHex(1, 1)
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     game.NewHex(1, 0),
+			To:       replacementTarget,
+			Building: game.BuildingFarm,
+		},
+	}
+
+	if err := gi.CancelBuildAction(client, 1, game.NewHex(0, 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := gi.actions[0]; !exists {
+		t.Fatal("stale target erased a replacement build")
+	}
+}
+
+func TestCancelBuildAdvancesRouteAssignedInSameRound(t *testing.T) {
+	g := actionTestGame(2, 3)
+	from := game.NewHex(0, 0)
+	destination := game.NewHex(0, 2)
+	buildTarget := game.NewHex(1, 0)
+	putTroop(g, from, game.TroopScout, 0)
+
+	client := NewClient(nil)
+	gi := NewGameInstance(1, g, []*Client{client})
+	client.JoinGame(gi)
+
+	if _, err := client.HandlePacket(&packets.C2SActionPacket{
+		Round: 1,
+		Type:  game.ActionMove,
+		Move: &game.MoveActionPayload{
+			From: from,
+			To:   destination,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(gi.movementOrders[0]) != 1 {
+		t.Fatal("route assignment did not persist immediately")
+	}
+
+	if _, err := client.HandlePacket(&packets.C2SActionPacket{
+		Round: 1,
+		Type:  game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     from,
+			To:       buildTarget,
+			Building: game.BuildingFarm,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.HandlePacket(&packets.C2SCancelBuildActionPacket{
+		Round: 1,
+		To:    buildTarget,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(destination).Troop != game.TroopScout {
+		t.Fatal("same-round route did not advance after pending build cancellation")
+	}
+	if g.Map.GetCell(buildTarget).Building != game.BuildingUnknown {
+		t.Fatal("cancelled build resolved")
+	}
+}
+
+func TestContestedMovementCancelsAllOrders(t *testing.T) {
+	g := actionTestGame(3, 1)
+	left, target, right := game.NewHex(0, 0), game.NewHex(1, 0), game.NewHex(2, 0)
+	putTroop(g, left, game.TroopScout, 0)
+	putTroop(g, right, game.TroopScout, 1)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{{Current: left, Destination: target}}
+	gi.movementOrders[1] = []game.MovementOrder{{Current: right, Destination: target}}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(left).Troop == game.TroopUnknown ||
+		g.Map.GetCell(right).Troop == game.TroopUnknown ||
+		g.Map.GetCell(target).Troop != game.TroopUnknown {
+		t.Fatal("contested movement mutated troop positions")
+	}
+	if len(gi.movementOrders[0]) != 0 || len(gi.movementOrders[1]) != 0 {
+		t.Fatal("contested movement orders were not cancelled")
+	}
+	if gi.actionResults[0].Status != game.ActionResultContested ||
+		gi.actionResults[1].Status != game.ActionResultContested {
+		t.Fatalf("unexpected results: %v %v", gi.actionResults[0], gi.actionResults[1])
+	}
+}
+
+func TestMixedBuildAndMoveConflictFailsBoth(t *testing.T) {
+	g := actionTestGame(3, 2)
+	moveFrom := game.NewHex(0, 0)
+	target := game.NewHex(1, 0)
+	buildFrom := game.NewHex(2, 0)
+	putTroop(g, moveFrom, game.TroopPeasant, 0)
+	putTroop(g, buildFrom, game.TroopScout, 1)
+	gi := NewGameInstance(1, g, nil)
+	gi.movementOrders[0] = []game.MovementOrder{{Current: moveFrom, Destination: target}}
+	gi.actions[1] = &submittedAction{
+		Type: game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     buildFrom,
+			To:       target,
+			Building: game.BuildingBarracks,
+		},
+	}
+
+	gi.processClientActions()
+
+	if g.Map.GetCell(moveFrom).Troop != game.TroopPeasant ||
+		g.Map.GetCell(target).Troop != game.TroopUnknown ||
+		g.Map.GetCell(target).Building != game.BuildingUnknown {
+		t.Fatal("mixed conflict mutated target")
+	}
+	if g.Factions[1].Coins != 100 {
+		t.Fatal("contested build deducted coins")
+	}
+	if gi.actionResults[0].Status != game.ActionResultContested ||
+		gi.actionResults[1].Status != game.ActionResultContested {
+		t.Fatalf("unexpected results: %v %v", gi.actionResults[0], gi.actionResults[1])
+	}
+}
+
+func TestRecruitDoesNotClaimDestination(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	source := g.Map.GetCell(from)
+	source.Owner = 0
+	source.Building = game.BuildingTownhall
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionRecruit,
+		Recruit: &game.RecruitActionPayload{
+			From:  from,
+			To:    to,
+			Troop: game.TroopScout,
+		},
+	}
+
+	gi.processClientActions()
+
+	target := g.Map.GetCell(to)
+	if target.Troop != game.TroopScout || target.TroopOwner != 0 || target.Owner != -1 {
+		t.Fatalf("recruitment target = %+v", target)
+	}
+	if g.Factions[0].Coins != 90 {
+		t.Fatalf("coins = %d, want 90", g.Factions[0].Coins)
+	}
+}
+
+func TestScoutBuildsAdjacentAndClaims(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	putTroop(g, from, game.TroopScout, 0)
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type: game.ActionBuild,
+		Build: &game.BuildActionPayload{
+			From:     from,
+			To:       to,
+			Building: game.BuildingBarracks,
+		},
+	}
+
+	gi.processClientActions()
+
+	target := g.Map.GetCell(to)
+	if target.Building != game.BuildingBarracks || target.Owner != 0 {
+		t.Fatalf("build target = %+v", target)
+	}
+	if g.Map.GetCell(from).Troop != game.TroopScout {
+		t.Fatal("Scout was consumed by construction")
+	}
+}
+
+func TestAttackUnclaimsBuildingButPreservesTroopOwner(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	putTroop(g, from, game.TroopPeasant, 0)
+	target := g.Map.GetCell(to)
+	target.Owner = 1
+	target.Building = game.BuildingBarracks
+	target.Troop = game.TroopKnight
+	target.TroopOwner = 1
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type:   game.ActionAttack,
+		Attack: &game.AttackActionPayload{From: from, To: to},
+	}
+
+	gi.processClientActions()
+
+	if target.Building != game.BuildingUnknown ||
+		target.Owner != -1 ||
+		target.Troop != game.TroopKnight ||
+		target.TroopOwner != 1 {
+		t.Fatalf("attack target = %+v", target)
+	}
+}
+
+func TestTownhallIsImmune(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	putTroop(g, from, game.TroopKnight, 0)
+	target := g.Map.GetCell(to)
+	target.Owner = 1
+	target.Building = game.BuildingTownhall
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type:   game.ActionAttack,
+		Attack: &game.AttackActionPayload{From: from, To: to},
+	}
+
+	gi.processClientActions()
+
+	if target.Building != game.BuildingTownhall {
+		t.Fatal("Townhall was demolished")
+	}
+	if gi.actionResults[0].Status != game.ActionResultInvalid {
+		t.Fatalf("result = %+v", gi.actionResults[0])
+	}
+}
+
+func TestScoutCannotAttackBuilding(t *testing.T) {
+	g := actionTestGame(2, 1)
+	from, to := game.NewHex(0, 0), game.NewHex(1, 0)
+	putTroop(g, from, game.TroopScout, 0)
+	target := g.Map.GetCell(to)
+	target.Owner = 1
+	target.Building = game.BuildingBarracks
+	gi := NewGameInstance(1, g, nil)
+	gi.actions[0] = &submittedAction{
+		Type:   game.ActionAttack,
+		Attack: &game.AttackActionPayload{From: from, To: to},
+	}
+
+	gi.processClientActions()
+
+	if target.Building != game.BuildingBarracks {
+		t.Fatal("Scout demolished building")
+	}
+	if gi.actionResults[0].Status != game.ActionResultInvalid {
+		t.Fatalf("result = %+v", gi.actionResults[0])
+	}
+}

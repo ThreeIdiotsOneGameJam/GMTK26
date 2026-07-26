@@ -9,12 +9,14 @@ func _() {
 	_ = x[ActionUnknown-0]
 	_ = x[ActionPass-1]
 	_ = x[ActionBuild-2]
-	_ = x[ActionDispatch-3]
+	_ = x[ActionMove-3]
+	_ = x[ActionRecruit-4]
+	_ = x[ActionAttack-5]
 }
 
-const _ActionType_name = "UnknownPassBuildDispatch"
+const _ActionType_name = "UnknownPassBuildMoveRecruitAttack"
 
-var _ActionType_index = [...]uint8{0, 7, 11, 16, 24}
+var _ActionType_index = [...]uint8{0, 7, 11, 16, 20, 27, 33}
 
 func (i ActionType) String() string {
 	idx := int(i) - 0

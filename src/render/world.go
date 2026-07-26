@@ -60,6 +60,10 @@ const (
 	panMomentumShortDragDistance float32 = 32.0
 	panMomentumSlowDragSpeed     float32 = 220.0
 
+	// Stationary right-clicks may cancel a pending building or queued route,
+	// while any larger gesture remains pure map panning.
+	rightActionClickDistance float32 = 4.0
+
 	// Treat sub-pixel samples as a stationary mouse. While stationary, quickly
 	// bleed off the sampled velocity and cancel it entirely after a short hold.
 	panStationarySampleDistance  float32 = 0.75
@@ -91,26 +95,43 @@ type WorldRenderer struct {
 	leftPressTime         float32
 	leftGesture           bool
 	leftPanning           bool
+	rightGesture          bool
 
-	HoveredHex  game.Hex
-	SelectedHex *game.Hex
+	HoveredHex     game.Hex
+	SelectedHex    *game.Hex
+	SelectedKind   SelectionKind
+	LocalFaction   int8
+	ActionsEnabled bool
+
+	Orders       []game.MovementOrder
+	PreviewPath  []game.Hex
+	PreviewStops []game.Hex
 
 	TargetPosition   v.Vec2
 	InterpolateFocus bool
 	zoomSmoothness   float32
 
 	BuildingToPlace game.BuildingType
+	RecruitToPlace  game.TroopType
 	// OnPlaceBuilding, when set, may take over a placement click. Returning
 	// true means the click was handled externally (e.g. sent to the server)
 	// and the map is not modified locally.
-	OnPlaceBuilding func(hex game.Hex, building game.BuildingType) bool
-	buildingPreview buildingPreview
-	queuedBuilding  buildingPreview
+	OnPlaceBuilding  func(from, to game.Hex, building game.BuildingType) bool
+	OnRecruit        func(from, to game.Hex, troop game.TroopType) bool
+	OnMove           func(from, to game.Hex) bool
+	OnAttack         func(from, to game.Hex) bool
+	OnCancelMovement func(from game.Hex) bool
+	OnCancelBuilding func(to game.Hex) bool
+	buildingPreview  buildingPreview
+	queuedBuilding   buildingPreview
 
 	buildingsTexture rl.Texture2D
 
 	viewport    rl.RenderTexture2D
 	initialized bool
+
+	troopAnimations []troopAnimation
+	selectionMenu   selectionMenu
 }
 
 func (r *WorldRenderer) Init(m *game.Map) {
@@ -145,6 +166,7 @@ func (r *WorldRenderer) ResetCamera(m *game.Map) {
 	r.leftPressTime = 0.0
 	r.leftGesture = false
 	r.leftPanning = false
+	r.rightGesture = false
 	r.InterpolateFocus = false
 	r.Camera.Target = rlvec.ToRL(v.Vec2{
 		X: float32(m.GridSize.X),
@@ -165,6 +187,7 @@ func (r *WorldRenderer) Unload() {
 }
 
 func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
+	r.updateTroopAnimations(delta)
 	deltaSeconds := float32(delta.Seconds())
 	srcRect, dstRect := r.viewportRects()
 	mouse := global.MousePosition
@@ -173,30 +196,32 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 		X: (mouse.X - dstRect.X) * (srcRect.Width / dstRect.Width),
 		Y: (mouse.Y - dstRect.Y) * (-srcRect.Height / dstRect.Height),
 	}
+	selectionMenuOwnsInput := r.updateSelectionMenu(m)
 
 	r.Camera.Offset.X = float32(r.viewport.Texture.Width) / 2.0
 	r.Camera.Offset.Y = float32(r.viewport.Texture.Height) / 2.0
 
 	if !global.UIModalBlocksInput && rl.IsMouseButtonPressed(rl.MouseButtonMiddle) {
-		r.BuildingToPlace = game.BuildingUnknown
-		r.buildingPreview.Visible = false
+		r.clearMouseSlot()
 	}
 
+	worldInputBlocked := global.UIBlocksWorldInput || selectionMenuOwnsInput
 	leftPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft)
 	leftDown := rl.IsMouseButtonDown(rl.MouseButtonLeft)
 	worldLeftClick, leftPanDown, leftPanReleased := r.updateLeftGesture(
 		deltaSeconds,
 		leftPressed,
 		leftDown,
-		global.UIBlocksWorldInput,
+		worldInputBlocked,
 	)
 	rightDown := rl.IsMouseButtonDown(rl.MouseButtonRight)
 	panButtonDown := rightDown || leftPanDown
 
-	if global.UIBlocksWorldInput {
+	if worldInputBlocked {
 		r.clampCameraToMap(m)
 	} else {
 		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
+			r.rightGesture = true
 			r.beginPan(r.MousePosition)
 		}
 
@@ -241,6 +266,14 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	}
 
 	rightPanReleased := rl.IsMouseButtonReleased(rl.MouseButtonRight)
+	rightActionClick := rightPanReleased &&
+		r.rightGesture &&
+		!worldInputBlocked &&
+		!leftPanDown &&
+		r.panDragDistance <= rightActionClickDistance
+	if rightPanReleased {
+		r.rightGesture = false
+	}
 	if r.panDragging && !panButtonDown && (rightPanReleased || leftPanReleased) {
 		r.finishPan()
 	}
@@ -288,19 +321,19 @@ func (r *WorldRenderer) Update(m *game.Map, delta time.Duration) {
 	mousePos := rlvec.FromRL(rl.GetScreenToWorld2D(rl.Vector2(r.MousePosition), r.Camera))
 	hex := r.PixelToHex(mousePos)
 	r.HoveredHex = hex
+	cancelledBuilding := r.cancelQueuedBuildingAt(hex, rightActionClick)
+	if !cancelledBuilding {
+		r.cancelQueuedMovementAt(m, mousePos, rightActionClick)
+	}
 	r.updateBuildingPlacement(m, hex, worldLeftClick)
-	if !global.UIBlocksWorldInput && r.BuildingToPlace == game.BuildingUnknown {
+	r.updateRecruitPlacement(m, hex, worldLeftClick)
+	r.updateMovementPreview(m, hex)
+	if !global.UIBlocksWorldInput &&
+		!selectionMenuOwnsInput &&
+		r.BuildingToPlace == game.BuildingUnknown &&
+		r.RecruitToPlace == game.TroopUnknown {
 		if worldLeftClick {
-			cell := m.GetCell(hex)
-			if cell != nil && cell.Building != game.BuildingUnknown {
-				h := hex
-				r.SelectedHex = &h
-			} else {
-				r.SelectedHex = nil
-			}
-		}
-		if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
-			r.SelectedHex = nil
+			r.handleWorldClick(m, hex)
 		}
 	}
 }
@@ -427,6 +460,114 @@ func (r *WorldRenderer) finishPan() {
 	r.panDragging = false
 }
 
+func (r *WorldRenderer) handleWorldClick(m *game.Map, hex game.Hex) {
+	if r.MovementAnimating() {
+		return
+	}
+	cell := m.GetCell(hex)
+	if cell == nil {
+		r.clearSelection()
+		return
+	}
+
+	if r.ActionsEnabled && r.SelectedHex != nil && r.SelectedKind == SelectionTroop {
+		from := *r.SelectedHex
+		source := m.GetCell(from)
+		if source != nil && source.Troop != game.TroopUnknown &&
+			source.TroopOwner == r.LocalFaction {
+			if hex == from {
+				if r.hasMovementOrder(from) && r.OnCancelMovement != nil {
+					if r.OnCancelMovement(from) {
+						r.RemoveMovementOrder(from)
+					}
+				} else {
+					r.clearSelection()
+				}
+				return
+			}
+			if cell.Troop != game.TroopUnknown && cell.TroopOwner == r.LocalFaction {
+				r.selectCell(hex, cell)
+				return
+			}
+			if source.Troop != game.TroopScout &&
+				game.HexAdjacent(from, hex) &&
+				cell.Building != game.BuildingUnknown &&
+				cell.Building != game.BuildingTownhall &&
+				cell.Owner >= 0 &&
+				cell.Owner != r.LocalFaction {
+				if r.OnAttack != nil && r.OnAttack(from, hex) {
+					r.ClearQueuedBuilding()
+				}
+				return
+			}
+			if _, ok := m.FindTroopPath(r.LocalFaction, from, hex); ok {
+				if r.OnMove != nil && r.OnMove(from, hex) {
+					r.QueueMovementOrder(from, hex)
+					r.clearSelection()
+				}
+				return
+			}
+		}
+	}
+
+	if cell.Building != game.BuildingUnknown || cell.Troop != game.TroopUnknown {
+		r.selectCell(hex, cell)
+		return
+	}
+	r.clearSelection()
+}
+
+func (r *WorldRenderer) updateMovementPreview(m *game.Map, hovered game.Hex) {
+	r.PreviewPath = nil
+	r.PreviewStops = nil
+	if !r.ActionsEnabled ||
+		r.BuildingToPlace != game.BuildingUnknown ||
+		r.RecruitToPlace != game.TroopUnknown ||
+		r.SelectedHex == nil ||
+		r.SelectedKind != SelectionTroop ||
+		hovered == *r.SelectedHex {
+		return
+	}
+	source := m.GetCell(*r.SelectedHex)
+	if source == nil || source.Troop == game.TroopUnknown || source.TroopOwner != r.LocalFaction {
+		return
+	}
+	path, ok := m.FindTroopPath(r.LocalFaction, *r.SelectedHex, hovered)
+	if !ok {
+		return
+	}
+	r.PreviewPath = path
+	r.PreviewStops = m.MovementTurnStops(path, game.TroopMovementBudget(source.Troop))
+}
+
+func (r *WorldRenderer) SetMovementOrders(orders []game.MovementOrder) {
+	r.Orders = append(r.Orders[:0], orders...)
+}
+
+func (r *WorldRenderer) QueueMovementOrder(from, destination game.Hex) {
+	r.RemoveMovementOrder(from)
+	r.Orders = append(r.Orders, game.MovementOrder{Current: from, Destination: destination})
+}
+
+func (r *WorldRenderer) RemoveMovementOrder(from game.Hex) {
+	filtered := r.Orders[:0]
+	for _, order := range r.Orders {
+		if order.Current != from {
+			filtered = append(filtered, order)
+		}
+	}
+	r.Orders = filtered
+}
+
+func (r *WorldRenderer) hasMovementOrder(from game.Hex) bool {
+	for _, order := range r.Orders {
+		if order.Current == from {
+			return true
+		}
+	}
+	return false
+}
+
 func panMomentumReleaseVelocity(
 	compressedVelocity,
 	rawVelocity v.Vec2,
@@ -469,9 +610,12 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	rl.BeginMode2D(r.Camera)
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
+	r.drawMovementRoutes(m)
 	r.drawBuildings(m, visible, mousePos)
 	r.drawTroops(m, visible)
+	r.drawTroopAnimations()
 	rl.EndMode2D()
+	r.drawSelectionMenu(m)
 
 	rl.EndTextureMode()
 	rl.DrawTexturePro(r.viewport.Texture, srcRect, dstRect, rl.Vector2{}, 0.0, rl.White)

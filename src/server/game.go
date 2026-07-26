@@ -13,9 +13,10 @@ import (
 )
 
 type submittedAction struct {
-	Type     game.ActionType
-	Build    *game.BuildActionPayload
-	Dispatch *game.DispatchActionPayload
+	Type    game.ActionType
+	Build   *game.BuildActionPayload
+	Recruit *game.RecruitActionPayload
+	Attack  *game.AttackActionPayload
 }
 
 type GameInstance struct {
@@ -24,9 +25,15 @@ type GameInstance struct {
 	clients        []*Client
 	factionClients map[*Client]int
 	actions        map[int]*submittedAction
-	clientsChanged chan struct{}
-	done           chan struct{}
-	mu             sync.RWMutex
+	movementOrders map[int][]game.MovementOrder
+	// movementPriorities records routes assigned this round so they receive
+	// their promised first advancement before the regular round-robin queue.
+	movementPriorities map[int]game.Hex
+	actionResults      map[int]*game.ActionResult
+	movementEvents     []game.MovementEvent
+	clientsChanged     chan struct{}
+	done               chan struct{}
+	mu                 sync.RWMutex
 }
 
 func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
@@ -38,17 +45,28 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 	}
 
 	return &GameInstance{
-		ID:             id,
-		game:           g,
-		clients:        clients,
-		factionClients: factionClients,
-		actions:        make(map[int]*submittedAction),
-		clientsChanged: make(chan struct{}, 1),
-		done:           make(chan struct{}),
+		ID:                 id,
+		game:               g,
+		clients:            clients,
+		factionClients:     factionClients,
+		actions:            make(map[int]*submittedAction),
+		movementOrders:     make(map[int][]game.MovementOrder),
+		movementPriorities: make(map[int]game.Hex),
+		actionResults:      make(map[int]*game.ActionResult),
+		clientsChanged:     make(chan struct{}, 1),
+		done:               make(chan struct{}),
 	}
 }
 
-func (gi *GameInstance) SubmitAction(c *Client, round int32, actionType game.ActionType, build *game.BuildActionPayload, dispatch *game.DispatchActionPayload) error {
+func (gi *GameInstance) SubmitAction(
+	c *Client,
+	round int32,
+	actionType game.ActionType,
+	build *game.BuildActionPayload,
+	move *game.MoveActionPayload,
+	recruit *game.RecruitActionPayload,
+	attack *game.AttackActionPayload,
+) error {
 	gi.mu.Lock()
 	defer gi.mu.Unlock()
 
@@ -61,10 +79,93 @@ func (gi *GameInstance) SubmitAction(c *Client, round int32, actionType game.Act
 		return fmt.Errorf("client not in this game")
 	}
 
+	if actionType == game.ActionMove {
+		if move == nil {
+			return fmt.Errorf("move payload was missing")
+		}
+		return gi.setMovementOrderLocked(factionIdx, *move)
+	}
+
 	gi.actions[factionIdx] = &submittedAction{
-		Type:     actionType,
-		Build:    build,
-		Dispatch: dispatch,
+		Type:    actionType,
+		Build:   build,
+		Recruit: recruit,
+		Attack:  attack,
+	}
+	return nil
+}
+
+func (gi *GameInstance) setMovementOrderLocked(
+	factionIdx int,
+	move game.MoveActionPayload,
+) error {
+	factionOwner := int8(factionIdx)
+	source := gi.game.Map.GetCell(move.From)
+	if source == nil ||
+		source.Troop == game.TroopUnknown ||
+		source.TroopOwner != factionOwner {
+		return fmt.Errorf("no friendly troop at movement source")
+	}
+	if move.From == move.To {
+		return fmt.Errorf("movement destination must differ from source")
+	}
+	if _, ok := gi.game.Map.FindTroopPath(factionOwner, move.From, move.To); !ok {
+		return fmt.Errorf("no legal route to destination")
+	}
+
+	orders := removeMovementOrder(gi.movementOrders[factionIdx], move.From)
+	gi.movementOrders[factionIdx] = append(orders, game.MovementOrder{
+		Current:     move.From,
+		Destination: move.To,
+	})
+	gi.movementPriorities[factionIdx] = move.From
+	return nil
+}
+
+// CancelMovementOrder is an immediate, free command. It also withdraws a
+// newly assigned priority so cancelling never advances it at the boundary.
+func (gi *GameInstance) CancelMovementOrder(c *Client, round int32, from game.Hex) error {
+	gi.mu.Lock()
+	defer gi.mu.Unlock()
+
+	if round != gi.game.Round {
+		return fmt.Errorf("wrong round: got %d, want %d", round, gi.game.Round)
+	}
+	factionIdx, ok := gi.factionClients[c]
+	if !ok {
+		return fmt.Errorf("client not in this game")
+	}
+
+	gi.movementOrders[factionIdx] = removeMovementOrder(
+		gi.movementOrders[factionIdx],
+		from,
+	)
+	if priority, ok := gi.movementPriorities[factionIdx]; ok && priority == from {
+		delete(gi.movementPriorities, factionIdx)
+	}
+	return nil
+}
+
+// CancelBuildAction withdraws only the pending build at the supplied target.
+// A stale cancel therefore cannot erase a newer replacement action.
+func (gi *GameInstance) CancelBuildAction(c *Client, round int32, to game.Hex) error {
+	gi.mu.Lock()
+	defer gi.mu.Unlock()
+
+	if round != gi.game.Round {
+		return fmt.Errorf("wrong round: got %d, want %d", round, gi.game.Round)
+	}
+	factionIdx, ok := gi.factionClients[c]
+	if !ok {
+		return fmt.Errorf("client not in this game")
+	}
+
+	action := gi.actions[factionIdx]
+	if action != nil &&
+		action.Type == game.ActionBuild &&
+		action.Build != nil &&
+		action.Build.To == to {
+		delete(gi.actions, factionIdx)
 	}
 	return nil
 }
@@ -127,6 +228,7 @@ func (gi *GameInstance) Run() {
 			Round:       1,
 			Deadline:    firstDeadline.UnixNano(),
 			GameEndTime: gi.game.GameEndTime,
+			Orders:      []game.MovementOrder{},
 		}
 		gi.sendToClient(c, startPacket)
 	}
@@ -144,6 +246,15 @@ func (gi *GameInstance) Run() {
 				continue
 			}
 			f := gi.game.Factions[i]
+			gi.mu.RLock()
+			orders := append([]game.MovementOrder{}, gi.movementOrders[i]...)
+			var result *game.ActionResult
+			if gi.actionResults[i] != nil {
+				copy := *gi.actionResults[i]
+				result = &copy
+			}
+			movements := copyMovementEvents(gi.movementEvents)
+			gi.mu.RUnlock()
 			statePacket := &packets.S2CGameStatePacket{
 				Round:     gi.game.Round,
 				Deadline:  deadline.UnixNano(),
@@ -151,6 +262,9 @@ func (gi *GameInstance) Run() {
 				Coins:     f.Coins,
 				Points:    f.Points,
 				Resources: f.Resources,
+				Orders:    orders,
+				Result:    result,
+				Movements: movements,
 			}
 			gi.sendToClient(c, statePacket)
 		}
@@ -159,10 +273,9 @@ func (gi *GameInstance) Run() {
 			return
 		}
 
+		gi.mu.Lock()
 		gi.processAutoActions()
 		gi.processClientActions()
-
-		gi.mu.Lock()
 		gi.game.Round++
 		gi.actions = make(map[int]*submittedAction)
 		gi.mu.Unlock()
@@ -174,6 +287,15 @@ func (gi *GameInstance) Run() {
 			return
 		}
 	}
+}
+
+func copyMovementEvents(events []game.MovementEvent) []game.MovementEvent {
+	copied := make([]game.MovementEvent, len(events))
+	for i, event := range events {
+		copied[i] = event
+		copied[i].Path = append([]game.Hex(nil), event.Path...)
+	}
+	return copied
 }
 
 // setRound updates the round under the same lock SubmitAction uses to
@@ -298,87 +420,6 @@ func (gi *GameInstance) processAutoActions() {
 					gi.game.Factions[i].Coins += game.BuildingCoinsProduces(cell.Building)
 				}
 			}
-		}
-	}
-}
-
-func (gi *GameInstance) processClientActions() {
-	for i := range gi.game.Factions {
-		gi.mu.RLock()
-		act, submitted := gi.actions[i]
-		gi.mu.RUnlock()
-
-		if !submitted || act == nil || act.Type == game.ActionPass {
-			continue
-		}
-
-		faction := &gi.game.Factions[i]
-
-		switch act.Type {
-		case game.ActionBuild:
-			payload := act.Build
-			if payload == nil {
-				continue
-			}
-
-			cell := gi.game.Map.GetCell(payload.Hex)
-			if cell == nil {
-				continue
-			}
-			if !game.BuildingCanPlace(&gi.game.Map, payload.Building, payload.Hex) {
-				continue
-			}
-			if cell.Owner != -1 && cell.Owner != int8(i) {
-				continue
-			}
-			cost := game.BuildingCost(payload.Building)
-			if faction.Coins < cost {
-				continue
-			}
-
-			faction.Coins -= cost
-			cell.Owner = int8(i)
-			cell.Building = payload.Building
-
-		case game.ActionDispatch:
-			payload := act.Dispatch
-			if payload == nil {
-				continue
-			}
-
-			srcCell := gi.game.Map.GetCell(payload.Hex)
-			dstCell := gi.game.Map.GetCell(payload.To)
-			if srcCell == nil || dstCell == nil {
-				continue
-			}
-			if srcCell.Owner != int8(i) {
-				continue
-			}
-
-			if srcCell.Troop == game.TroopUnknown {
-				if srcCell.Building != game.BuildingBarracks {
-					continue
-				}
-				cost := game.TroopCost(payload.Troop)
-				if faction.Coins < cost {
-					continue
-				}
-				if dstCell.Troop != game.TroopUnknown {
-					continue
-				}
-				faction.Coins -= cost
-				dstCell.Troop = payload.Troop
-				dstCell.Owner = int8(i)
-				continue
-			}
-
-			if dstCell.Troop != game.TroopUnknown {
-				continue
-			}
-
-			dstCell.Troop = srcCell.Troop
-			dstCell.Owner = int8(i)
-			srcCell.Troop = game.TroopUnknown
 		}
 	}
 }
