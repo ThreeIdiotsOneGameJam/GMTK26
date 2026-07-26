@@ -316,6 +316,9 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithCallback(func(text string) {
 					game.PlayerData.PlayerName = text
 					game.SavePlayerData()
+					if !settings.Current.Offline && gameNet.State() == gameNet.ConnectionConnected {
+						gameNet.Send(&packets.C2SUpdatePlayerNamePacket{PlayerName: text})
+					}
 				}),
 		).
 		AddChild(
