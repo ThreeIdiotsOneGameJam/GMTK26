@@ -116,7 +116,20 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	if r.HexSize == (v.Vec2{}) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
 	}
+
+	// A game-start packet can request Town Hall focus before the world's first
+	// draw initializes the renderer. Preserve that target across camera setup.
+	focusPending := r.InterpolateFocus
+	focusTarget := r.TargetPosition
+	focusZoom := r.TargetZoom
+	focusZoomSmoothness := r.zoomSmoothness
 	r.ResetCamera(m)
+	if focusPending {
+		r.TargetPosition = focusTarget
+		r.TargetZoom = focusZoom
+		r.zoomSmoothness = focusZoomSmoothness
+		r.InterpolateFocus = true
+	}
 
 	r.viewport = rl.LoadRenderTexture(global.ViewportSize.X, global.ViewportSize.Y)
 }
