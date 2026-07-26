@@ -1,6 +1,8 @@
 package screens
 
 import (
+	"runtime"
+
 	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
@@ -36,10 +38,10 @@ func NewMainScreen() *ui.ScreenElement {
 		})).
 		AddChild(uiutil.MenuButton("Settings", 80, func() {
 			SetActiveScreen(NewSettingsScreen(screen))
-		})).
-		AddChild(uiutil.MenuButton("Exit", 160, global.CloseWindow)).
-		AddChild(
-			ui.Vignette(),
-		)
+		}))
+	if runtime.GOOS != "js" {
+		screen.AddChild(uiutil.MenuButton("Exit", 160, global.CloseWindow))
+	}
+	screen.AddChild(ui.Vignette())
 	return screen
 }
