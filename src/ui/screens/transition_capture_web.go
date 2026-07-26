@@ -2,4 +2,8 @@
 
 package screens
 
-func flushTransitionSourceDraws() {}
+import rl "github.com/gen2brain/raylib-go/raylib"
+
+func flushTransitionSourceDraws() {
+	rl.DrawRenderBatchActive()
+}
