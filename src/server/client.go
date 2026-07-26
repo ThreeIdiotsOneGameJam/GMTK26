@@ -81,6 +81,13 @@ func NewClient(sender PacketSender) *Client {
 	return &Client{sender: sender}
 }
 
+// IsLocal reports whether this client uses the trusted in-process transport.
+// Network clients cannot opt into local-only server behavior through packets.
+func (c *Client) IsLocal() bool {
+	local, ok := c.sender.(LocalPacketSender)
+	return ok && local.IsLocalTransport()
+}
+
 func (c *Client) SendPacket(packet packets.S2CPacket) error {
 	return c.sender.SendPacket(packet)
 }

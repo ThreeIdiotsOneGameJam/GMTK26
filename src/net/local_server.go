@@ -203,6 +203,12 @@ func (t *localTransport) SendPacket(packet packets.Packet) error {
 	return nil
 }
 
+// IsLocalTransport opts this trusted in-process transport into local-only
+// server behavior such as one-player game creation.
+func (t *localTransport) IsLocalTransport() bool {
+	return true
+}
+
 func (t *localTransport) send(packet packets.C2SPacket) error {
 	message, err := serializeLocalPacket(packet)
 	if err != nil {

@@ -24,6 +24,7 @@ var (
 	ErrGameFull           = errors.New("game is full")
 	ErrNotHost            = errors.New("only the host can start the game")
 	ErrNotEnoughPlayers   = errors.New("need at least 2 players to start")
+	ErrSinglePlayerRemote = errors.New("single-player games can only be created locally")
 
 	Lobbies = NewLobbyManager()
 )
@@ -70,6 +71,9 @@ func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8,
 		return game.Game{}, fmt.Errorf("max players must be 1, 2, 3, or 4")
 	}
 	if maxPlayers == 1 {
+		if !client.IsLocal() {
+			return game.Game{}, ErrSinglePlayerRemote
+		}
 		public = false
 	}
 

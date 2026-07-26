@@ -14,6 +14,13 @@ type PacketSender interface {
 	SendPacket(packets.Packet) error
 }
 
+// LocalPacketSender marks the trusted in-process transport used for solo games.
+// Ordinary network transports must not implement this interface.
+type LocalPacketSender interface {
+	PacketSender
+	IsLocalTransport() bool
+}
+
 // Session owns the protocol lifecycle shared by every server transport.
 type Session struct {
 	mu         sync.Mutex
