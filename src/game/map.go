@@ -97,13 +97,13 @@ func (m *Map) GetCell(pos Hex) *Cell {
 }
 
 func (m *Map) HexInsideBounds(hex Hex) bool {
+	if m == nil {
+		return false
+	}
 	if hex.X < 0 || hex.X >= m.GridSize.X || hex.Y < 0 || hex.Y >= m.GridSize.Y {
 		return false
 	}
 
-	if m.GetCell(hex).Tile == TileVoid {
-		return false
-	}
-
-	return true
+	cell := m.GetCell(hex)
+	return cell != nil && cell.Tile != TileVoid
 }

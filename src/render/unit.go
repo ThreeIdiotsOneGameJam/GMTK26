@@ -20,7 +20,7 @@ func (r *WorldRenderer) drawUnits(m *game.Map, visible []visibleTile) {
 		}
 
 		unit := &cell.Units[0]
-		if int(unit.Owner) >= len(factionColors) {
+		if unit.Owner < 0 || int(unit.Owner) >= len(factionColors) {
 			continue
 		}
 		if r.unitEndpointAnimating(v.hex, unit.Owner, unit.Type) {

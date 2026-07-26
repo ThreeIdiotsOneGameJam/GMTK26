@@ -63,13 +63,22 @@ func (el *DropShadowElement[T]) drawRectangleShadow(
 	}
 
 	offset := el.resolvedShadowOffset()
+	shadowColor := premultipliedShadowColor(
+		util.ColorOpacity(*el.ShadowColor, opacity),
+	)
+
+	// The default alpha blend also lowers framebuffer alpha. Web browsers
+	// composite that translucent result over the page and turn black shadows
+	// gray. Premultiplied blending keeps the already-opaque frame opaque.
+	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 	rl.DrawRectangle(
 		x+offset.X,
 		y+offset.Y,
 		width,
 		height,
-		util.ColorOpacity(*el.ShadowColor, opacity),
+		shadowColor,
 	)
+	rl.EndBlendMode()
 }
 
 func (el *DropShadowElement[T]) drawShadowedOutlinedRectangle(
@@ -104,14 +113,28 @@ func drawTextWithShadow(
 	opacity float32,
 ) {
 	if shadowColor != nil {
+		premultipliedColor := premultipliedShadowColor(
+			util.ColorOpacity(*shadowColor, opacity),
+		)
+
+		rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 		rl.DrawText(
 			text,
 			x+shadowOffset.X,
 			y+shadowOffset.Y,
 			textSize,
-			util.ColorOpacity(*shadowColor, opacity),
+			premultipliedColor,
 		)
+		rl.EndBlendMode()
 	}
 
 	rl.DrawText(text, x, y, textSize, util.ColorOpacity(textColor, opacity))
+}
+
+func premultipliedShadowColor(c color.RGBA) color.RGBA {
+	alpha := uint16(c.A)
+	c.R = uint8((uint16(c.R)*alpha + 127) / 255)
+	c.G = uint8((uint16(c.G)*alpha + 127) / 255)
+	c.B = uint8((uint16(c.B)*alpha + 127) / 255)
+	return c
 }

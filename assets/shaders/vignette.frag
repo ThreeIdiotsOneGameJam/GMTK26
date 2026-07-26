@@ -1,21 +1,17 @@
 #version 330
 
 in vec2 fragTexCoord;
-in vec4 fragColor;
-in vec3 fragNormal;
 
 out vec4 finalColor;
 
-uniform float time;
+uniform vec4 vignetteColor;
+uniform float vignetteRadius;
 
 void main() {
-	float radius = fragNormal.x;
-	float invRadius = 1.0 - radius;
-
 	vec2 uv = fragTexCoord;
 	float d = distance(uv, vec2(0.5)) / 0.70710678; // 0.7... is the length of X or Y on a normalize vector that points NW
-	float a = clamp((d - radius) / (1.0 - radius), 0.0, 1.0);
-	float opacity = fragColor.a * a;
+	float a = clamp((d - vignetteRadius) / (1.0 - vignetteRadius), 0.0, 1.0);
+	float opacity = vignetteColor.a * a;
 
-	finalColor = vec4(fragColor.rgb * opacity, opacity);
+	finalColor = vec4(vignetteColor.rgb * opacity, opacity);
 }
