@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -149,7 +150,8 @@ func (c *WSClient) connect(addr string) {
 
 		// coder/websocket dials through the browser WebSocket API on
 		// js/wasm; canceling c.ctx aborts an in-flight dial.
-		conn, _, err := websocket.Dial(c.ctx, "ws://"+addr, nil)
+		url := fmt.Sprintf("%s://%s", constants.ClientWebSocketScheme, addr)
+		conn, _, err := websocket.Dial(c.ctx, url, nil)
 		if err != nil {
 			c.setState(ConnectionDisconnected)
 			if !c.waitForRetry(retryDelay) {
