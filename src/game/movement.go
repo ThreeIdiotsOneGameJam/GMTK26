@@ -31,11 +31,11 @@ type MovementEvent struct {
 func UnitMovementBudget(unit UnitType) int {
 	switch unit {
 	case UnitScout:
-		return 3
+		return 4
 	case UnitPeasant, UnitArcher:
 		return 2
 	case UnitKnight:
-		return 4
+		return 3
 	default:
 		return 0
 	}

@@ -90,8 +90,7 @@ func spreadResources(m *Map, seed int64) {
 	}
 
 	rockCount := len(rock)
-	setTiles(TileIron, rockCount/10)
-	setTiles(TileCoal, rockCount/10)
+	setTiles(TileIron, rockCount/5)
 	setTiles(TileGold, rockCount/20)
 }
 

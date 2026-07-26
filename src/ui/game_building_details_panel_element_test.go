@@ -100,7 +100,7 @@ func TestTileHoverLines(t *testing.T) {
 				"Tile: Plains",
 				"Territory: Faction 1",
 				"",
-				"Building: Farm - Food x 2",
+				"Building: Farm - Food x 1",
 			},
 		},
 		{
@@ -113,10 +113,10 @@ func TestTileHoverLines(t *testing.T) {
 			},
 			want: []string{
 				"Tile: Gold",
-				"Resource: Gold",
+				"Resource: Coins",
 				"Territory: Faction 1",
 				"",
-				"Building: Mine - Gold x 1",
+				"Building: Mine - Coin x 2",
 				"Unit: Knight - Faction 2",
 			},
 		},
@@ -162,9 +162,9 @@ func TestTileResourceLabel(t *testing.T) {
 		game.TileForest: "Wood",
 		game.TileJungle: "Wood",
 		game.TileRock:   "Stone",
-		game.TileCoal:   "Coal",
+		game.TileCoal:   "",
 		game.TileIron:   "Iron",
-		game.TileGold:   "Gold",
+		game.TileGold:   "Coins",
 		game.TilePlains: "",
 		game.TileWater:  "",
 	}
@@ -172,6 +172,32 @@ func TestTileResourceLabel(t *testing.T) {
 	for tile, want := range tests {
 		if got := tileResourceLabel(tile); got != want {
 			t.Errorf("tileResourceLabel(%s) = %q, want %q", tile, got, want)
+		}
+	}
+}
+
+func TestPlayerFacingResourceOrderOmitsCoalAndSteel(t *testing.T) {
+	want := []game.ResourceType{
+		game.ResourceFood,
+		game.ResourceWood,
+		game.ResourceStone,
+		game.ResourceIron,
+	}
+	if !reflect.DeepEqual(buildingResourceDisplayOrder, want) {
+		t.Fatalf("buildingResourceDisplayOrder = %v, want %v", buildingResourceDisplayOrder, want)
+	}
+}
+
+func TestUnitCostLabelsUseBalanceData(t *testing.T) {
+	tests := map[game.UnitType]string{
+		game.UnitScout:   "Scout 8c",
+		game.UnitPeasant: "Peasant 8c 4f",
+		game.UnitArcher:  "Archer 14c 6f 4w",
+		game.UnitKnight:  "Knight 22c 8f 4i",
+	}
+	for unit, want := range tests {
+		if got := unitCostLabel(unit); got != want {
+			t.Errorf("unitCostLabel(%s) = %q, want %q", unit, got, want)
 		}
 	}
 }

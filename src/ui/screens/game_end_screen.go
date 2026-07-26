@@ -50,8 +50,8 @@ func NewGameEndScreen(
 		titleColor = resultGold
 		subtitle = "Your kingdom outlasted every rival"
 	} else if result.WinnerFaction < 0 {
-		title = "GAME OVER"
-		subtitle = "The battle has ended"
+		title = "DRAW"
+		subtitle = "The leading factions finished level on score"
 	}
 
 	summary := resultSummary(placement, len(rankings), localFaction, rankings)
@@ -93,7 +93,12 @@ func NewGameEndScreen(
 		)
 
 	for i, entry := range rankings {
-		card.AddChild(resultRankingRow(i, entry, entry.FactionIdx == localFaction))
+		card.AddChild(resultRankingRow(
+			i,
+			resultRankAt(rankings, i),
+			entry,
+			entry.FactionIdx == localFaction,
+		))
 	}
 
 	screen := ui.Screen().
@@ -148,7 +153,7 @@ func NewGameEndScreen(
 	return screen
 }
 
-func resultRankingRow(rank int, entry packets.RankEntry, local bool) *ui.PanelElement {
+func resultRankingRow(rowIndex, rank int, entry packets.RankEntry, local bool) *ui.PanelElement {
 	background := resultRow
 	outline := color.RGBA{}
 	if local {
@@ -163,12 +168,12 @@ func resultRankingRow(rank int, entry packets.RankEntry, local bool) *ui.PanelEl
 		WithRoundness(0.12).
 		WithSize(vec.Vec2i{X: resultRowWidth, Y: resultRowHeight}).
 		WithAnchors(anchor.Top, anchor.Top).
-		WithRelativePos(vec.Vec2i{Y: int32(58 + rank*resultRowStride)}).
+		WithRelativePos(vec.Vec2i{Y: int32(58 + rowIndex*resultRowStride)}).
 		AddChild(
 			ui.Text().
-				WithText(fmt.Sprintf("%d", rank+1)).
+				WithText(fmt.Sprintf("%d", rank)).
 				WithTextSize(22).
-				WithTextColor(resultRankColor(rank)).
+				WithTextColor(resultRankColor(rank-1)).
 				WithAnchors(anchor.Left, anchor.Left).
 				WithRelativePos(vec.Vec2i{X: 18}),
 		).
@@ -218,10 +223,25 @@ func resultRankColor(rank int) color.RGBA {
 func resultPlacement(rankings []packets.RankEntry, localFaction int) int {
 	for i, entry := range rankings {
 		if entry.FactionIdx == localFaction {
-			return i + 1
+			return resultRankAt(rankings, i)
 		}
 	}
 	return 0
+}
+
+func resultRankAt(rankings []packets.RankEntry, index int) int {
+	if index < 0 || index >= len(rankings) {
+		return 0
+	}
+	rank := 1
+	for i := 1; i <= index; i++ {
+		previous := rankings[i-1]
+		current := rankings[i]
+		if previous.Alive != current.Alive || previous.Points != current.Points {
+			rank = i + 1
+		}
+	}
+	return rank
 }
 
 func resultSummary(placement, total, localFaction int, rankings []packets.RankEntry) string {

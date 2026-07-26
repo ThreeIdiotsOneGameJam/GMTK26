@@ -59,7 +59,7 @@ type Neighbors struct {
 
 func (m *Map) Generate() {
 	if m.GridSize == (vec.Vec2i{}) {
-		m.GridSize = vec.Vec2i{X: 96, Y: 96}
+		m.GridSize = vec.Vec2i{X: DefaultMapWidth, Y: DefaultMapHeight}
 	}
 
 	m.Grid = generateMap(m.GridSize, m.Seed)

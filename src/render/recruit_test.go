@@ -33,8 +33,8 @@ func TestRecruitmentOntoBuildingConsumesWorldClick(t *testing.T) {
 	r := WorldRenderer{
 		ActionsEnabled: true,
 		LocalFaction:   0,
-		LocalCoins:     10,
-		LocalResources: game.Resources{game.ResourceFood: 1},
+		LocalCoins:     game.UnitCost(game.UnitPeasant),
+		LocalResources: game.Resources{game.ResourceFood: 3},
 		SelectedHex:    &source,
 		SelectedKind:   SelectionBuilding,
 		RecruitToPlace: game.UnitPeasant,
@@ -68,8 +68,8 @@ func TestRecruitmentCanUseIncomingFarmFood(t *testing.T) {
 	}
 	r := WorldRenderer{
 		LocalFaction:   0,
-		LocalCoins:     10,
-		LocalResources: game.Resources{},
+		LocalCoins:     game.UnitCost(game.UnitPeasant),
+		LocalResources: game.Resources{game.ResourceFood: 3},
 	}
 
 	if !r.canRecruitAt(&m, source, target, game.UnitPeasant) {

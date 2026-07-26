@@ -3,12 +3,12 @@ package server
 import (
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"sort"
 	"sync"
 	"time"
 
+	gameai "github.com/threeidiotsonegamejam/gmtk26/src/ai"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
@@ -34,6 +34,9 @@ type GameInstance struct {
 	actionResults      map[int]*game.ActionResult
 	movementEvents     []game.MovementEvent
 	attackEvents       []game.AttackEvent
+	aiControllers      map[int]gameai.Planner
+	pendingAITakeovers map[int]bool
+	aiTraces           map[int]gameai.DecisionTrace
 	clientsChanged     chan struct{}
 	done               chan struct{}
 	mu                 sync.RWMutex
@@ -58,6 +61,9 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 		movementPriorities: make(map[int]game.Hex),
 		actionResults:      make(map[int]*game.ActionResult),
 		attackEvents:       nil,
+		aiControllers:      make(map[int]gameai.Planner),
+		pendingAITakeovers: make(map[int]bool),
+		aiTraces:           make(map[int]gameai.DecisionTrace),
 		clientsChanged:     make(chan struct{}, 1),
 		done:               make(chan struct{}),
 	}
@@ -83,27 +89,16 @@ func (gi *GameInstance) SubmitAction(
 	if !ok {
 		return fmt.Errorf("client not in this game")
 	}
+	if !gi.game.Factions[factionIdx].Alive {
+		return fmt.Errorf("faction has been eliminated")
+	}
 
 	if actionType == game.ActionAttack {
 		if attack == nil {
 			return fmt.Errorf("attack payload was missing")
 		}
-		factionOwner := int8(factionIdx)
-		source := gi.game.Map.GetCell(attack.From)
-		if source == nil || !source.HasUnits() || source.Units[0].Owner != factionOwner {
-			return fmt.Errorf("no friendly unit at attack source")
-		}
-		if gi.game.Map.GetCell(attack.To) == nil {
-			return fmt.Errorf("attack target cell does not exist")
-		}
-
 		if !game.HexAdjacent(attack.From, attack.To) {
-			gi.movementOrders[factionIdx] = removeMovementOrder(gi.movementOrders[factionIdx], attack.From)
-			gi.attackOrders[factionIdx] = removeAttackOrder(gi.attackOrders[factionIdx], attack.From)
-			gi.attackOrders[factionIdx] = append(gi.attackOrders[factionIdx], game.AttackOrder{
-				From: attack.From, TargetTile: attack.To,
-			})
-			return nil
+			return gi.setAttackOrderLocked(factionIdx, *attack)
 		}
 	}
 
@@ -148,6 +143,43 @@ func (gi *GameInstance) setMovementOrderLocked(
 	})
 	gi.movementPriorities[factionIdx] = move.From
 	gi.attackOrders[factionIdx] = removeAttackOrder(gi.attackOrders[factionIdx], move.From)
+	return nil
+}
+
+func (gi *GameInstance) setAttackOrderLocked(
+	factionIdx int,
+	attack game.AttackActionPayload,
+) error {
+	factionOwner := int8(factionIdx)
+	source := gi.game.Map.GetCell(attack.From)
+	if source == nil ||
+		!source.HasUnits() ||
+		source.Units[0].Owner != factionOwner ||
+		source.Units[0].Type == game.UnitScout {
+		return fmt.Errorf("no friendly non-Scout unit at attack source")
+	}
+	if gi.game.Map.GetCell(attack.To) == nil {
+		return fmt.Errorf("attack target cell does not exist")
+	}
+	if game.HexAdjacent(attack.From, attack.To) {
+		return fmt.Errorf("persistent attack target must not be adjacent")
+	}
+
+	gi.movementOrders[factionIdx] = removeMovementOrder(
+		gi.movementOrders[factionIdx],
+		attack.From,
+	)
+	if priority, ok := gi.movementPriorities[factionIdx]; ok && priority == attack.From {
+		delete(gi.movementPriorities, factionIdx)
+	}
+	gi.attackOrders[factionIdx] = removeAttackOrder(
+		gi.attackOrders[factionIdx],
+		attack.From,
+	)
+	gi.attackOrders[factionIdx] = append(
+		gi.attackOrders[factionIdx],
+		game.AttackOrder{From: attack.From, TargetTile: attack.To},
+	)
 	return nil
 }
 
@@ -225,7 +257,7 @@ func (gi *GameInstance) Run() {
 		if i < len(gi.clients) {
 			f := &gi.game.Factions[i]
 			f.Index = i
-			f.Coins = 100
+			f.Coins = game.StartingCoins
 			f.Points = 0
 			f.Resources = make(game.Resources)
 			f.Alive = true
@@ -236,10 +268,11 @@ func (gi *GameInstance) Run() {
 	}
 
 	gi.assignStartingCells()
+	gi.initializeAIControllers()
 
-	gameEndTime := time.Now().Add(5 * time.Minute)
+	gameEndTime := time.Now().Add(game.MatchDuration)
 	gi.game.GameEndTime = gameEndTime.UnixNano()
-	firstDeadline := time.Now().Add(5 * time.Second)
+	firstDeadline := time.Now().Add(game.RoundDuration)
 
 	gi.setRound(1)
 
@@ -269,7 +302,7 @@ func (gi *GameInstance) Run() {
 		}
 
 		roundStart := time.Now()
-		deadline := roundStart.Add(5 * time.Second)
+		deadline := roundStart.Add(game.RoundDuration)
 
 		for i, c := range gi.clients {
 			if c == nil {
@@ -308,13 +341,8 @@ func (gi *GameInstance) Run() {
 		}
 
 		gi.mu.Lock()
-		gi.processAutoActions()
-		gi.processClientActions()
-		gi.game.Round++
-		gi.actions = make(map[int]*submittedAction)
+		aliveCount := gi.resolveRoundLocked()
 		gi.mu.Unlock()
-
-		aliveCount := gi.checkAlive()
 
 		if time.Now().After(gameEndTime) || aliveCount <= 1 {
 			gi.broadcastGameEnd()
@@ -352,24 +380,35 @@ func (gi *GameInstance) setRound(round int32) {
 func (gi *GameInstance) assignStartingCells() {
 	m := &gi.game.Map
 
-	candidates := make([]game.Hex, 0)
+	island := m.LargestLandIsland()
+	candidates := make([]startCandidate, 0)
 	for x := range m.Grid {
 		for y := range m.Grid[x] {
-			tile := m.Grid[x][y].Tile
-			if tile != game.TileVoid && tile != game.TileWater {
-				candidates = append(candidates, game.NewHex(int32(x), int32(y)))
+			hex := game.NewHex(int32(x), int32(y))
+			if m.Grid[x][y].Tile == game.TilePlains && island[hex] {
+				quality := startingZoneQuality(m, hex)
+				candidates = append(candidates, startCandidate{
+					hex:       hex,
+					quality:   quality,
+					qualified: quality == startZoneRequirementCount,
+				})
 			}
 		}
 	}
 
-	largestIsland := m.LargestLandIsland()
-	filtered := make([]game.Hex, 0, len(candidates))
-	for _, h := range candidates {
-		if largestIsland[h] {
-			filtered = append(filtered, h)
+	// A pathological generated map may contain no Plains on its largest
+	// island. Preserve a playable fallback while keeping normal starts on
+	// Plains.
+	if len(candidates) == 0 {
+		for x := range m.Grid {
+			for y := range m.Grid[x] {
+				hex := game.NewHex(int32(x), int32(y))
+				if island[hex] {
+					candidates = append(candidates, startCandidate{hex: hex})
+				}
+			}
 		}
 	}
-	candidates = filtered
 
 	if len(candidates) == 0 {
 		return
@@ -380,14 +419,15 @@ func (gi *GameInstance) assignStartingCells() {
 		candidates[i], candidates[j] = candidates[j], candidates[i]
 	})
 
-	spacing := float64(min(m.GridSize.X, m.GridSize.Y)) / 4.0
-	claimed := make([]game.Hex, 0, len(gi.clients))
+	claimed := make([]game.Hex, 0, len(gi.game.Factions))
+	used := make(map[game.Hex]bool)
 
 	for i := range gi.game.Factions {
-		if i >= len(gi.clients) {
-			continue
+		hex, ok := pickStartingHex(candidates, claimed, used)
+		if !ok {
+			break
 		}
-		hex := pickStartingHex(candidates, claimed, spacing)
+		used[hex] = true
 		claimed = append(claimed, hex)
 		cell := m.GetCell(hex)
 		cell.Owner = int8(i)
@@ -395,27 +435,116 @@ func (gi *GameInstance) assignStartingCells() {
 	}
 }
 
-// pickStartingHex returns the first candidate at least spacing away from all
-// claimed hexes, halving the requirement until one qualifies.
-func pickStartingHex(candidates, claimed []game.Hex, spacing float64) game.Hex {
-	for spacing >= 1 {
-		for _, hex := range candidates {
-			farEnough := true
-			for _, other := range claimed {
-				dx := float64(hex.X - other.X)
-				dy := float64(hex.Y - other.Y)
-				if math.Hypot(dx, dy) < spacing {
-					farEnough = false
-					break
-				}
+const (
+	startZoneRadius           = int32(8)
+	startZoneMinimumSpacing   = int32(14)
+	startZoneRequirementCount = 5
+)
+
+type startCandidate struct {
+	hex       game.Hex
+	quality   int
+	qualified bool
+}
+
+func startingZoneQuality(m *game.Map, center game.Hex) int {
+	hasFarm := false
+	hasForester := false
+	hasRock := false
+	hasIron := false
+	plains := 0
+
+	minX := max(int32(0), center.X-startZoneRadius)
+	maxX := min(m.GridSize.X-1, center.X+startZoneRadius)
+	minY := max(int32(0), center.Y-startZoneRadius)
+	maxY := min(m.GridSize.Y-1, center.Y+startZoneRadius)
+	for x := minX; x <= maxX; x++ {
+		for y := minY; y <= maxY; y++ {
+			hex := game.NewHex(x, y)
+			if center.Distance(hex) > startZoneRadius {
+				continue
 			}
-			if farEnough {
-				return hex
+			cell := m.GetCell(hex)
+			if cell == nil {
+				continue
+			}
+			switch cell.Tile {
+			case game.TilePlains:
+				plains++
+				if game.BuildingCanPlace(m, game.BuildingFarm, hex) {
+					hasFarm = true
+				}
+			case game.TileForest, game.TileJungle:
+				hasForester = true
+			case game.TileRock:
+				hasRock = true
+			case game.TileIron:
+				hasIron = true
 			}
 		}
-		spacing /= 2
 	}
-	return candidates[0]
+
+	quality := 0
+	for _, met := range []bool{hasFarm, hasForester, hasRock, hasIron, plains >= 3} {
+		if met {
+			quality++
+		}
+	}
+	return quality
+}
+
+func pickStartingHex(
+	candidates []startCandidate,
+	claimed []game.Hex,
+	used map[game.Hex]bool,
+) (game.Hex, bool) {
+	if len(claimed) == 0 {
+		best := -1
+		for i, candidate := range candidates {
+			if used[candidate.hex] {
+				continue
+			}
+			if best < 0 ||
+				candidate.qualified && !candidates[best].qualified ||
+				candidate.qualified == candidates[best].qualified &&
+					candidate.quality > candidates[best].quality {
+				best = i
+			}
+		}
+		if best >= 0 {
+			return candidates[best].hex, true
+		}
+		return game.Hex{}, false
+	}
+
+	for spacing := startZoneMinimumSpacing; spacing >= 0; spacing-- {
+		best := -1
+		var bestDistance int32
+		for i, candidate := range candidates {
+			if used[candidate.hex] {
+				continue
+			}
+			minDistance := candidate.hex.Distance(claimed[0])
+			for _, other := range claimed[1:] {
+				minDistance = min(minDistance, candidate.hex.Distance(other))
+			}
+			if minDistance < spacing {
+				continue
+			}
+			if best < 0 ||
+				candidate.qualified && !candidates[best].qualified ||
+				candidate.qualified == candidates[best].qualified && minDistance > bestDistance ||
+				candidate.qualified == candidates[best].qualified && minDistance == bestDistance &&
+					candidate.quality > candidates[best].quality {
+				best = i
+				bestDistance = minDistance
+			}
+		}
+		if best >= 0 {
+			return candidates[best].hex, true
+		}
+	}
+	return game.Hex{}, false
 }
 
 func (gi *GameInstance) hasConnectedPlayers() bool {
@@ -429,7 +558,14 @@ func (gi *GameInstance) hasConnectedPlayers() bool {
 
 // clientLeft wakes the game loop so the final client departure terminates the
 // instance immediately instead of waiting for the current round deadline.
-func (gi *GameInstance) clientLeft() {
+func (gi *GameInstance) clientLeft(client *Client) {
+	gi.mu.Lock()
+	if factionIdx, ok := gi.factionClients[client]; ok &&
+		!gi.game.Factions[factionIdx].AI {
+		gi.pendingAITakeovers[factionIdx] = true
+	}
+	gi.mu.Unlock()
+
 	select {
 	case gi.clientsChanged <- struct{}{}:
 	default:
@@ -459,8 +595,11 @@ func (gi *GameInstance) waitUntil(deadline time.Time) bool {
 
 func (gi *GameInstance) processAutoActions() {
 	for i := range gi.game.Factions {
-		coins, resources := game.FactionRoundIncome(&gi.game.Map, int8(i))
 		faction := &gi.game.Factions[i]
+		if !faction.Alive {
+			continue
+		}
+		coins, resources := game.FactionRoundIncome(&gi.game.Map, int8(i))
 		if faction.Resources == nil {
 			faction.Resources = make(game.Resources)
 		}
@@ -469,6 +608,20 @@ func (gi *GameInstance) processAutoActions() {
 		}
 		faction.Coins += coins
 	}
+}
+
+func (gi *GameInstance) awardControlScore() {
+	for i := range gi.game.Factions {
+		faction := &gi.game.Factions[i]
+		if !faction.Alive {
+			continue
+		}
+		faction.Points += game.FactionControlScore(&gi.game.Map, int8(i))
+	}
+}
+
+func controlScoreDue(round int32) bool {
+	return round > 0 && round%game.ScoreIntervalRounds == 0
 }
 
 func (gi *GameInstance) checkAlive() int {
@@ -490,7 +643,14 @@ func (gi *GameInstance) checkAlive() int {
 		gi.game.Factions[i].Alive = alive
 		if alive {
 			aliveCount++
+			continue
 		}
+		delete(gi.actions, i)
+		delete(gi.movementOrders, i)
+		delete(gi.attackOrders, i)
+		delete(gi.movementPriorities, i)
+		delete(gi.aiControllers, i)
+		delete(gi.aiTraces, i)
 	}
 	return aliveCount
 }
@@ -518,27 +678,9 @@ func (gi *GameInstance) broadcastGameEnd() {
 		})
 	}
 
-	// A surviving faction wins an elimination game even when an eliminated
-	// faction accumulated more points. When time expires (or everyone is
-	// eliminated), standings and the winner are decided by score.
-	survivingFaction := -1
-	for _, faction := range sorted {
-		if !faction.alive {
-			continue
-		}
-		if survivingFaction >= 0 {
-			survivingFaction = -1
-			break
-		}
-		survivingFaction = faction.idx
-	}
 	sort.SliceStable(sorted, func(i, j int) bool {
-		if survivingFaction >= 0 {
-			iSurvived := sorted[i].idx == survivingFaction
-			jSurvived := sorted[j].idx == survivingFaction
-			if iSurvived != jSurvived {
-				return iSurvived
-			}
+		if sorted[i].alive != sorted[j].alive {
+			return sorted[i].alive
 		}
 		if sorted[i].points != sorted[j].points {
 			return sorted[i].points > sorted[j].points
@@ -548,9 +690,19 @@ func (gi *GameInstance) broadcastGameEnd() {
 
 	winnerFaction := -1
 	winnerName := ""
-	if len(sorted) > 0 {
-		winnerFaction = sorted[0].idx
-		winnerName = sorted[0].name
+	eligible := make([]rankSortable, 0, len(sorted))
+	for _, faction := range sorted {
+		if faction.alive {
+			eligible = append(eligible, faction)
+		}
+	}
+	if len(eligible) == 0 {
+		eligible = sorted
+	}
+	if len(eligible) == 1 ||
+		len(eligible) > 1 && eligible[0].points > eligible[1].points {
+		winnerFaction = eligible[0].idx
+		winnerName = eligible[0].name
 	}
 
 	rankings := make([]packets.RankEntry, 0, len(sorted))

@@ -10,9 +10,9 @@ import (
 
 func TestResultPlacement(t *testing.T) {
 	rankings := []packets.RankEntry{
-		{FactionIdx: 2},
-		{FactionIdx: 0},
-		{FactionIdx: 1},
+		{FactionIdx: 2, Points: 30, Alive: true},
+		{FactionIdx: 0, Points: 20, Alive: true},
+		{FactionIdx: 1, Points: 10, Alive: true},
 	}
 
 	if got := resultPlacement(rankings, 0); got != 2 {
@@ -20,6 +20,21 @@ func TestResultPlacement(t *testing.T) {
 	}
 	if got := resultPlacement(rankings, 3); got != 0 {
 		t.Fatalf("missing resultPlacement() = %d, want 0", got)
+	}
+}
+
+func TestResultPlacementSharesTiedRanks(t *testing.T) {
+	rankings := []packets.RankEntry{
+		{FactionIdx: 2, Points: 30, Alive: true},
+		{FactionIdx: 0, Points: 30, Alive: true},
+		{FactionIdx: 1, Points: 10, Alive: true},
+	}
+
+	if got := resultPlacement(rankings, 0); got != 1 {
+		t.Fatalf("tied resultPlacement() = %d, want 1", got)
+	}
+	if got := resultPlacement(rankings, 1); got != 3 {
+		t.Fatalf("post-tie resultPlacement() = %d, want 3", got)
 	}
 }
 

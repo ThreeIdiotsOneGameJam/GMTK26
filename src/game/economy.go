@@ -1,67 +1,86 @@
 package game
 
+var buildingCoinCosts = [...]int32{
+	BuildingUnknown:  0,
+	BuildingForester: 10,
+	BuildingMine:     14,
+	BuildingBarracks: 24,
+	BuildingFarm:     12,
+	BuildingTownhall: 0,
+}
+
+var unitCoinCosts = [...]int32{
+	UnitUnknown: 0,
+	UnitPeasant: 8,
+	UnitArcher:  14,
+	UnitKnight:  22,
+	UnitScout:   8,
+}
+
 func BuildingCost(b BuildingType) int32 {
-	switch b {
-	case BuildingForester:
-		return 10
-	case BuildingMine:
-		return 15
-	case BuildingBarracks:
-		return 20
-	case BuildingFarm:
-		return 12
-	default:
+	if int(b) >= len(buildingCoinCosts) {
 		return 0
+	}
+	return buildingCoinCosts[b]
+}
+
+func BuildingResourceCost(b BuildingType) Resources {
+	switch b {
+	case BuildingBarracks:
+		return Resources{
+			ResourceWood:  6,
+			ResourceStone: 4,
+		}
+	default:
+		return make(Resources)
 	}
 }
 
 func BuildingProduces(b BuildingType, tile TileType) map[ResourceType]uint32 {
 	switch b {
 	case BuildingForester:
-		return map[ResourceType]uint32{ResourceWood: 2}
+		return map[ResourceType]uint32{ResourceWood: 1}
 	case BuildingMine:
 		switch tile {
+		case TileRock:
+			return map[ResourceType]uint32{ResourceStone: 1}
 		case TileIron:
-			return map[ResourceType]uint32{ResourceIron: 2}
-		case TileCoal:
-			return map[ResourceType]uint32{ResourceCoal: 2}
-		case TileGold:
-			return map[ResourceType]uint32{ResourceGold: 1}
+			return map[ResourceType]uint32{ResourceIron: 1}
+		case TileCoal, TileGold:
+			return nil
 		default:
-			return map[ResourceType]uint32{ResourceStone: 2}
+			return nil
 		}
 	case BuildingFarm:
-		return map[ResourceType]uint32{ResourceFood: 2}
+		return map[ResourceType]uint32{ResourceFood: 1}
 	default:
 		return nil
 	}
 }
 
 func UnitCost(t UnitType) int32 {
-	switch t {
-	case UnitPeasant:
-		return 10
-	case UnitArcher:
-		return 20
-	case UnitKnight:
-		return 30
-	case UnitScout:
-		return 10
-	default:
+	if int(t) >= len(unitCoinCosts) {
 		return 0
 	}
+	return unitCoinCosts[t]
 }
 
 func UnitResourceCost(t UnitType) Resources {
 	switch t {
 	case UnitPeasant:
-		return Resources{ResourceFood: 1}
+		return Resources{ResourceFood: 4}
 	case UnitArcher:
-		return Resources{ResourceFood: 3}
+		return Resources{
+			ResourceFood: 6,
+			ResourceWood: 4,
+		}
 	case UnitKnight:
-		return Resources{ResourceFood: 5}
+		return Resources{
+			ResourceFood: 8,
+			ResourceIron: 4,
+		}
 	default:
-		return nil
+		return make(Resources)
 	}
 }
 
@@ -83,7 +102,7 @@ func FactionRoundIncome(m *Map, owner int8) (int32, Resources) {
 			for resource, amount := range BuildingProduces(cell.BuildingType(), cell.Tile) {
 				resources[resource] += amount
 			}
-			coins += BuildingCoinsProduces(cell.BuildingType())
+			coins += BuildingCoinsProduces(cell.BuildingType(), cell.Tile)
 		}
 	}
 	return coins, resources
@@ -110,9 +129,31 @@ func CanAffordUnitAfterRoundIncome(
 	return true
 }
 
-func BuildingCoinsProduces(b BuildingType) int32 {
+func CanAffordBuildingAfterRoundIncome(
+	m *Map,
+	owner int8,
+	b BuildingType,
+	coins int32,
+	resources Resources,
+) bool {
+	incomeCoins, incomeResources := FactionRoundIncome(m, owner)
+	if coins+incomeCoins < BuildingCost(b) {
+		return false
+	}
+	for resource, amount := range BuildingResourceCost(b) {
+		if resources[resource]+incomeResources[resource] < amount {
+			return false
+		}
+	}
+	return true
+}
+
+func BuildingCoinsProduces(b BuildingType, tile TileType) int32 {
 	if b == BuildingTownhall {
 		return 1
+	}
+	if b == BuildingMine && tile == TileGold {
+		return 2
 	}
 	return 0
 }
