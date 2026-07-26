@@ -33,6 +33,9 @@ func (el *VignetteElement) draw() {
 	s := el.Parent.Size().Vec2()
 	p := el.Parent.AbsolutePos().Vec2()
 
+	// The shader writes premultiplied color so the vignette has the same blend
+	// result on the desktop framebuffer and every WebGL canvas implementation.
+	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 	rl.BeginShaderMode(shaders.Vignette)
 	rl.Begin(rl.Triangles)
 
@@ -59,6 +62,7 @@ func (el *VignetteElement) draw() {
 
 	rl.End()
 	rl.EndShaderMode()
+	rl.EndBlendMode()
 }
 
 func (el *VignetteElement) WithColor(col color.RGBA) *VignetteElement {

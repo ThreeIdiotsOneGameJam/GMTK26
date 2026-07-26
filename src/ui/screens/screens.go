@@ -8,12 +8,18 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 )
 
-const screenCrossfadeDuration = 250 * time.Millisecond
+const (
+	screenCrossfadeDuration = 250 * time.Millisecond
+	// Capturing the outgoing framebuffer can stall WebGL for a long frame.
+	// Do not let that stall skip most (or all) of the visual transition.
+	screenCrossfadeMaxStep = time.Second / 30
+)
 
 var activeScreen *ui.ScreenElement
 var pendingScreen *ui.ScreenElement
 var transitionProgress float32
 var transitionCanceling bool
+var transitionReady bool
 var transitionSource rl.Texture2D
 
 // Retained instances needed for overlays and return navigation.
@@ -57,6 +63,7 @@ func SetActiveScreen(screen *ui.ScreenElement) {
 	pendingScreen = screen
 	transitionProgress = 0
 	transitionCanceling = false
+	transitionReady = false
 	pendingScreen.Enter()
 }
 
@@ -91,6 +98,7 @@ func finishCanceledTransition() {
 	pendingScreen = nil
 	transitionProgress = 0
 	transitionCanceling = false
+	transitionReady = false
 	releaseTransitionSource()
 }
 
@@ -116,15 +124,21 @@ func Update(deltaNano int64) {
 	if pendingScreen == nil {
 		return
 	}
+	// The first frame must show the captured source at full opacity. In
+	// particular, do not advance using the frame time spent in glReadPixels.
+	if !transitionReady {
+		return
+	}
 
 	target := float32(1)
 	if transitionCanceling {
 		target = 0
 	}
+	step := min(time.Duration(deltaNano), screenCrossfadeMaxStep)
 	transitionProgress = moveTowards(
 		transitionProgress,
 		target,
-		float32(time.Duration(deltaNano))/float32(screenCrossfadeDuration),
+		float32(step)/float32(screenCrossfadeDuration),
 	)
 
 	if transitionCanceling {
@@ -143,6 +157,7 @@ func Update(deltaNano int64) {
 	pendingScreen = nil
 	transitionProgress = 0
 	transitionCanceling = false
+	transitionReady = false
 	releaseTransitionSource()
 }
 
@@ -163,7 +178,9 @@ func Draw() {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	if !ensureTransitionSource(w, h) {
+	captured := ensureTransitionSource(w, h)
+	transitionReady = true
+	if !captured {
 		// The source is already visible. If capture fails, show the destination
 		// only while moving forward and keep the source visible while canceling.
 		if !transitionCanceling {
@@ -221,6 +238,7 @@ func Shutdown() {
 	}
 	transitionProgress = 0
 	transitionCanceling = false
+	transitionReady = false
 	releaseTransitionSource()
 	HideEscScreen()
 	gameWorld.Renderer.Unload()

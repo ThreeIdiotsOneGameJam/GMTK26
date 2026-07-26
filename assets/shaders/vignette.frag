@@ -15,6 +15,7 @@ void main() {
 	vec2 uv = fragTexCoord;
 	float d = distance(uv, vec2(0.5)) / 0.70710678; // 0.7... is the length of X or Y on a normalize vector that points NW
 	float a = clamp((d - radius) / (1.0 - radius), 0.0, 1.0);
+	float opacity = fragColor.a * a;
 
-	finalColor = mix(vec4(fragColor.rgb, 0.0), fragColor, a);
+	finalColor = vec4(fragColor.rgb * opacity, opacity);
 }
