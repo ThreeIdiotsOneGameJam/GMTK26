@@ -147,8 +147,8 @@ func (r *WorldRenderer) Init(m *game.Map) {
 	}
 	r.initialized = true
 
-	r.buildingsTexture = rl.LoadTexture("assets/textures/buildings.png")
-	r.unitsTexture = rl.LoadTexture("assets/textures/units.png")
+	r.buildingsTexture = rl.LoadTexture(global.AssetDir + "/textures/buildings.png")
+	r.unitsTexture = rl.LoadTexture(global.AssetDir + "/textures/units.png")
 
 	if r.HexSize == (v.Vec2{}) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}

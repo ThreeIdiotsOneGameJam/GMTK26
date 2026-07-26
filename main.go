@@ -5,6 +5,7 @@ import (
 	"fmt"
 	// "math"
 	"os"
+
 	"strconv"
 	"time"
 
@@ -195,7 +196,7 @@ func main() {
 	rl.InitWindow(constants.WindowWidth, constants.WindowHeight, constants.GameName)
 	defer rl.CloseWindow()
 	rl.SetWindowMinSize(768, 576)
-	icon := rl.LoadImage("assets/textures/icon.png")
+	icon := rl.LoadImage(global.AssetDir + "/textures/icon.png")
 	rl.SetWindowIcon(*icon)
 	defer rl.UnloadImage(icon)
 
