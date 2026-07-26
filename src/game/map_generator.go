@@ -94,3 +94,79 @@ func spreadResources(m *Map, seed int64) {
 	setTiles(TileCoal, rockCount/10)
 	setTiles(TileGold, rockCount/20)
 }
+
+func (m *Map) LargestLandIsland() map[Hex]bool {
+	visited := make([][]bool, len(m.Grid))
+	for x := range m.Grid {
+		visited[x] = make([]bool, len(m.Grid[x]))
+	}
+
+	isLand := func(h Hex) bool {
+		if h.X < 0 || int(h.X) >= len(m.Grid) {
+			return false
+		}
+		if h.Y < 0 || int(h.Y) >= len(m.Grid[h.X]) {
+			return false
+		}
+		tile := m.Grid[h.X][h.Y].Tile
+		return tile != TileVoid && tile != TileWater
+	}
+
+	var best []Hex
+
+	for x := range m.Grid {
+		for y := range m.Grid[x] {
+			start := NewHex(int32(x), int32(y))
+			if visited[x][y] || !isLand(start) {
+				continue
+			}
+
+			component := []Hex{start}
+			visited[x][y] = true
+			queue := []Hex{start}
+
+			for len(queue) > 0 {
+				cur := queue[0]
+				queue = queue[1:]
+
+				var dirs []Hex
+				if cur.X%2 == 0 {
+					dirs = []Hex{
+						cur.Add(NewHex(-1, -1)), cur.Add(NewHex(0, -1)), cur.Add(NewHex(1, -1)),
+						cur.Add(NewHex(-1, 0)), cur.Add(NewHex(0, 1)), cur.Add(NewHex(1, 0)),
+					}
+				} else {
+					dirs = []Hex{
+						cur.Add(NewHex(-1, 0)), cur.Add(NewHex(0, -1)), cur.Add(NewHex(1, 0)),
+						cur.Add(NewHex(-1, 1)), cur.Add(NewHex(0, 1)), cur.Add(NewHex(1, 1)),
+					}
+				}
+
+				for _, next := range dirs {
+					if int(next.X) < 0 || int(next.X) >= len(visited) {
+						continue
+					}
+					if int(next.Y) < 0 || int(next.Y) >= len(visited[next.X]) {
+						continue
+					}
+					if visited[next.X][next.Y] || !isLand(next) {
+						continue
+					}
+					visited[next.X][next.Y] = true
+					component = append(component, next)
+					queue = append(queue, next)
+				}
+			}
+
+			if len(component) > len(best) {
+				best = component
+			}
+		}
+	}
+
+	result := make(map[Hex]bool, len(best))
+	for _, h := range best {
+		result[h] = true
+	}
+	return result
+}
