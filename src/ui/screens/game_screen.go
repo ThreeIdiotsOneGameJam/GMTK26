@@ -683,7 +683,7 @@ func buildingToolbar() *ui.GroupElement {
 		{label: "Farm", building: game.BuildingFarm, x: 224},
 		{label: "Mine", building: game.BuildingMine, x: 308},
 		{label: "Forester", building: game.BuildingForester, x: 384},
-		{label: "Bank", building: game.BuildingBank, x: 496},
+		{label: "Bank", building: game.BuildingBank, x: 520},
 	}
 	for _, item := range buttons {
 		group.AddChild(
@@ -736,7 +736,7 @@ func serverResourceList() *ui.GroupElement {
 			WithTextSize(18).
 			WithPadding(5).
 			WithOutlineWidth(2).
-			WithRelativePos(vec.Vec2i{Y: 132}).
+			WithRelativePos(vec.Vec2i{Y: 164}).
 			WithTooltip(
 				"Every 30s: Farm +2, Forester +2, Mine +3, Gold Mine +5, Barracks +3, Bank +3\n" +
 					"Destroy enemies for points; eliminating every rival wins immediately",
