@@ -646,7 +646,7 @@ func buildingToolbar() *ui.GroupElement {
 		{label: "Farm", building: game.BuildingFarm, x: 224},
 		{label: "Mine", building: game.BuildingMine, x: 308},
 		{label: "Forester", building: game.BuildingForester, x: 384},
-		{label: "Bank", building: game.BuildingBank, x: 480},
+		{label: "Bank", building: game.BuildingBank, x: 520},
 	}
 	for _, item := range buttons {
 		group.AddChild(
