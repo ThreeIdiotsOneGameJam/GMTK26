@@ -80,6 +80,8 @@ type WorldRenderer struct {
 	OnPlaceBuilding func(hex game.Hex, building game.BuildingType) bool
 	buildingPreview buildingPreview
 
+	buildingsTexture rl.Texture2D
+
 	viewport    rl.RenderTexture2D
 	initialized bool
 }
@@ -89,6 +91,8 @@ func (r *WorldRenderer) Init(m *game.Map) {
 		return
 	}
 	r.initialized = true
+
+	r.buildingsTexture = rl.LoadTexture("assets/textures/buildings.png")
 
 	if r.HexSize == (v.Vec2{}) {
 		r.HexSize = v.Vec2{X: 48.0, Y: 48.0}
@@ -120,6 +124,7 @@ func (r *WorldRenderer) Unload() {
 		return
 	}
 	rl.UnloadRenderTexture(r.viewport)
+	rl.UnloadTexture(r.buildingsTexture)
 	r.initialized = false
 }
 
@@ -299,7 +304,7 @@ func (r *WorldRenderer) Draw(m *game.Map) {
 	rl.BeginMode2D(r.Camera)
 	visible := r.drawMapTiles(m, mousePos)
 	r.drawTileDetails(m, visible)
-	r.drawBuildings(m, visible)
+	r.drawBuildings(m, visible, mousePos)
 	r.drawTroops(m, visible)
 	rl.EndMode2D()
 

@@ -6,6 +6,7 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -47,42 +48,50 @@ func (r *WorldRenderer) updateBuildingPlacement(m *game.Map, hex game.Hex) {
 	}
 }
 
-func buildingColor(building game.BuildingType) color.RGBA {
+func getBuildingRect(building game.BuildingType, hovered bool) rl.Rectangle {
+	y := float32(0.0)
+	if hovered {
+		y = 96.0
+	}
+
 	switch building {
 	case game.BuildingUnknown:
-		return color.RGBA{}
+		return rl.Rectangle{}
 	case game.BuildingTownhall:
-		return color.RGBA{R: 220, G: 200, B: 50, A: 255}
+		return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingBarracks:
-		return color.RGBA{R: 80, G: 150, B: 20, A: 255}
+		return rl.Rectangle{X: 96.0 * 3.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingFarm:
-		return color.RGBA{R: 200, G: 170, B: 20, A: 255}
+		return rl.Rectangle{X: 96.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingForester:
-		return color.RGBA{R: 140, G: 100, B: 20, A: 255}
+		return rl.Rectangle{X: 96.0 * 2.0, Y: y, Width: 96.0, Height: 96.0}
 	case game.BuildingMine:
-		return color.RGBA{R: 20, G: 20, B: 20, A: 255}
+		return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
 	}
-	return rl.Magenta
+	return rl.Rectangle{X: 0.0, Y: y, Width: 96.0, Height: 96.0}
 }
 
-func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile) {
-	draw := func(worldPos vec.Vec2, building game.BuildingType, tint color.RGBA) {
+func (r *WorldRenderer) drawBuildings(m *game.Map, visible []visibleTile, mousePos vec.Vec2) {
+	mouseHex := r.PixelToHex(mousePos)
+
+	draw := func(worldPos vec.Vec2, building game.BuildingType, tint color.RGBA, hovered bool) {
 		if building == game.BuildingUnknown {
 			return
 		}
+		col := rl.ColorLerp(rl.White, tint, 0.5)
 
-		s := m.GridSize.Div(vec.Vec2i{X: 2, Y: 5}).Mul(vec.Vec2i{X: 1, Y: 3})
-		p := worldPos.Vec2i().Sub(s.Div(vec.Vec2i{X: 2, Y: 3}).Mul(vec.Vec2i{X: 1, Y: 2}))
-		rl.DrawRectangle(p.X, p.Y, s.X, s.Y, rl.ColorLerp(buildingColor(building), tint, 0.5))
+		s := vec.Vec2{X: 96, Y: 96}
+		p := worldPos.Sub(s.Div(vec.Vec2{X: 2, Y: 2}))
+		rl.DrawTextureRec(r.buildingsTexture, getBuildingRect(building, hovered), rlvec.ToRL(p), col)
 	}
 
 	for _, b := range visible {
 		building := m.Grid[b.hex.X][b.hex.Y].Building
-		draw(b.position, building, rl.White)
+		draw(b.position, building, rl.White, mouseHex == b.hex)
 	}
 
 	if r.buildingPreview.Visible {
 		worldPos := r.HexToPixel(r.buildingPreview.Hex.Vec2i)
-		draw(worldPos, r.buildingPreview.Type, r.buildingPreview.Tint)
+		draw(worldPos, r.buildingPreview.Type, r.buildingPreview.Tint, false)
 	}
 }
