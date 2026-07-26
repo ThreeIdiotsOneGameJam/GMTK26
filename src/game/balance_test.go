@@ -130,7 +130,7 @@ func TestMineProductionByTerrain(t *testing.T) {
 	}{
 		{TileRock, map[ResourceType]uint32{ResourceStone: 1}, 0},
 		{TileIron, map[ResourceType]uint32{ResourceIron: 1}, 0},
-		{TileGold, map[ResourceType]uint32{ResourceGold: 1}, 2},
+		{TileGold, map[ResourceType]uint32{ResourceGold: 1}, 1},
 		{TileCoal, nil, 0},
 	}
 
@@ -143,6 +143,41 @@ func TestMineProductionByTerrain(t *testing.T) {
 				t.Errorf("BuildingCoinsProduces() = %d, want %d", got, test.coins)
 			}
 		})
+	}
+}
+
+func TestSpendFundsIsAtomic(t *testing.T) {
+	faction := Faction{
+		Coins: 20,
+		Resources: Resources{
+			ResourceFood: 5,
+			ResourceWood: 3,
+		},
+	}
+	if SpendFunds(
+		&faction,
+		10,
+		Resources{ResourceFood: 4, ResourceWood: 4},
+	) {
+		t.Fatal("spending succeeded without enough Wood")
+	}
+	if faction.Coins != 20 ||
+		faction.Resources[ResourceFood] != 5 ||
+		faction.Resources[ResourceWood] != 3 {
+		t.Fatalf("failed spend mutated faction: %+v", faction)
+	}
+
+	if !SpendFunds(
+		&faction,
+		10,
+		Resources{ResourceFood: 4, ResourceWood: 3},
+	) {
+		t.Fatal("affordable spending failed")
+	}
+	if faction.Coins != 10 ||
+		faction.Resources[ResourceFood] != 1 ||
+		faction.Resources[ResourceWood] != 0 {
+		t.Fatalf("successful spend produced wrong balances: %+v", faction)
 	}
 }
 

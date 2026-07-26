@@ -138,6 +138,45 @@ func TestNewRouteAdvancesBeforeExistingRoundRobinQueue(t *testing.T) {
 	}
 }
 
+func TestNewAttackRouteAdvancesBeforeExistingMovement(t *testing.T) {
+	g := actionTestGame(5, 2)
+	attacker := game.NewHex(0, 0)
+	target := game.NewHex(4, 0)
+	scout := game.NewHex(0, 1)
+	scoutDestination := game.NewHex(4, 1)
+	putUnit(g, attacker, game.UnitKnight, 0)
+	putUnit(g, scout, game.UnitScout, 0)
+	targetCell := g.Map.GetCell(target)
+	targetCell.Owner = 1
+	targetCell.Building = &game.BuildingData{
+		Type: game.BuildingTownhall,
+		HP:   game.BuildingMaxHP(game.BuildingTownhall),
+	}
+	gi := NewGameInstance(1, g, nil)
+	if err := gi.setMovementOrderLocked(0, game.MoveActionPayload{
+		From: scout,
+		To:   scoutDestination,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := gi.setAttackOrderLocked(0, game.AttackActionPayload{
+		From: attacker,
+		To:   target,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gi.processClientActions()
+
+	if len(gi.movementEvents) != 1 ||
+		gi.movementEvents[0].Unit != game.UnitKnight {
+		t.Fatalf("movement events = %v, want prioritized Knight approach", gi.movementEvents)
+	}
+	if !g.Map.GetCell(scout).HasUnits() {
+		t.Fatal("Scout route advanced before newly assigned attack route")
+	}
+}
+
 func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 	g := actionTestGame(2, 3)
 	from := game.NewHex(0, 0)
@@ -168,7 +207,7 @@ func TestManualActionSuppressesNewRouteWithoutDeletingIt(t *testing.T) {
 	if len(gi.movementOrders[0]) != 1 {
 		t.Fatal("manual build deleted the newly assigned route")
 	}
-	if _, exists := gi.movementPriorities[0]; exists {
+	if _, exists := gi.routePriorities[0]; exists {
 		t.Fatal("new-route priority leaked into the next round")
 	}
 
@@ -267,7 +306,7 @@ func TestFreeCancellationWithdrawsNewRoutePriority(t *testing.T) {
 	if len(gi.movementOrders[0]) != 0 {
 		t.Fatal("movement order was not cancelled")
 	}
-	if _, exists := gi.movementPriorities[0]; exists {
+	if _, exists := gi.routePriorities[0]; exists {
 		t.Fatal("new route priority was not withdrawn")
 	}
 }
@@ -538,8 +577,8 @@ func TestBankConsumesGoldAndProducesCoinsDuringAutoIncome(t *testing.T) {
 
 	gi.processAutoActions()
 
-	if got := g.Factions[0].Coins; got != 107 {
-		t.Fatalf("Coins = %d, want 107 after Gold Mine and Bank income", got)
+	if got := g.Factions[0].Coins; got != 106 {
+		t.Fatalf("Coins = %d, want 106 after Gold Mine and Bank income", got)
 	}
 	if got := g.Factions[0].Resources[game.ResourceGold]; got != 0 {
 		t.Fatalf("Gold = %d, want 0 after same-round production and consumption", got)

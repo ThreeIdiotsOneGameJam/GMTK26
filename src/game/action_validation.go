@@ -28,10 +28,24 @@ func CurrentFunds(faction Faction) Funds {
 // ProjectedRoundFunds mirrors the authoritative resolution order: income is
 // credited before a pending manual action is validated.
 func ProjectedRoundFunds(m *Map, owner int8, faction Faction) Funds {
+	return ProjectedFundsAfterRounds(m, owner, faction, 1)
+}
+
+// ProjectedFundsAfterRounds forecasts passive income without actions or map
+// changes. Consumption is resolved independently each round, so intermittent
+// Bank payouts are not incorrectly treated as permanent per-round income.
+func ProjectedFundsAfterRounds(
+	m *Map,
+	owner int8,
+	faction Faction,
+	rounds int32,
+) Funds {
 	funds := CurrentFunds(faction)
-	coins, resources := ResolveFactionRoundIncome(m, owner, funds.Resources)
-	funds.Coins += coins
-	funds.Resources = resources
+	for range max(rounds, int32(0)) {
+		coins, resources := ResolveFactionRoundIncome(m, owner, funds.Resources)
+		funds.Coins += coins
+		funds.Resources = resources
+	}
 	return funds
 }
 

@@ -588,7 +588,7 @@ func buildingButtonTooltip(building game.BuildingType) string {
 		)
 	case game.BuildingMine:
 		return fmt.Sprintf(
-			"Cost: %s\nProduces: Rock -> Stone +1, Iron -> Iron +1, Gold -> 2 Coins + 1 Gold\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
+			"Cost: %s\nProduces: Rock -> Stone +1, Iron -> Iron +1, Gold -> 1 Coin + 1 Gold\nPlace on: Rock, Iron, or Gold\nControl: +3 (Gold +5) every 30s",
 			cost,
 		)
 	case game.BuildingForester:

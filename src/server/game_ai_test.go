@@ -68,6 +68,51 @@ func TestAIResolvesOpeningThroughAuthoritativeRecruitment(t *testing.T) {
 	}
 }
 
+func TestAIExactMineSpendUsesAuthoritativeIncome(t *testing.T) {
+	g := actionTestGame(2, 1)
+	for i := range g.Factions {
+		g.Factions[i].Alive = false
+		g.Factions[i].AI = false
+	}
+	g.Factions[0] = game.Faction{
+		Index:     0,
+		AI:        true,
+		Alive:     true,
+		Coins:     game.BuildingCost(game.BuildingMine) - 1,
+		Resources: make(game.Resources),
+	}
+	source := game.NewHex(0, 0)
+	target := game.NewHex(1, 0)
+	g.Map.GetCell(source).Owner = 0
+	g.Map.GetCell(source).Building = &game.BuildingData{
+		Type: game.BuildingTownhall,
+		HP:   game.BuildingMaxHP(game.BuildingTownhall),
+	}
+	putUnit(g, source, game.UnitScout, 0)
+	g.Map.GetCell(target).Tile = game.TileRock
+	planner := &recordingPlanner{plan: gameai.Plan{
+		Manual: &gameai.ManualAction{
+			Type: game.ActionBuild,
+			Build: &game.BuildActionPayload{
+				From:     source,
+				To:       target,
+				Building: game.BuildingMine,
+			},
+		},
+	}}
+	gi := NewGameInstance(1, g, nil)
+	gi.aiControllers[0] = planner
+
+	gi.resolveRoundLocked()
+
+	if got := g.Factions[0].Coins; got != 0 {
+		t.Fatalf("AI Coins = %d, want exact income then Mine spend to leave 0", got)
+	}
+	if got := g.Map.GetCell(target).BuildingType(); got != game.BuildingMine {
+		t.Fatalf("AI build = %s, want Mine", got)
+	}
+}
+
 func TestAllAIPlannersReceiveSamePublicSnapshot(t *testing.T) {
 	g := actionTestGame(2, 1)
 	g.Factions[0].AI = true
@@ -223,10 +268,10 @@ func TestAISelfPlayMaintainsValidEconomyAndActionVariety(t *testing.T) {
 			if actionKinds["Build"] == 0 ||
 				actionKinds["Recruit"] == 0 ||
 				actionKinds["Advance"] == 0 ||
-				actionKinds["Attack"] == 0 ||
-				attacks == 0 {
+				actionKinds["Attack"] < 20 ||
+				attacks < 40 {
 				t.Fatalf(
-					"AI self-play lacked core action variety: actions=%v attacks=%d",
+					"AI self-play lacked sustained PvP pressure: actions=%v attacks=%d",
 					actionKinds,
 					attacks,
 				)
@@ -248,6 +293,117 @@ func TestAISelfPlayMaintainsValidEconomyAndActionVariety(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestAISelfPlayConservesAuthoritativeFundsEveryRound(t *testing.T) {
+	g := &game.Game{Round: 1}
+	g.Map.Seed = 6060
+	g.Map.GridSize.X = 24
+	g.Map.GridSize.Y = 24
+	g.Map.Generate()
+	for i := range g.Factions {
+		g.Factions[i] = game.Faction{
+			Index:     i,
+			AI:        true,
+			Coins:     game.StartingCoins,
+			Resources: make(game.Resources),
+			Alive:     true,
+		}
+	}
+	gi := NewGameInstance(1, g, make([]*Client, len(g.Factions)))
+	gi.assignStartingCells()
+	gi.ensureAIControllersLocked()
+
+	for range int32(90) {
+		gi.planAIActionsLocked()
+		planned := make(map[int]*submittedAction, len(gi.actions))
+		for factionIdx, action := range gi.actions {
+			planned[factionIdx] = action
+		}
+
+		var expected [4]game.Faction
+		var startedAlive [4]bool
+		for i, faction := range g.Factions {
+			startedAlive[i] = faction.Alive
+			if !faction.Alive {
+				continue
+			}
+			projected := game.ProjectedRoundFunds(&g.Map, int8(i), faction)
+			expected[i] = game.Faction{
+				Coins:     projected.Coins,
+				Resources: projected.Resources,
+			}
+		}
+
+		gi.processAutoActions()
+		gi.processClientActions()
+
+		for i := range g.Factions {
+			if !startedAlive[i] {
+				continue
+			}
+			result := gi.actionResults[i]
+			action := planned[i]
+			if result != nil &&
+				result.Status == game.ActionResultSucceeded &&
+				!result.Automatic &&
+				action != nil {
+				coinCost, resourceCost := actionCosts(action)
+				if !game.SpendFunds(&expected[i], coinCost, resourceCost) {
+					t.Fatalf(
+						"round %d faction %d succeeded with unaffordable action %+v",
+						g.Round,
+						i,
+						action,
+					)
+				}
+			}
+			if got, want := g.Factions[i].Coins, expected[i].Coins; got != want {
+				t.Fatalf(
+					"round %d faction %d Coins = %d, ledger wants %d",
+					g.Round,
+					i,
+					got,
+					want,
+				)
+			}
+			for resource := game.ResourceUnknown; resource <= game.ResourceFood; resource++ {
+				if got, want := g.Factions[i].Resources[resource], expected[i].Resources[resource]; got != want {
+					t.Fatalf(
+						"round %d faction %d %s = %d, ledger wants %d",
+						g.Round,
+						i,
+						resource,
+						got,
+						want,
+					)
+				}
+			}
+		}
+
+		gi.checkAlive()
+		if controlScoreDue(g.Round) {
+			gi.awardControlScore()
+		}
+		g.Round++
+		gi.actions = make(map[int]*submittedAction)
+	}
+}
+
+func actionCosts(action *submittedAction) (int32, game.Resources) {
+	switch action.Type {
+	case game.ActionBuild:
+		if action.Build != nil {
+			return game.BuildingCost(action.Build.Building),
+				game.BuildingResourceCost(action.Build.Building)
+		}
+	case game.ActionRecruit:
+		if action.Recruit != nil {
+			return game.UnitCost(action.Recruit.Unit),
+				game.UnitResourceCost(action.Recruit.Unit)
+		}
+	}
+	return 0, make(game.Resources)
 }
 
 func objectTypeCounts(m *game.Map) (map[game.BuildingType]int, map[game.UnitType]int) {

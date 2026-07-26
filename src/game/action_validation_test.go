@@ -47,6 +47,32 @@ func TestProjectedRoundFundsCopiesAndAddsIncome(t *testing.T) {
 	}
 }
 
+func TestProjectedFundsAfterRoundsModelsIntermittentBankIncome(t *testing.T) {
+	m := validationTestMap(2, 1)
+	m.Grid[0][0] = Cell{
+		Tile:     TileGold,
+		Owner:    0,
+		Building: &BuildingData{Type: BuildingMine},
+	}
+	m.Grid[1][0] = Cell{
+		Tile:     TilePlains,
+		Owner:    0,
+		Building: &BuildingData{Type: BuildingBank},
+	}
+	faction := Faction{Resources: make(Resources)}
+
+	projected := ProjectedFundsAfterRounds(&m, 0, faction, 5)
+	if projected.Coins != 10 {
+		t.Fatalf("five-round Gold/Bank Coins = %d, want 10", projected.Coins)
+	}
+	if projected.Resources[ResourceGold] != 0 {
+		t.Fatalf("five-round Gold stock = %d, want 0", projected.Resources[ResourceGold])
+	}
+	if faction.Coins != 0 || faction.Resources[ResourceGold] != 0 {
+		t.Fatalf("forecast mutated input faction: %+v", faction)
+	}
+}
+
 func TestValidateBuildActionUsesExactCosts(t *testing.T) {
 	m := validationTestMap(2, 1)
 	m.Grid[0][0].Units = []UnitData{{Type: UnitScout, Owner: 0, HP: 3}}

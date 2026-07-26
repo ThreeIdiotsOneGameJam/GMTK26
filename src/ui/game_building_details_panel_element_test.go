@@ -116,7 +116,7 @@ func TestTileHoverLines(t *testing.T) {
 				"Resource: Coins + Gold",
 				"Territory: Faction 1",
 				"",
-				"Building: Mine - Coin x 2, Gold x 1",
+				"Building: Mine - Coin x 1, Gold x 1",
 				"Unit: Knight - Faction 2",
 			},
 		},

@@ -28,9 +28,9 @@ type GameInstance struct {
 	actions        map[int]*submittedAction
 	movementOrders map[int][]game.MovementOrder
 	attackOrders   map[int][]game.AttackOrder
-	// movementPriorities records routes assigned this round so they receive
+	// routePriorities records routes assigned this round so they receive
 	// their promised first advancement before the regular round-robin queue.
-	movementPriorities map[int]game.Hex
+	routePriorities    map[int]game.Hex
 	actionResults      map[int]*game.ActionResult
 	movementEvents     []game.MovementEvent
 	attackEvents       []game.AttackEvent
@@ -61,7 +61,7 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 		actions:            make(map[int]*submittedAction),
 		movementOrders:     make(map[int][]game.MovementOrder),
 		attackOrders:       make(map[int][]game.AttackOrder),
-		movementPriorities: make(map[int]game.Hex),
+		routePriorities:    make(map[int]game.Hex),
 		actionResults:      make(map[int]*game.ActionResult),
 		attackEvents:       nil,
 		aiControllers:      make(map[int]gameai.Planner),
@@ -144,7 +144,7 @@ func (gi *GameInstance) setMovementOrderLocked(
 		Current:     move.From,
 		Destination: move.To,
 	})
-	gi.movementPriorities[factionIdx] = move.From
+	gi.routePriorities[factionIdx] = move.From
 	gi.attackOrders[factionIdx] = removeAttackOrder(gi.attackOrders[factionIdx], move.From)
 	return nil
 }
@@ -172,9 +172,7 @@ func (gi *GameInstance) setAttackOrderLocked(
 		gi.movementOrders[factionIdx],
 		attack.From,
 	)
-	if priority, ok := gi.movementPriorities[factionIdx]; ok && priority == attack.From {
-		delete(gi.movementPriorities, factionIdx)
-	}
+	gi.routePriorities[factionIdx] = attack.From
 	gi.attackOrders[factionIdx] = removeAttackOrder(
 		gi.attackOrders[factionIdx],
 		attack.From,
@@ -204,8 +202,8 @@ func (gi *GameInstance) CancelMovementOrder(c *Client, round int32, from game.He
 		gi.movementOrders[factionIdx],
 		from,
 	)
-	if priority, ok := gi.movementPriorities[factionIdx]; ok && priority == from {
-		delete(gi.movementPriorities, factionIdx)
+	if priority, ok := gi.routePriorities[factionIdx]; ok && priority == from {
+		delete(gi.routePriorities, factionIdx)
 	}
 	return nil
 }
@@ -650,7 +648,7 @@ func (gi *GameInstance) checkAlive() int {
 		delete(gi.actions, i)
 		delete(gi.movementOrders, i)
 		delete(gi.attackOrders, i)
-		delete(gi.movementPriorities, i)
+		delete(gi.routePriorities, i)
 		delete(gi.aiControllers, i)
 		delete(gi.aiTraces, i)
 	}

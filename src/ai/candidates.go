@@ -64,21 +64,14 @@ func generateCandidates(
 	})
 
 	existingAttacks := indexAttackOrders(own.AttackOrders)
+	// Tactical attacks are generated before economic actions so a large
+	// collection of Scouts cannot exhaust the candidate budget before an
+	// adjacent combat unit is considered.
 	for _, unit := range analysis.ownUnits {
 		if len(candidates) >= limit {
 			break
 		}
 		if unit.Data.Type == game.UnitScout {
-			generateBuildCandidates(
-				world,
-				analysis,
-				goal,
-				personality,
-				recent,
-				unit,
-				routeValue,
-				add,
-			)
 			continue
 		}
 		generateAttackCandidates(
@@ -89,6 +82,25 @@ func generateCandidates(
 			recent,
 			unit,
 			existingAttacks,
+			routeValue,
+			add,
+		)
+	}
+
+	for _, unit := range analysis.ownUnits {
+		if len(candidates) >= limit {
+			break
+		}
+		if unit.Data.Type != game.UnitScout {
+			continue
+		}
+		generateBuildCandidates(
+			world,
+			analysis,
+			goal,
+			personality,
+			recent,
+			unit,
 			routeValue,
 			add,
 		)

@@ -42,7 +42,7 @@ func (gi *GameInstance) activateAITakeoversLocked() {
 		faction := &gi.game.Factions[factionIdx]
 		faction.AI = true
 		delete(gi.actions, factionIdx)
-		delete(gi.movementPriorities, factionIdx)
+		delete(gi.routePriorities, factionIdx)
 		if faction.Alive {
 			gi.aiControllers[factionIdx] = gameai.NewController(
 				gi.game.Map.Seed,
@@ -167,7 +167,7 @@ func (gi *GameInstance) applyAIPlanLocked(
 		}
 	}
 	if primary != nil {
-		gi.movementPriorities[factionIdx] = *primary
+		gi.routePriorities[factionIdx] = *primary
 	}
 
 	delete(gi.actions, factionIdx)

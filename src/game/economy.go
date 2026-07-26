@@ -213,7 +213,7 @@ func BuildingCoinsProduces(b BuildingType, tile TileType) int32 {
 		return 5
 	}
 	if b == BuildingMine && tile == TileGold {
-		return 2
+		return 1
 	}
 	return 0
 }
@@ -223,4 +223,29 @@ func BuildingConsumes(b BuildingType) Resources {
 		return Resources{ResourceGold: 5}
 	}
 	return make(Resources)
+}
+
+// SpendFunds atomically deducts an action cost. It returns false without
+// mutating the faction when any part of the cost is unavailable.
+func SpendFunds(
+	faction *Faction,
+	coinCost int32,
+	resourceCost Resources,
+) bool {
+	if faction == nil || coinCost < 0 || faction.Coins < coinCost {
+		return false
+	}
+	for resource, amount := range resourceCost {
+		if faction.Resources[resource] < amount {
+			return false
+		}
+	}
+	if faction.Resources == nil {
+		faction.Resources = make(Resources)
+	}
+	faction.Coins -= coinCost
+	for resource, amount := range resourceCost {
+		faction.Resources[resource] -= amount
+	}
+	return true
 }

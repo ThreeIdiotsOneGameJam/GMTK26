@@ -15,8 +15,8 @@ func TestFactionRoundIncome(t *testing.T) {
 
 	coins, resources := FactionRoundIncome(&m, 0)
 
-	if coins != 3 {
-		t.Fatalf("coins = %d, want 3", coins)
+	if coins != 2 {
+		t.Fatalf("coins = %d, want 2", coins)
 	}
 	if resources[ResourceFood] != 1 || resources[ResourceWood] != 1 {
 		t.Fatalf("resources = %v, want Food 1 and Wood 1", resources)
@@ -66,8 +66,8 @@ func TestResolveFactionRoundIncomeProductionCanFundBankSameRound(t *testing.T) {
 		0,
 		Resources{ResourceGold: 4},
 	)
-	if coins != 7 {
-		t.Fatalf("Gold Mine plus funded Bank coins = %d, want 7", coins)
+	if coins != 6 {
+		t.Fatalf("Gold Mine plus funded Bank coins = %d, want 6", coins)
 	}
 	if resources[ResourceGold] != 0 {
 		t.Fatalf("same-round produced Gold was not consumed: %v", resources)

@@ -125,6 +125,79 @@ func TestAdjacentThreatProducesManualAttack(t *testing.T) {
 	}
 }
 
+func TestAdjacentAttackCannotBeStarvedByScoutCandidates(t *testing.T) {
+	g := aiTestGame(8, 2)
+	addTownhall(g, 0, game.NewHex(0, 0))
+	addTownhall(g, 1, game.NewHex(7, 1))
+	for _, position := range []game.Hex{
+		game.NewHex(0, 1),
+		game.NewHex(1, 0),
+		game.NewHex(1, 1),
+		game.NewHex(2, 0),
+		game.NewHex(2, 1),
+	} {
+		g.Map.GetCell(position).Units = []game.UnitData{{
+			Type: game.UnitScout, Owner: 0, HP: 3,
+		}}
+	}
+	g.Map.GetCell(game.NewHex(5, 0)).Units = []game.UnitData{{
+		Type: game.UnitKnight, Owner: 0, HP: 8,
+	}}
+	g.Map.GetCell(game.NewHex(6, 0)).Units = []game.UnitData{{
+		Type: game.UnitPeasant, Owner: 1, HP: 5,
+	}}
+	config := StandardConfig()
+	config.MaxCandidates = 3
+	plan := NewController(g.Map.Seed, 0, config).Plan(
+		ptrSnapshot(NewWorldSnapshot(g, nil, nil)),
+		OwnState{Owner: 0},
+	)
+
+	if plan.Manual == nil ||
+		plan.Manual.Type != game.ActionAttack ||
+		plan.Manual.Attack == nil ||
+		plan.Manual.Attack.From != game.NewHex(5, 0) {
+		t.Fatalf("candidate-limited plan = %+v, want adjacent Knight attack", plan)
+	}
+}
+
+func TestCombatCadenceRepaysArmyAdvanceDebt(t *testing.T) {
+	g := aiTestGame(7, 1)
+	addTownhall(g, 0, game.NewHex(0, 0))
+	addTownhall(g, 1, game.NewHex(6, 0))
+	g.Map.GetCell(game.NewHex(1, 0)).Units = []game.UnitData{{
+		Type: game.UnitKnight, Owner: 0, HP: 8,
+	}}
+	snapshot := NewWorldSnapshot(g, nil, nil)
+	controller := NewController(g.Map.Seed, 0, StandardConfig())
+	controller.combatAdvanceDebt = 2
+	own := OwnState{
+		Owner: 0,
+		AttackOrders: []game.AttackOrder{{
+			From:       game.NewHex(1, 0),
+			TargetTile: game.NewHex(6, 0),
+		}},
+	}
+
+	for wantDebt := 1; wantDebt >= 0; wantDebt-- {
+		plan := controller.Plan(&snapshot, own)
+		if plan.Manual != nil || plan.Trace.Choice != "Advance best route" {
+			t.Fatalf("combat debt plan = %+v, want route advancement", plan)
+		}
+		if controller.combatAdvanceDebt != wantDebt {
+			t.Fatalf(
+				"combatAdvanceDebt = %d, want %d",
+				controller.combatAdvanceDebt,
+				wantDebt,
+			)
+		}
+	}
+}
+
+func ptrSnapshot(snapshot WorldSnapshot) *WorldSnapshot {
+	return &snapshot
+}
+
 func TestDistantEnemyProducesBoundedAttackRoute(t *testing.T) {
 	g := aiTestGame(7, 1)
 	addTownhall(g, 0, game.NewHex(0, 0))

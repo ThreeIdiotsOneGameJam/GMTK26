@@ -102,7 +102,7 @@ func (gi *GameInstance) processClientActions() {
 		gi.applyIntent(intent)
 		gi.recordResult(intent)
 	}
-	gi.movementPriorities = make(map[int]game.Hex)
+	gi.routePriorities = make(map[int]game.Hex)
 }
 
 func hasEnemies(cell *game.Cell, factionOwner int8) bool {
@@ -200,6 +200,20 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 
 	// Phase 3: build combined candidate list from attack + movement orders
 	allAttacks := gi.attackOrders[factionIdx]
+	priority, hasPriority := gi.routePriorities[factionIdx]
+	priorityAttack := false
+	if hasPriority {
+		for i, order := range allAttacks {
+			if order.From != priority {
+				continue
+			}
+			prioritized := order
+			copy(allAttacks[1:i+1], allAttacks[0:i])
+			allAttacks[0] = prioritized
+			priorityAttack = true
+			break
+		}
+	}
 	var remainingAttacks []game.AttackOrder
 	var attackCands, moveCands []moveCandidate
 
@@ -224,7 +238,8 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 	gi.attackOrders[factionIdx] = remainingAttacks
 
 	movementOrders := gi.movementOrders[factionIdx]
-	if priority, ok := gi.movementPriorities[factionIdx]; ok {
+	priorityMove := false
+	if hasPriority {
 		for i, order := range movementOrders {
 			if order.Current != priority {
 				continue
@@ -232,6 +247,7 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 			prioritized := order
 			copy(movementOrders[1:i+1], movementOrders[0:i])
 			movementOrders[0] = prioritized
+			priorityMove = true
 			break
 		}
 	}
@@ -254,7 +270,11 @@ func (gi *GameInstance) planAutomaticMovement(factionIdx int) *roundIntent {
 
 	// Interleave round-robin: alternate which type goes first each round
 	var candidates []moveCandidate
-	if gi.game.Round%2 == 0 {
+	if priorityAttack {
+		candidates = append(attackCands, moveCands...)
+	} else if priorityMove {
+		candidates = append(moveCands, attackCands...)
+	} else if gi.game.Round%2 == 0 {
 		candidates = append(moveCands, attackCands...)
 	} else {
 		candidates = append(attackCands, moveCands...)
@@ -360,18 +380,20 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 
 	case game.ActionRecruit:
 		target := m.GetCell(intent.to)
-		faction.Coins -= intent.cost
-		for res, amt := range intent.resourceCost {
-			faction.Resources[res] -= amt
+		if !game.SpendFunds(faction, intent.cost, intent.resourceCost) {
+			intent.result.Status = game.ActionResultInvalid
+			intent.result.Message = "Action cancelled: funds changed during resolution"
+			return
 		}
 		stats := game.GetUnitStats(intent.unit)
 		target.Units = []game.UnitData{{Type: intent.unit, Owner: owner, HP: stats.MaxHP}}
 
 	case game.ActionBuild:
 		target := m.GetCell(intent.to)
-		faction.Coins -= intent.cost
-		for res, amt := range intent.resourceCost {
-			faction.Resources[res] -= amt
+		if !game.SpendFunds(faction, intent.cost, intent.resourceCost) {
+			intent.result.Status = game.ActionResultInvalid
+			intent.result.Message = "Action cancelled: funds changed during resolution"
+			return
 		}
 		target.Owner = owner
 		maxHP := game.BuildingMaxHP(intent.building)

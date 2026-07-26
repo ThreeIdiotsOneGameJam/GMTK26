@@ -109,6 +109,20 @@ func planRoutes(
 			hasTarget,
 			config,
 		) {
+			if order, ok := attacks[unit.Position]; ok &&
+				!game.HexAdjacent(order.From, order.TargetTile) {
+				proposals = append(proposals, routeProposal{
+					command: OrderCommand{
+						Kind: OrderAttack,
+						From: order.From,
+						To:   order.TargetTile,
+					},
+					utility: max(
+						0.55,
+						targetUtilityAt(analysis.targets, order.TargetTile),
+					),
+				})
+			}
 			if order, ok := moves[unit.Position]; ok {
 				reserved[order.Destination] = true
 			}
@@ -144,6 +158,9 @@ func planRoutes(
 	}
 
 	sort.SliceStable(proposals, func(i, j int) bool {
+		if proposals[i].command.Kind != proposals[j].command.Kind {
+			return proposals[i].command.Kind == OrderAttack
+		}
 		if proposals[i].utility == proposals[j].utility {
 			if proposals[i].command.From.X == proposals[j].command.From.X {
 				return proposals[i].command.From.Y < proposals[j].command.From.Y

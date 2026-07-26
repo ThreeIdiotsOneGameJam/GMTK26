@@ -26,6 +26,10 @@ type Controller struct {
 	previousOwned map[game.Hex]bool
 	cooldowns     map[game.Hex]int32
 	recentActions []string
+
+	// combatAdvanceDebt reserves future action-free rounds after development
+	// so building and recruitment cannot indefinitely freeze an active army.
+	combatAdvanceDebt int
 }
 
 func NewController(mapSeed int64, owner int8, config Config) *Controller {
@@ -116,14 +120,28 @@ func (controller *Controller) Plan(world *WorldSnapshot, own OwnState) Plan {
 		controller.recentActions,
 		controller.config.MaxCandidates,
 	)
+	selectionCandidates := candidates
+	hasCombatRoute := hasNonAdjacentCombatRoute(own, orders)
+	if attacks := immediateAttackCandidates(candidates); len(attacks) > 0 {
+		selectionCandidates = attacks
+	} else if controller.combatAdvanceDebt > 0 && hasCombatRoute {
+		if advances := advanceCandidates(candidates); len(advances) > 0 {
+			selectionCandidates = advances
+		}
+	}
 	choice, alternatives := chooseCandidate(
-		candidates,
+		selectionCandidates,
 		uint64(controller.mapSeed)^
 			uint64(uint8(controller.owner)+1)<<48^
 			uint64(world.Round)<<16^
 			uint64(controller.decisionCount),
 		controller.config.ChoiceBand,
 		controller.config.ChoiceTemperature,
+	)
+	controller.updateCombatCadence(
+		choice,
+		hasCombatRoute,
+		len(analysis.ownUnits)-analysis.unitCounts[game.UnitScout],
 	)
 	orders = filterOrdersForManual(orders, choice.manual)
 
@@ -158,6 +176,69 @@ func (controller *Controller) Plan(world *WorldSnapshot, own OwnState) Plan {
 		Manual: choice.manual,
 		Orders: orders,
 		Trace:  trace,
+	}
+}
+
+func immediateAttackCandidates(candidates []candidate) []candidate {
+	attacks := make([]candidate, 0)
+	for _, item := range candidates {
+		if item.manual != nil && item.manual.Type == game.ActionAttack {
+			attacks = append(attacks, item)
+		}
+	}
+	return attacks
+}
+
+func advanceCandidates(candidates []candidate) []candidate {
+	for _, item := range candidates {
+		if item.key == "advance" && item.manual == nil {
+			return []candidate{item}
+		}
+	}
+	return nil
+}
+
+func hasNonAdjacentCombatRoute(own OwnState, commands []OrderCommand) bool {
+	for _, order := range own.AttackOrders {
+		if !game.HexAdjacent(order.From, order.TargetTile) {
+			return true
+		}
+	}
+	for _, command := range commands {
+		if command.Kind == OrderAttack &&
+			!game.HexAdjacent(command.From, command.To) {
+			return true
+		}
+	}
+	return false
+}
+
+func (controller *Controller) updateCombatCadence(
+	choice candidate,
+	hasCombatRoute bool,
+	combatUnits int,
+) {
+	if !hasCombatRoute {
+		controller.combatAdvanceDebt = 0
+		return
+	}
+	if choice.manual == nil {
+		if controller.combatAdvanceDebt > 0 {
+			controller.combatAdvanceDebt--
+		}
+		return
+	}
+	switch choice.manual.Type {
+	case game.ActionBuild, game.ActionRecruit:
+		required := min(3, max(1, (combatUnits+2)/3))
+		controller.combatAdvanceDebt = max(
+			controller.combatAdvanceDebt,
+			required,
+		)
+	case game.ActionAttack:
+		if controller.combatAdvanceDebt > 0 {
+			controller.combatAdvanceDebt--
+		}
 	}
 }
 

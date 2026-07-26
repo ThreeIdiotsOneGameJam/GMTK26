@@ -58,7 +58,7 @@ type worldAnalysis struct {
 	owner           int8
 	faction         game.Faction
 	funds           game.Funds
-	incomeCoins     int32
+	forecast        game.Funds
 	income          game.Resources
 	progress        float64
 	remainingRounds int32
@@ -108,13 +108,18 @@ func analyzeWorld(
 			Alive:     faction.Alive,
 		}
 		analysis.funds = game.ProjectedRoundFunds(&snapshot.Map, own.Owner, analysis.faction)
+		horizon := min(
+			max(forecastRounds, int32(1)),
+			max(analysis.remainingRounds, int32(1)),
+		)
+		analysis.forecast = game.ProjectedFundsAfterRounds(
+			&snapshot.Map,
+			own.Owner,
+			analysis.faction,
+			horizon,
+		)
 	}
 	_, analysis.income = game.FactionRoundIncome(&snapshot.Map, own.Owner)
-	analysis.incomeCoins, _ = game.ResolveFactionRoundIncome(
-		&snapshot.Map,
-		own.Owner,
-		analysis.faction.Resources,
-	)
 
 	powers := [4]float64{}
 	for x := range snapshot.Map.Grid {
@@ -176,7 +181,7 @@ func analyzeWorld(
 
 	analysis.calculateScoreSignals(snapshot)
 	analysis.calculateThreatSignals(memory)
-	analysis.calculateResourceNeed(forecastRounds)
+	analysis.calculateResourceNeed()
 	analysis.collectSites(snapshot)
 	analysis.collectTargets(snapshot, memory)
 	analysis.calculateRouteValue(own)
@@ -252,8 +257,7 @@ func (analysis *worldAnalysis) calculateThreatSignals(memory [4]opponentMemory) 
 	}
 }
 
-func (analysis *worldAnalysis) calculateResourceNeed(forecastRounds int32) {
-	horizon := min(max(forecastRounds, 1), max(analysis.remainingRounds, 1))
+func (analysis *worldAnalysis) calculateResourceNeed() {
 	militaryDemand := 0.35 + 0.65*math.Max(
 		analysis.signals.militaryGap,
 		analysis.signals.scorePressure,
@@ -274,8 +278,7 @@ func (analysis *worldAnalysis) calculateResourceNeed(forecastRounds int32) {
 		desired[game.ResourceStone] += 4
 	}
 	for resource, amount := range desired {
-		projected := float64(analysis.funds.Resources[resource]) +
-			float64(analysis.income[resource])*float64(horizon)
+		projected := float64(analysis.forecast.Resources[resource])
 		if amount > 0 {
 			analysis.resourceNeed[resource] = clamp01((amount - projected) / amount)
 		}
@@ -288,7 +291,7 @@ func (analysis *worldAnalysis) calculateResourceNeed(forecastRounds int32) {
 	if hasBarracks {
 		desiredCoins = float64(game.UnitCost(game.UnitArcher))
 	}
-	projectedCoins := float64(analysis.funds.Coins + analysis.incomeCoins*horizon)
+	projectedCoins := float64(analysis.forecast.Coins)
 	coinNeed := clamp01((desiredCoins - projectedCoins) / max(desiredCoins, 1))
 	analysis.resourceNeed[game.ResourceGold] = coinNeed
 	analysis.signals.productionGap = math.Max(analysis.signals.productionGap, coinNeed)
@@ -381,9 +384,7 @@ func (analysis *worldAnalysis) siteScore(
 			need *= 0.45
 		}
 	case game.BuildingBank:
-		horizon := uint32(min(max(analysis.remainingRounds, 1), int32(6)))
-		availableGold := analysis.funds.Resources[game.ResourceGold] +
-			analysis.income[game.ResourceGold]*horizon
+		availableGold := analysis.forecast.Resources[game.ResourceGold]
 		need = analysis.resourceNeed[game.ResourceGold]
 		if availableGold >= game.BuildingConsumes(game.BuildingBank)[game.ResourceGold] {
 			need = math.Max(need, 0.55)
