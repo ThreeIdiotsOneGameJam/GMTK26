@@ -197,8 +197,10 @@ func main() {
 	defer rl.CloseWindow()
 	rl.SetWindowMinSize(768, 576)
 	icon := rl.LoadImage(global.AssetDir + "/textures/icon.png")
-	rl.SetWindowIcon(*icon)
-	defer rl.UnloadImage(icon)
+	if icon != nil {
+		rl.SetWindowIcon(*icon)
+		defer rl.UnloadImage(icon)
+	}
 
 	shaders.Load()
 	defer shaders.Unload()
