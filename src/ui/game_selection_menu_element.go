@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/render"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
@@ -129,10 +130,23 @@ func (el *GameSelectionMenuElement) update(deltaNano int64) {
 		return
 	}
 
+	el.updateOptions(cell)
+}
+
+func (el *GameSelectionMenuElement) updateOptions(cell *game.Cell) {
 	el.unitAvailable = cell.HasUnits()
+	if el.unitAvailable {
+		el.unitButton.Text = fmt.Sprintf("%s unit", cell.Units[0].Type)
+	} else {
+		el.unitButton.Text = "No unit"
+	}
+
 	el.buildingAvailable = cell.HasBuilding()
-	el.unitButton.Text = fmt.Sprintf("%s unit", cell.Units[0].Type)
-	el.buildingButton.Text = fmt.Sprintf("%s building", cell.BuildingType())
+	if el.buildingAvailable {
+		el.buildingButton.Text = fmt.Sprintf("%s building", cell.BuildingType())
+	} else {
+		el.buildingButton.Text = "No building"
+	}
 }
 
 func (el *GameSelectionMenuElement) draw() {}
