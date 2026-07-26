@@ -236,6 +236,7 @@ func applyServerRound(
 	serverCoins = coins
 	serverPoints = points
 	serverResources = resources
+	gameWorld.Renderer.LocalResources = resources
 	currentGame.Round = round
 	currentGame.Map = m
 	gameWorld.Map = m
@@ -882,6 +883,15 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithTextSize(20).
 						WithTextColor(rl.White).
 						WithRelativePos(vec.Vec2i{X: 0, Y: 144}),
+				).
+				AddChild(
+					ui.Text().
+						WithTextDynamic(func() string {
+							return fmt.Sprintf("Food: %d", serverResources[game.ResourceFood])
+						}).
+						WithTextSize(20).
+						WithTextColor(rl.White).
+						WithRelativePos(vec.Vec2i{X: 0, Y: 168}),
 				),
 		).
 		AddChild(

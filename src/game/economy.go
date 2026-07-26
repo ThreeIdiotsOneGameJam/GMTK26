@@ -31,7 +31,7 @@ func BuildingProduces(b BuildingType, tile TileType) map[ResourceType]uint32 {
 			return map[ResourceType]uint32{ResourceStone: 2}
 		}
 	case BuildingFarm:
-		return map[ResourceType]uint32{ResourceWood: 1}
+		return map[ResourceType]uint32{ResourceFood: 2}
 	default:
 		return nil
 	}
@@ -49,6 +49,19 @@ func UnitCost(t UnitType) int32 {
 		return 10
 	default:
 		return 0
+	}
+}
+
+func UnitResourceCost(t UnitType) Resources {
+	switch t {
+	case UnitPeasant:
+		return Resources{ResourceFood: 1}
+	case UnitArcher:
+		return Resources{ResourceFood: 3}
+	case UnitKnight:
+		return Resources{ResourceFood: 5}
+	default:
+		return nil
 	}
 }
 

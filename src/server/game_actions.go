@@ -114,6 +114,11 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if faction.Coins < intent.cost {
 			return intent.insufficientCoins()
 		}
+		for res, amt := range game.UnitResourceCost(intent.unit) {
+			if faction.Resources[res] < amt {
+				return intent.insufficientResources(res)
+			}
+		}
 		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = game.ActionResultSucceeded
@@ -269,6 +274,9 @@ func (gi *GameInstance) applyIntent(intent *roundIntent) {
 	case game.ActionRecruit:
 		target := m.GetCell(intent.to)
 		faction.Coins -= intent.cost
+		for res, amt := range game.UnitResourceCost(intent.unit) {
+			faction.Resources[res] -= amt
+		}
 		target.Unit = intent.unit
 		target.UnitOwner = owner
 
@@ -307,6 +315,12 @@ func (intent *roundIntent) invalid(message string) *roundIntent {
 func (intent *roundIntent) insufficientCoins() *roundIntent {
 	intent.result.Status = game.ActionResultInsufficientCoins
 	intent.result.Message = "Not enough coins"
+	return intent
+}
+
+func (intent *roundIntent) insufficientResources(res game.ResourceType) *roundIntent {
+	intent.result.Status = game.ActionResultInvalid
+	intent.result.Message = fmt.Sprintf("Not enough %s", res.String())
 	return intent
 }
 

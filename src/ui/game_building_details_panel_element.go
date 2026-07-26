@@ -73,8 +73,13 @@ func (el *GameBuildingDetailsPanelElement) update(deltaNano int64) {
 		my := int32(global.MousePosition.Y)
 		if mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h {
 			global.UIBlocksWorldInput = true
-			canAfford := gameNet.LocalGameState.GetCoins() >= game.UnitCost(btn.unit)
-			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
+		canAfford := gameNet.LocalGameState.GetCoins() >= game.UnitCost(btn.unit)
+		for res, amt := range game.UnitResourceCost(btn.unit) {
+			if gameNet.LocalGameState.Resources[res] < amt {
+				canAfford = false
+			}
+		}
+		if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && canAfford {
 				r.RecruitToPlace = btn.unit
 				r.BuildingToPlace = game.BuildingUnknown
 				r.ClearQueuedBuilding()
@@ -165,6 +170,11 @@ func (el *GameBuildingDetailsPanelElement) drawPanel() {
 	for _, btn := range lay.buttons {
 		cost := game.UnitCost(btn.unit)
 		canAfford := gameNet.LocalGameState.GetCoins() >= cost
+		for res, amt := range game.UnitResourceCost(btn.unit) {
+			if gameNet.LocalGameState.Resources[res] < amt {
+				canAfford = false
+			}
+		}
 		mx := int32(global.MousePosition.X)
 		my := int32(global.MousePosition.Y)
 		isHovered := mx >= btn.x && mx <= btn.x+btn.w && my >= btn.y && my <= btn.y+btn.h
@@ -214,9 +224,9 @@ func (el *GameBuildingDetailsPanelElement) computeLayout(cell *game.Cell) buildi
 			label string
 			t     game.UnitType
 		}{
-			{"Peasant 10c", game.UnitPeasant},
-			{"Archer 20c", game.UnitArcher},
-			{"Knight 30c", game.UnitKnight},
+			{"Peasant 10c 1f", game.UnitPeasant},
+			{"Archer 20c 3f", game.UnitArcher},
+			{"Knight 30c 5f", game.UnitKnight},
 			{"Scout 10c", game.UnitScout},
 		}
 		if cell.Building == game.BuildingTownhall {
@@ -274,7 +284,7 @@ func buildingProductionText(b game.BuildingType, tile game.TileType) string {
 	}
 
 	produces := game.BuildingProduces(b, tile)
-	resTypes := []game.ResourceType{game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
+	resTypes := []game.ResourceType{game.ResourceFood, game.ResourceWood, game.ResourceStone, game.ResourceCoal, game.ResourceIron, game.ResourceSteel, game.ResourceGold}
 	for _, resType := range resTypes {
 		amount := produces[resType]
 		if amount == 0 {

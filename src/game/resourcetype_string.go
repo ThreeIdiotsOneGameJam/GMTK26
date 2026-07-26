@@ -15,11 +15,12 @@ func _() {
 	_ = x[ResourceIron-4]
 	_ = x[ResourceSteel-5]
 	_ = x[ResourceGold-6]
+	_ = x[ResourceFood-7]
 }
 
-const _ResourceType_name = "UnknownWoodStoneCoalIronSteelGold"
+const _ResourceType_name = "UnknownWoodStoneCoalIronSteelGoldFood"
 
-var _ResourceType_index = [...]uint8{0, 7, 11, 16, 20, 24, 29, 33}
+var _ResourceType_index = [...]uint8{0, 7, 11, 16, 20, 24, 29, 33, 37}
 
 func (i ResourceType) String() string {
 	idx := int(i) - 0
