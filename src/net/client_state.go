@@ -8,15 +8,16 @@ import (
 )
 
 type localGameState struct {
-	mu         sync.RWMutex
-	InGame     bool
-	FactionIdx int
-	Round      int32
-	Deadline   int64
-	Map        game.Map
-	Coins      int32
-	Points     int32
-	Resources  game.Resources
+	mu          sync.RWMutex
+	InGame      bool
+	FactionIdx  int
+	Round       int32
+	Deadline    int64
+	GameEndTime int64
+	Map         game.Map
+	Coins       int32
+	Points      int32
+	Resources   game.Resources
 }
 
 var LocalGameState = &localGameState{}
@@ -28,6 +29,7 @@ func (s *localGameState) ApplyStartPacket(p *packets.S2CGameStartPacket) {
 	s.FactionIdx = p.FactionIdx
 	s.Round = p.Round
 	s.Deadline = p.Deadline
+	s.GameEndTime = p.GameEndTime
 	s.Map = p.Map
 	s.Coins = p.Coins
 	s.Points = p.Points
@@ -58,6 +60,7 @@ func (s *localGameState) Reset() {
 	s.FactionIdx = 0
 	s.Round = 0
 	s.Deadline = 0
+	s.GameEndTime = 0
 	s.Map = game.Map{}
 	s.Coins = 0
 	s.Points = 0

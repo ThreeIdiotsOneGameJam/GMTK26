@@ -6,13 +6,14 @@ import (
 )
 
 type S2CGameStartPacket struct {
-	FactionIdx int            `json:"faction_idx"`
-	Map        game.Map       `json:"map"`
-	Coins      int32          `json:"coins"`
-	Points     int32          `json:"points"`
-	Resources  game.Resources `json:"resources"`
-	Round      int32          `json:"round"`
-	Deadline   int64          `json:"deadline"`
+	FactionIdx  int            `json:"faction_idx"`
+	Map         game.Map       `json:"map"`
+	Coins       int32          `json:"coins"`
+	Points      int32          `json:"points"`
+	Resources   game.Resources `json:"resources"`
+	Round       int32          `json:"round"`
+	Deadline    int64          `json:"deadline"`
+	GameEndTime int64          `json:"game_end_time"`
 }
 
 func init() {
@@ -31,13 +32,14 @@ func (*S2CGameStartPacket) isS2C()                 {}
 
 func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	type startPayload struct {
-		FactionIdx *int            `json:"faction_idx"`
-		Map        *game.Map       `json:"map"`
-		Coins      *int32          `json:"coins"`
-		Points     *int32          `json:"points"`
-		Resources  *game.Resources `json:"resources"`
-		Round      *int32          `json:"round"`
-		Deadline   *int64          `json:"deadline"`
+		FactionIdx  *int            `json:"faction_idx"`
+		Map         *game.Map       `json:"map"`
+		Coins       *int32          `json:"coins"`
+		Points      *int32          `json:"points"`
+		Resources   *game.Resources `json:"resources"`
+		Round       *int32          `json:"round"`
+		Deadline    *int64          `json:"deadline"`
+		GameEndTime *int64          `json:"game_end_time"`
 	}
 	var payload startPayload
 	if err := jsonutil.DecodeStrict(data, &payload); err != nil {
@@ -64,6 +66,9 @@ func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	if payload.Deadline == nil {
 		return errMissingField("s2c_game_start", "deadline")
 	}
+	if payload.GameEndTime == nil {
+		return errMissingField("s2c_game_start", "game_end_time")
+	}
 
 	p.FactionIdx = *payload.FactionIdx
 	p.Map = *payload.Map
@@ -72,5 +77,6 @@ func (p *S2CGameStartPacket) UnmarshalJSON(data []byte) error {
 	p.Resources = *payload.Resources
 	p.Round = *payload.Round
 	p.Deadline = *payload.Deadline
+	p.GameEndTime = *payload.GameEndTime
 	return nil
 }
