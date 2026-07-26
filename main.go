@@ -41,6 +41,10 @@ func tick() {
 		global.DebugEnabled = !global.DebugEnabled
 	}
 
+	if rl.IsKeyPressed(rl.KeySpace) {
+		screens.HandleTownHallShortcut()
+	}
+
 	net.DrainEvents(handleServerPacket)
 }
 

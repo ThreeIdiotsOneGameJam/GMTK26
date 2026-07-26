@@ -555,6 +555,13 @@ func focusOnTownhall() {
 	tryFocusOnTownhall()
 }
 
+func HandleTownHallShortcut() {
+	if activeScreen != gameScreen || IsTransitioning() || IsEscScreenOpen() || !serverGameActive {
+		return
+	}
+	focusOnTownhall()
+}
+
 func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	gamePreviousScreen = previousScreen
 	// nil previousScreen → Leave Game creates a fresh main screen.
@@ -892,7 +899,7 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Button().
-				WithText("Focus").
+				WithText("Town Hall").
 				WithTextSize(18).
 				WithPadding(6).
 				WithOutlineWidth(2).
