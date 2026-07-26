@@ -21,6 +21,9 @@ func NewMainScreen() *ui.ScreenElement {
 			}
 			SetActiveScreen(NewPlayScreen(screen))
 		}),
+		uiutil.MenuAction("Controls", func() {
+			SetActiveScreen(NewControlsScreen(screen))
+		}),
 		uiutil.MenuAction("Settings", func() {
 			SetActiveScreen(NewSettingsScreen(screen))
 		}),
