@@ -12,10 +12,6 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 )
 
-type packetSender interface {
-	SendPacket(packets.Packet) error
-}
-
 type fatalPacketError struct {
 	err error
 }
@@ -44,7 +40,7 @@ type Client struct {
 	player     game.Player
 	persistent bool
 	ready      bool
-	sender     packetSender
+	sender     PacketSender
 	game       *GameInstance
 }
 
@@ -76,7 +72,7 @@ func (c *Client) GameInstance() *GameInstance {
 	return c.game
 }
 
-func NewClient(sender packetSender) *Client {
+func NewClient(sender PacketSender) *Client {
 	return &Client{sender: sender}
 }
 

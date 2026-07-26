@@ -51,6 +51,19 @@ func (s *localGameState) ApplyEndPacket() {
 	s.InGame = false
 }
 
+func (s *localGameState) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.InGame = false
+	s.FactionIdx = 0
+	s.Round = 0
+	s.Deadline = 0
+	s.Map = game.Map{}
+	s.Coins = 0
+	s.Points = 0
+	s.Resources = nil
+}
+
 func (s *localGameState) GetRound() int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

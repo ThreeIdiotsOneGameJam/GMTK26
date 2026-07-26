@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"strconv"
 
-	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -44,13 +43,16 @@ func OpenHostGameCreation(previousScreen *ui.ScreenElement) {
 }
 
 func RejectGameCreation(message string) {
+	if gameNet.LocalGameActive() {
+		gameNet.StopLocalGame()
+	}
 	creationSubmitting = false
 	creationError = message
 	SetPlayError(message)
 }
 
-func StartSoloWithDefaults() {
-	startSoloGame(rand.Int63())
+func StartSoloWithDefaults() error {
+	return startSoloGame(rand.Int63())
 }
 
 func HostGameWithDefaults() error {
@@ -302,7 +304,11 @@ func submitGameCreation() {
 	creationError = ""
 
 	if creationMode == gameCreationSolo {
-		startSoloGame(seed)
+		if err := startSoloGame(seed); err != nil {
+			creationError = err.Error()
+			return
+		}
+		creationSubmitting = true
 		return
 	}
 
@@ -313,22 +319,8 @@ func submitGameCreation() {
 	creationSubmitting = true
 }
 
-func startSoloGame(seed int64) {
-	player := *game.PlayerData
-	state := game.Game{
-		HostID:      player.ClientID,
-		Multiplayer: false,
-		MaxPlayers:  1,
-		Round:       1,
-		Map: game.Map{
-			Seed: seed,
-		},
-	}
-	state.Factions[0].Player = &player
-	for i := 1; i < len(state.Factions); i++ {
-		state.Factions[i].AI = true
-	}
-	EnterGame(state)
+func startSoloGame(seed int64) error {
+	return gameNet.StartLocalGame(seed)
 }
 
 func sendHostGame(public bool, maxPlayers uint8, seed int64) error {

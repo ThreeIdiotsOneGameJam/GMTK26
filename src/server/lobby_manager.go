@@ -66,8 +66,11 @@ func NewLobbyManager() *LobbyManager {
 }
 
 func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8, seed int64) (game.Game, error) {
-	if maxPlayers < 2 || maxPlayers > 4 {
-		return game.Game{}, fmt.Errorf("max players must be 2, 3, or 4")
+	if maxPlayers < 1 || maxPlayers > 4 {
+		return game.Game{}, fmt.Errorf("max players must be 1, 2, 3, or 4")
+	}
+	if maxPlayers == 1 {
+		public = false
 	}
 
 	player, identified := client.Player()
@@ -170,7 +173,7 @@ func (m *LobbyManager) JoinGame(client *Client, code string) (JoinOutcome, error
 }
 
 // StartGame hands a lobby over to the game loop. Only the host may start,
-// and at least two connected players are required. Clients are attached to
+// and multiplayer games require at least two connected players. Clients are attached to
 // the GameInstance before the lobby lock is released so a concurrent leave
 // cannot miss the handoff.
 func (m *LobbyManager) StartGame(client *Client) error {
@@ -199,7 +202,11 @@ func (m *LobbyManager) StartGame(client *Client) error {
 			playerCount++
 		}
 	}
-	if playerCount < 2 {
+	minPlayers := 1
+	if active.state.Multiplayer {
+		minPlayers = 2
+	}
+	if playerCount < minPlayers {
 		m.mu.Unlock()
 		return ErrNotEnoughPlayers
 	}

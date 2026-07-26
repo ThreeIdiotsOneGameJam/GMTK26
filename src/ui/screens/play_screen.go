@@ -278,7 +278,10 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithRelativePosDynamic(menuButtonPos(-100)).
 				WithClick(func() {
 					if ui.DebugQuickActionModifierHeld() {
-						StartSoloWithDefaults()
+						playError = ""
+						if err := StartSoloWithDefaults(); err != nil {
+							playError = err.Error()
+						}
 						return
 					}
 					OpenSoloGameCreation(screen)

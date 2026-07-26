@@ -31,7 +31,8 @@ var gamePreviousScreen *ui.ScreenElement
 // used to decide whether the local player hosts the current game.
 var localClientID game.ClientID
 
-// serverGameActive is true between S2CGameStartPacket and S2CGameEndPacket.
+// serverGameActive is true between S2CGameStartPacket and S2CGameEndPacket
+// for both remote multiplayer and the in-process solo server.
 var serverGameActive bool
 var serverRound int32
 var serverCoins int32
@@ -42,12 +43,13 @@ var gameOverMessage string
 var gameActionError string
 
 func init() {
-	// In a running multiplayer game, building placement goes through the
+	// In a running authoritative game, building placement goes through the
 	// server instead of mutating the local map; the next state broadcast
 	// carries the result.
 	gameWorld.Renderer.OnPlaceBuilding = func(hex game.Hex, building game.BuildingType) bool {
 		if !serverGameActive {
-			return false
+			return currentGame != nil &&
+				(currentGame.Multiplayer || gameNet.LocalGameActive())
 		}
 		if err := gameNet.SendBuildAction(serverRound, hex, building); err != nil {
 			fmt.Printf("failed to send build action: %v\n", err)
@@ -67,7 +69,7 @@ func isLocalHost() bool {
 // ApplyServerGameStart switches the pre-game session into the running game
 // using the authoritative state from the server.
 func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
-	if currentGame == nil || !currentGame.Multiplayer {
+	if currentGame == nil {
 		return
 	}
 	serverGameActive = true
@@ -108,7 +110,7 @@ func applyServerRound(round int32, deadline int64, m game.Map, coins, points int
 }
 
 func multiplayerStatusText() string {
-	if currentGame == nil || !currentGame.Multiplayer {
+	if currentGame == nil {
 		return ""
 	}
 	if gameOverMessage != "" {
@@ -123,6 +125,9 @@ func multiplayerStatusText() string {
 			serverPoints,
 			int(remaining.Seconds()),
 		)
+	}
+	if !currentGame.Multiplayer {
+		return "Starting solo game..."
 	}
 
 	players := 0
@@ -215,7 +220,9 @@ func LeaveCurrentGame() {
 	if currentGame == nil {
 		return
 	}
-	if currentGame.Multiplayer {
+	if gameNet.LocalGameActive() {
+		gameNet.StopLocalGame()
+	} else if currentGame.Multiplayer {
 		if err := gameNet.Send(&packets.C2SLeaveGamePacket{}); err != nil {
 			println("failed to leave game:", err.Error())
 		}
@@ -248,6 +255,7 @@ func clearCurrentGame() {
 	gameOverMessage = ""
 	gameActionError = ""
 	serverResources = nil
+	gameNet.LocalGameState.Reset()
 }
 
 func setBuildingClick(building game.BuildingType) func() {
