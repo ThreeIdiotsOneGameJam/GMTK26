@@ -126,7 +126,7 @@ func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
 		// Always draw crosshair on target tile
 		pos := r.HexToPixel(order.TargetTile.Vec2i)
 		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, color.RGBA{R: 220, G: 50, B: 50, A: 180})
-		rl.DrawCircleLinesV(rlvec.ToRL(pos), 14, color.RGBA{R: 220, G: 50, B: 50, A: 180})
+		rl.DrawCircleLines(int32(pos.X), int32(pos.Y), 14, color.RGBA{R: 220, G: 50, B: 50, A: 180})
 		rl.DrawLineEx(
 			rlvec.ToRL(pos.Add(vec.Vec2{X: -12, Y: -12})),
 			rlvec.ToRL(pos.Add(vec.Vec2{X: 12, Y: 12})),
