@@ -156,10 +156,13 @@ func (c *WSClient) connect(addrs []string) {
 				return
 			}
 
-			// coder/websocket dials through the browser WebSocket API on
-			// js/wasm; canceling c.ctx aborts an in-flight dial.
+			// Per-address timeout so unreachable hosts don't block
+			// fallback addresses for the default TCP timeout (20-30s).
+			dialCtx, dialCancel := context.WithTimeout(c.ctx, 5*time.Second)
+
 			url := fmt.Sprintf("%s://%s", constants.ClientWebSocketScheme, addr)
-			conn, _, err := websocket.Dial(c.ctx, url, nil)
+			conn, _, err := websocket.Dial(dialCtx, url, nil)
+			dialCancel()
 			if err != nil {
 				lastErr = err
 				continue
