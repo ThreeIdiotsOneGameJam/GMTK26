@@ -52,8 +52,13 @@ func (c *Client) JoinGame(gi *GameInstance) {
 
 func (c *Client) LeaveGame() {
 	c.mu.Lock()
+	gi := c.game
 	c.game = nil
 	c.mu.Unlock()
+
+	if gi != nil {
+		gi.clientLeft()
+	}
 }
 
 // LeaveGameInstance detaches the client only if it is still attached to the

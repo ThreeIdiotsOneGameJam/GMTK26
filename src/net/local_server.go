@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
@@ -59,8 +60,19 @@ func StopLocalGame() {
 }
 
 func stopLocalGame(resume bool) {
+	stopLocalTransport(nil, resume)
+}
+
+// stopLocalTransport stops the current local transport. If expected is
+// non-nil, cleanup only proceeds while it is still the active transport.
+// This prevents delayed terminal cleanup from affecting a newer local game.
+func stopLocalTransport(expected *localTransport, resume bool) {
 	localGame.Lock()
 	transport := localGame.transport
+	if expected != nil && transport != expected {
+		localGame.Unlock()
+		return
+	}
 	localGame.transport = nil
 	localGame.Unlock()
 
@@ -94,6 +106,7 @@ type localTransport struct {
 	closeOnce sync.Once
 	joinedMu  sync.RWMutex
 	joined    bool
+	terminal  atomic.Bool
 }
 
 func newLocalTransport() *localTransport {
@@ -120,10 +133,12 @@ func (t *localTransport) run() {
 			packet, err := packets.Deserialize(message)
 			if err != nil {
 				t.reportFailure(fmt.Errorf("decode local client packet: %w", err))
+				t.terminal.Store(true)
 				return
 			}
 			if err := t.session.HandlePacket(packet); err != nil {
 				t.reportFailure(err)
+				t.terminal.Store(true)
 				return
 			}
 		case <-t.stop:
@@ -269,6 +284,9 @@ func (t *localTransport) drainEvents(onPacket func(packets.S2CPacket)) {
 		default:
 			for _, packet := range events {
 				onPacket(packet)
+			}
+			if t.terminal.Load() {
+				stopLocalTransport(t, true)
 			}
 			return
 		}

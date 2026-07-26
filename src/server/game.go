@@ -24,6 +24,8 @@ type GameInstance struct {
 	clients        []*Client
 	factionClients map[*Client]int
 	actions        map[int]*submittedAction
+	clientsChanged chan struct{}
+	done           chan struct{}
 	mu             sync.RWMutex
 }
 
@@ -41,6 +43,8 @@ func NewGameInstance(id uint64, g *game.Game, clients []*Client) *GameInstance {
 		clients:        clients,
 		factionClients: factionClients,
 		actions:        make(map[int]*submittedAction),
+		clientsChanged: make(chan struct{}, 1),
+		done:           make(chan struct{}),
 	}
 }
 
@@ -82,6 +86,7 @@ func (gi *GameInstance) Run() {
 			}
 		}
 		GameInstances.RemoveGame(gi.ID)
+		close(gi.done)
 	}()
 
 	gi.game.Map.Generate()
@@ -148,9 +153,8 @@ func (gi *GameInstance) Run() {
 			gi.sendToClient(c, statePacket)
 		}
 
-		sleepDuration := time.Until(deadline)
-		if sleepDuration > 0 {
-			time.Sleep(sleepDuration)
+		if !gi.waitUntil(deadline) {
+			return
 		}
 
 		gi.processAutoActions()
@@ -247,6 +251,36 @@ func (gi *GameInstance) hasConnectedPlayers() bool {
 		}
 	}
 	return false
+}
+
+// clientLeft wakes the game loop so the final client departure terminates the
+// instance immediately instead of waiting for the current round deadline.
+func (gi *GameInstance) clientLeft() {
+	select {
+	case gi.clientsChanged <- struct{}{}:
+	default:
+	}
+}
+
+func (gi *GameInstance) waitUntil(deadline time.Time) bool {
+	delay := time.Until(deadline)
+	if delay <= 0 {
+		return gi.hasConnectedPlayers()
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			return gi.hasConnectedPlayers()
+		case <-gi.clientsChanged:
+			if !gi.hasConnectedPlayers() {
+				return false
+			}
+		}
+	}
 }
 
 func (gi *GameInstance) processAutoActions() {
