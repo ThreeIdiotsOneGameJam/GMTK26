@@ -460,7 +460,8 @@ func (m *LobbyManager) newGameCodeLocked() (string, error) {
 }
 
 func availableFaction(state game.Game) int {
-	for i := 0; i < int(state.MaxPlayers); i++ {
+	factionCount := min(int(state.MaxPlayers), len(state.Factions))
+	for i := range factionCount {
 		if !state.Factions[i].AI && state.Factions[i].Player == nil {
 			return i
 		}
