@@ -210,7 +210,6 @@ func (gi *GameInstance) planManualIntent(factionIdx int, action *submittedAction
 		if !hasEnemies(target, factionOwner) {
 			return intent.invalid("Target has no enemy units or buildings")
 		}
-		intent.targetsTile = true
 		intent.valid = true
 		intent.result.Status = game.ActionResultSucceeded
 		intent.result.Message = "Attack ordered"
