@@ -9,10 +9,10 @@ const (
 	ServerPort            uint16 = 58008
 	ServerBindHost               = "0.0.0.0"
 	DefaultServerHost            = "gmtk26.ndmh.xyz"
-	ClientWebSocketScheme        = "ws"
+	ClientWebSocketScheme        = "wss"
 )
 
-var FallbackServerHosts = []string{"132.145.12.10", "localhost"}
+var FallbackServerHosts = []string{"localhost"}
 
 const (
 	WindowWidth  int32 = 1200
