@@ -1,9 +1,3 @@
-# GMTK26
-
-gaylib
-
-## Development
-
 ### Setup Web
 
 1. Copy Golang wasm runtime (only needs to be copied once)
