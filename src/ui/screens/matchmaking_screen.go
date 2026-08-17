@@ -58,10 +58,8 @@ func clearMatchmaking() {
 func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	matchmakingPrevious = previousScreen
 
-	screen := ui.Screen().
-		WithBackgroundColor(uiutil.MenuScreenBackground).
+	screen := uiutil.MenuScreen().
 		WithEnter(HideEscScreen).
-		AddChild(uiutil.MenuBackdrop()).
 		AddChild(
 			ui.Group().WithUpdate(func(deltaNano int64) {
 				if !matchmakingActive {
@@ -74,14 +72,7 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}
 			}),
 		).
-		AddChild(
-			ui.Text().
-				WithText("Finding a Game").
-				WithTextSize(72).
-				WithTextColor(uiutil.MenuHeaderColor).
-				WithAnchors(anchor.Center, anchor.Top).
-				WithRelativePos(vec.Vec2i{X: 0, Y: 80}),
-		).
+		AddChild(uiutil.MenuTitle("Finding a Game", 72, 80)).
 		AddChild(
 			ui.Text().
 				WithTextDynamic(func() string {
@@ -126,7 +117,7 @@ func NewMatchmakingScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithRelativePos(vec.Vec2i{X: 0, Y: 120}).
 				WithClick(CancelMatchmaking),
 		).
-		AddChild(ui.Vignette()).
+		AddChild(uiutil.MenuVignette()).
 		WithBack(CancelMatchmaking)
 
 	matchmakingScreen = screen

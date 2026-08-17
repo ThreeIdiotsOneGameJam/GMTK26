@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
@@ -59,9 +60,11 @@ func (el *ScreenElement) Exit() {
 	if el.OnExit != nil {
 		el.OnExit()
 	}
+	clearFocusedInputWithin(el)
 }
 
 func (el *ScreenElement) Update(deltaNano int64) {
+	global.TooltipText = ""
 	// Front-to-back: later children are drawn on top, so they get input first
 	// and can set UIBlocksWorldInput before the world processes the click.
 	for i := len(el.Children) - 1; i >= 0; i-- {

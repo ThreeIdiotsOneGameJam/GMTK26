@@ -67,8 +67,6 @@ func (r *WorldRenderer) drawTileDetails(m *game.Map, visible []visibleTile) {
 		switch tile.tile {
 		case game.TileIron:
 			batch.Add(tile.position.X, tile.position.Y, size, lerpColor(rl.Brown, rl.White, 0.5))
-		case game.TileCoal:
-			batch.Add(tile.position.X, tile.position.Y, size, rl.Black)
 		case game.TileGold:
 			batch.Add(tile.position.X, tile.position.Y, size, rl.Gold)
 		}

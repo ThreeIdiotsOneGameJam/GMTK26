@@ -2,6 +2,7 @@ package audio
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 )
 
@@ -16,8 +17,8 @@ var ambience rl.Music
 func Init() {
 	rl.InitAudioDevice()
 
-	song = rl.LoadMusicStream("assets/audio/main_theme.ogg")
-	ambience = rl.LoadMusicStream("assets/audio/ambience.ogg")
+	song = rl.LoadMusicStream(global.AssetDir + "/audio/main_theme.ogg")
+	ambience = rl.LoadMusicStream(global.AssetDir + "/audio/ambience.ogg")
 }
 
 func Update() {

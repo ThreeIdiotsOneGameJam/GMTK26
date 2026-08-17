@@ -20,6 +20,10 @@ var UIBlocksWorldInput bool
 // so underlying interactive UI clears hover/click instead of freezing mid-state.
 var UIModalBlocksInput bool
 
+// TooltipText is set by hovered buttons and rendered in a post-draw pass so it
+// always appears on top of every other UI element.
+var TooltipText string
+
 var ViewportSize = vec.Vec2i{X: constants.ViewportWidth, Y: constants.ViewportHeight}
 
 var closeWindowRequested bool

@@ -11,6 +11,7 @@ const (
 	BuildingBarracks
 	BuildingFarm
 	BuildingTownhall
+	BuildingBank
 )
 
 func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
@@ -23,16 +24,16 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 	}
 
 	cell := m.GetCell(hex)
-	if cell.Building != BuildingUnknown {
+	if cell.HasBuilding() {
 		return false
 	}
 
 	switch building {
 	case BuildingMine:
-		return cell.Tile == TileRock || cell.Tile == TileIron || cell.Tile == TileCoal || cell.Tile == TileGold
+		return cell.Tile == TileRock || cell.Tile == TileIron || cell.Tile == TileGold
 	case BuildingForester:
 		return cell.Tile == TileForest || cell.Tile == TileJungle
-	case BuildingBarracks:
+	case BuildingBarracks, BuildingBank:
 		return cell.Tile == TilePlains
 	case BuildingFarm:
 		if cell.Tile != TilePlains {
@@ -51,4 +52,23 @@ func BuildingCanPlace(m *Map, building BuildingType, hex Hex) bool {
 	}
 
 	return false
+}
+
+func BuildingMaxHP(b BuildingType) int8 {
+	switch b {
+	case BuildingTownhall:
+		return 24
+	case BuildingBarracks:
+		return 16
+	case BuildingForester:
+		return 10
+	case BuildingMine:
+		return 12
+	case BuildingFarm:
+		return 10
+	case BuildingBank:
+		return 10
+	default:
+		return 0
+	}
 }

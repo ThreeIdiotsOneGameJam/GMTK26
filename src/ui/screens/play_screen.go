@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -15,24 +16,44 @@ import (
 )
 
 const (
-	gameCodeCharset     = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	gameCodeLength      = 6
-	joinPanelTransition = 220 * time.Millisecond
+	gameCodeCharset          = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	gameCodeLength           = 6
+	joinPanelTransition      = 220 * time.Millisecond
+	playErrorDisplayDuration = 3 * time.Second
 )
 
-var playGameCodeInput *ui.InputElement
-var playError string
+var (
+	playGameCodeInput      *ui.InputElement
+	playError              string
+	playErrorTimeRemaining time.Duration
+)
 
 func ClearGameCodeInput() {
 	if playGameCodeInput == nil {
 		return
 	}
-	playGameCodeInput.Text = ""
+	playGameCodeInput.SetText("")
 	playGameCodeInput.Blur()
 }
 
 func SetPlayError(message string) {
-	playError = message
+	playError = capitalizeSentence(message)
+	if playError == "" {
+		playErrorTimeRemaining = 0
+		return
+	}
+	playErrorTimeRemaining = playErrorDisplayDuration
+}
+
+func advancePlayError(delta time.Duration) {
+	if playError == "" {
+		return
+	}
+
+	playErrorTimeRemaining -= delta
+	if playErrorTimeRemaining <= 0 {
+		SetPlayError("")
+	}
 }
 
 func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
@@ -42,7 +63,6 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	var focusCodeInput bool
 
 	var codeInput *ui.InputElement
-	var joinCodeButton *ui.ButtonElement
 
 	multiplayerEnabled := func() bool {
 		return !settings.Current.Offline && gameNet.State() == gameNet.ConnectionConnected
@@ -66,9 +86,6 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		if codeInput != nil {
 			codeInput.Blur()
 		}
-		if joinCodeButton != nil {
-			joinCodeButton.Text = "Join with Game Code"
-		}
 	}
 
 	goBack := func() {
@@ -81,29 +98,40 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 
 	sendGameRequest := func(packet packets.C2SPacket) {
 		if err := gameNet.Send(packet); err != nil {
-			playError = err.Error()
+			SetPlayError(err.Error())
 			fmt.Printf("failed to send game request: %v\n", err)
 		}
 	}
 
 	joinGame := func(code string) {
-		playError = ""
+		SetPlayError("")
 		sendGameRequest(&packets.C2SJoinGamePacket{GameCode: code})
 	}
 
 	joinRandom := func() {
-		playError = ""
+		SetPlayError("")
 		EnterMatchmakingWaiting(screen)
 		if err := gameNet.Send(&packets.C2SJoinGamePacket{GameCode: ""}); err != nil {
 			clearMatchmaking()
-			playError = err.Error()
+			SetPlayError(err.Error())
 			SetActiveScreen(screen)
 			fmt.Printf("failed to start matchmaking: %v\n", err)
 		}
 	}
 
 	panelProgress := func() float32 {
-		return playSmoothstep(joinPanelProgress)
+		return ui.Smoothstep(joinPanelProgress)
+	}
+
+	joinPanelMessagePos := func(el *ui.TextElement) vec.Vec2i {
+		if joinPanelProgress > 0 {
+			progress := panelProgress()
+			return vec.Vec2i{Y: 244 + int32((1-progress)*16)}
+		}
+
+		return vec.Vec2i{
+			Y: el.Parent.Size().Y/2 - 104 - el.Size().Y/2,
+		}
 	}
 
 	menuButtonPos := func(openY int32) func(*ui.ButtonElement) vec.Vec2i {
@@ -119,6 +147,8 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	}
 
 	controller := ui.Group().WithUpdate(func(deltaNano int64) {
+		advancePlayError(time.Duration(deltaNano))
+
 		if !multiplayerEnabled() && joinPanelOpen {
 			joinPanelOpen = false
 			focusCodeInput = false
@@ -130,19 +160,11 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			target = 1
 		}
 
-		joinPanelProgress = playMoveTowards(
+		joinPanelProgress = ui.MoveTowards(
 			joinPanelProgress,
 			target,
 			float32(time.Duration(deltaNano))/float32(joinPanelTransition),
 		)
-
-		if joinCodeButton != nil {
-			if joinPanelOpen {
-				joinCodeButton.Text = "Cancel Game Code"
-			} else {
-				joinCodeButton.Text = "Join with Game Code"
-			}
-		}
 
 		if focusCodeInput && joinPanelProgress >= 0.98 && codeInput != nil {
 			codeInput.Focus()
@@ -151,7 +173,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	})
 
 	codeIsValid := func() bool {
-		return codeInput != nil && len([]rune(codeInput.Text)) == gameCodeLength
+		return codeInput != nil && len([]rune(codeInput.Value())) == gameCodeLength
 	}
 
 	codeInput = ui.Input().
@@ -211,7 +233,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			return opacity
 		}).
 		WithClick(func() {
-			joinGame(codeInput.Text)
+			joinGame(codeInput.Value())
 		})
 
 	codeHelp := ui.Text().
@@ -224,18 +246,21 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithTextSize(24).
 		WithTextColor(uiutil.MenuMutedColor).
 		WithAnchors(anchor.Center, anchor.Center).
-		WithRelativePosDynamic(func(el *ui.TextElement) vec.Vec2i {
-			progress := panelProgress()
-			return vec.Vec2i{X: 0, Y: 244 + int32((1-progress)*16)}
-		}).
+		WithRelativePosDynamic(joinPanelMessagePos).
 		WithVisibleDynamic(func(el *ui.TextElement) bool {
-			return joinPanelProgress > 0
+			return joinPanelProgress > 0 && playError == ""
 		}).
 		WithOpacityDynamic(func(el *ui.TextElement) float32 {
 			return panelProgress()
 		})
 
-	joinCodeButton = playMenuButton("Join with Game Code").
+	joinCodeButton := playMenuButton("Join with Game Code").
+		WithTextDynamic(func() string {
+			if joinPanelOpen {
+				return "Cancel Game Code"
+			}
+			return "Join with Game Code"
+		}).
 		WithRelativePosDynamic(menuButtonPos(116)).
 		WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 			return multiplayerEnabled()
@@ -249,9 +274,7 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			}
 		})
 
-	screen = ui.Screen().
-		WithBackgroundColor(uiutil.MenuScreenBackground).
-		AddChild(uiutil.MenuBackdrop()).
+	screen = uiutil.MenuScreen().
 		AddChild(controller).
 		AddChild(
 			ui.Text().
@@ -274,13 +297,38 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}),
 		).
 		AddChild(
+			ui.Input().
+				WithText(game.PlayerData.PlayerName).
+				WithDefaultText(game.PlayerData.PlayerName).
+				WithPlaceholderText("Your Name").
+				WithMaxTextLength(20).
+				WithTextSize(28).
+				WithPadding(8).
+				WithSize(vec.Vec2i{X: 440, Y: 48}).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePosDynamic(func(el *ui.InputElement) vec.Vec2i {
+					closedOffset := el.Parent.Size().Y / 12
+					progress := panelProgress()
+					return vec.Vec2i{
+						Y: -172 + int32(float32(closedOffset)*(1-progress)),
+					}
+				}).
+				WithCallback(func(text string) {
+					game.PlayerData.PlayerName = text
+					game.SavePlayerData()
+					if !settings.Current.Offline && gameNet.State() == gameNet.ConnectionConnected {
+						gameNet.Send(&packets.C2SUpdatePlayerNamePacket{PlayerName: text})
+					}
+				}),
+		).
+		AddChild(
 			playMenuButton("Play Solo").
 				WithRelativePosDynamic(menuButtonPos(-100)).
 				WithClick(func() {
 					if ui.DebugQuickActionModifierHeld() {
-						playError = ""
+						SetPlayError("")
 						if err := StartSoloWithDefaults(); err != nil {
-							playError = err.Error()
+							SetPlayError(err.Error())
 						}
 						return
 					}
@@ -295,9 +343,9 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}).
 				WithClick(func() {
 					if ui.DebugQuickActionModifierHeld() {
-						playError = ""
+						SetPlayError("")
 						if err := HostGameWithDefaults(); err != nil {
-							playError = err.Error()
+							SetPlayError(err.Error())
 						}
 						return
 					}
@@ -321,8 +369,8 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithTextDynamic(func() string { return playError }).
 				WithTextSize(22).
 				WithTextColor(ui.PaletteNegative).
-				WithAnchors(anchor.Bottom, anchor.Bottom).
-				WithRelativePos(vec.Vec2i{X: 0, Y: -104}).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePosDynamic(joinPanelMessagePos).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
 					return playError != ""
 				}),
@@ -349,10 +397,8 @@ func NewPlayScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}).
 				WithClick(gameNet.RetryConnection),
 		).
-		AddChild(backButton(goBack)).
-		AddChild(
-			ui.Vignette(),
-		).
+		AddChild(uiutil.BackButton(goBack)).
+		AddChild(uiutil.MenuVignette()).
 		WithBack(goBack).
 		WithExit(resetJoinPanel)
 
@@ -368,27 +414,4 @@ func playMenuButton(text string) *ui.ButtonElement {
 		WithOutlineWidth(4).
 		WithSize(vec.Vec2i{X: 440, Y: 58}).
 		WithAnchors(anchor.Center, anchor.Center)
-}
-
-func backButton(click func()) *ui.ButtonElement {
-	return ui.Button().
-		WithText("Back").
-		WithTextSize(40).
-		WithPadding(8).
-		WithOutlineWidth(4).
-		WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
-		WithRelativePos(vec.Vec2i{X: 20, Y: -20}).
-		WithClick(click)
-}
-
-func playMoveTowards(current, target, amount float32) float32 {
-	if current < target {
-		return min(current+amount, target)
-	}
-	return max(current-amount, target)
-}
-
-func playSmoothstep(value float32) float32 {
-	value = max(float32(0), min(value, float32(1)))
-	return value * value * (3 - 2*value)
 }

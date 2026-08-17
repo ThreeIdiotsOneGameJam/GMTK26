@@ -8,7 +8,9 @@ package net
 import (
 	"fmt"
 	"log"
+	stdnet "net"
 	"net/http"
+	"strconv"
 
 	"github.com/coder/websocket"
 	"github.com/threeidiotsonegamejam/gmtk26/src/server"
@@ -35,13 +37,13 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 	connection.wait()
 }
 
-func StartWebSocketServer(ip string, port uint16) {
+func StartWebSocketServer(host string, port uint16) {
 	http.HandleFunc("/", websocketHandler)
 
-	host := fmt.Sprintf("%s:%d", ip, port)
+	address := stdnet.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
 
-	fmt.Println("server listening on", host)
-	if err := http.ListenAndServe(host, nil); err != nil {
+	fmt.Println("server listening on", address)
+	if err := http.ListenAndServe(address, nil); err != nil {
 		log.Fatal(err)
 	}
 }

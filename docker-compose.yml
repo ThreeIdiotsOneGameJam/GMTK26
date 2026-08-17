@@ -1,0 +1,23 @@
+name: gmtk26
+
+services:
+  server:
+    image: ghcr.io/threeidiotsonegamejam/gmtk26:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "${SERVER_PORT:-58008}"
+    ports:
+      - "${SERVER_BIND_IP:-0.0.0.0}:${SERVER_PORT:-58008}:${SERVER_PORT:-58008}/tcp"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,exec,nosuid,nodev,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

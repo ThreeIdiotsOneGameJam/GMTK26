@@ -5,6 +5,7 @@ import (
 	"fmt"
 	// "math"
 	"os"
+
 	"strconv"
 	"time"
 
@@ -39,6 +40,10 @@ func tick() {
 
 	if global.DebugAvailable && rl.IsKeyPressed(rl.KeyF3) {
 		global.DebugEnabled = !global.DebugEnabled
+	}
+
+	if rl.IsKeyPressed(rl.KeySpace) {
+		screens.HandleTownHallShortcut()
 	}
 
 	net.DrainEvents(handleServerPacket)
@@ -191,11 +196,16 @@ func main() {
 	rl.InitWindow(constants.WindowWidth, constants.WindowHeight, constants.GameName)
 	defer rl.CloseWindow()
 	rl.SetWindowMinSize(768, 576)
+	icon := rl.LoadImage(global.AssetDir + "/textures/icon.png")
+	if icon != nil {
+		rl.SetWindowIcon(*icon)
+		defer rl.UnloadImage(icon)
+	}
 
 	shaders.Load()
 	defer shaders.Unload()
 
-	go net.Connect(constants.DefaultServerAddress())
+	go net.Connect(constants.DefaultServerAddrs()...)
 	defer net.Close()
 
 	rl.SetExitKey(rl.KeyNull)

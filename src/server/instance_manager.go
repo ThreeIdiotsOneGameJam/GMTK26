@@ -27,7 +27,7 @@ func (gm *instanceManager) Prepare(g *game.Game, clients []*Client) *GameInstanc
 	gm.games[g.GameID] = gi
 	gm.mu.Unlock()
 
-	for _, c := range clients {
+	for _, c := range gi.clients {
 		if c != nil {
 			c.JoinGame(gi)
 		}

@@ -1,6 +1,8 @@
 WEB_DIR := ./Raylib-Go-Wasm/index
 SERVER_BIN := ./server$(shell go env GOEXE)
 GOMOD := go.mod
+WINDOWS_RESOURCE := resource_windows_amd64.syso
+WINDOWS_WINDRES ?= x86_64-w64-mingw32-windres
 
 # The raylib fork is web-only; this enables/disables its replace directive.
 web_replace_on:
@@ -12,8 +14,12 @@ web_replace_off:
 .PHONY: run_desktop run_desktop_guest run_desktop_random build_desktop build_windows run_web build_web server run_server build_server kill_server run_local clean web_replace_on web_replace_off
 
 ## Windows (cross-compile) ##
-# Requires: mingw-w64 cross-compiler (e.g. x86_64-w64-mingw32-gcc)
-build_windows: web_replace_off
+# Requires: mingw-w64 cross-compiler and resource compiler.
+$(WINDOWS_RESOURCE): build/windows/icon.rc assets/textures/icon.ico
+	$(WINDOWS_WINDRES) -I. -O coff -F pe-x86-64 -i $< -o $@
+
+build_windows: web_replace_off $(WINDOWS_RESOURCE)
+	mkdir -p ./bin
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -ldflags="-H=windowsgui" -o ./bin/game.exe .
 
 ## Desktop (native) ##
@@ -68,4 +74,4 @@ run_local: build_desktop build_server
 	wait
 
 clean:
-	rm -rf ./bin $(SERVER_BIN) $(WEB_DIR)/main.wasm $(WEB_DIR)/wasm_exec.js
+	rm -rf ./bin $(SERVER_BIN) $(WEB_DIR)/main.wasm $(WEB_DIR)/wasm_exec.js $(WINDOWS_RESOURCE)

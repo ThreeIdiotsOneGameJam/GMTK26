@@ -1,11 +1,14 @@
 package screens
 
 import (
+	"strings"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 const (
@@ -103,6 +106,11 @@ func finishCanceledTransition() {
 }
 
 func Update(deltaNano int64) {
+	// Transitions intentionally pause screen updates, so clear transient hover
+	// state here as well as in Screen.Update.
+	global.TooltipText = ""
+	ui.BeginInputFrame()
+
 	if activeScreen == nil {
 		return
 	}
@@ -135,7 +143,7 @@ func Update(deltaNano int64) {
 		target = 0
 	}
 	step := min(time.Duration(deltaNano), screenCrossfadeMaxStep)
-	transitionProgress = moveTowards(
+	transitionProgress = ui.MoveTowards(
 		transitionProgress,
 		target,
 		float32(step)/float32(screenCrossfadeDuration),
@@ -168,6 +176,7 @@ func Draw() {
 
 	if pendingScreen == nil {
 		activeScreen.Draw()
+		drawTooltip()
 		return
 	}
 
@@ -176,6 +185,7 @@ func Draw() {
 	w := int32(rl.GetRenderWidth())
 	h := int32(rl.GetRenderHeight())
 	if w <= 0 || h <= 0 {
+		drawTooltip()
 		return
 	}
 	captured := ensureTransitionSource(w, h)
@@ -186,6 +196,7 @@ func Draw() {
 		if !transitionCanceling {
 			pendingScreen.Draw()
 		}
+		drawTooltip()
 		return
 	}
 
@@ -193,7 +204,7 @@ func Draw() {
 	// use their own render textures, which cannot be nested in raylib.
 	pendingScreen.Draw()
 
-	alpha := smoothstep(1 - transitionProgress)
+	alpha := ui.Smoothstep(1 - transitionProgress)
 	opacity := uint8(alpha * 255)
 	// Draw an explicitly premultiplied source. The default alpha blend also
 	// reduces framebuffer alpha during a fade, allowing browsers to composite
@@ -204,6 +215,56 @@ func Draw() {
 	rl.BeginBlendMode(rl.BlendAlphaPremultiply)
 	rl.DrawTexturePro(transitionSource, src, dst, rl.Vector2{}, 0, tint)
 	rl.EndBlendMode()
+
+	drawTooltip()
+}
+
+func drawTooltip() {
+	text := global.TooltipText
+	if text == "" {
+		return
+	}
+
+	lines := strings.Split(text, "\n")
+	textSize := int32(18)
+	lineH := textSize + 2
+	pad := int32(6)
+
+	textW := int32(0)
+	for _, line := range lines {
+		w := rl.MeasureText(line, textSize)
+		if w > textW {
+			textW = w
+		}
+	}
+	textH := int32(len(lines)) * lineH
+	bgW := textW + pad*2
+	bgH := textH + pad*2
+	position := tooltipPosition(
+		global.MousePosition.RoundToInt(),
+		vec.Vec2i{X: int32(rl.GetRenderWidth()), Y: int32(rl.GetRenderHeight())},
+		vec.Vec2i{X: bgW, Y: bgH},
+	)
+
+	rl.DrawRectangle(position.X, position.Y, bgW, bgH, util.ColorOpacity(rl.Black, 0.6))
+	for i, line := range lines {
+		rl.DrawText(line, position.X+pad, position.Y+pad+int32(i)*lineH, textSize, rl.White)
+	}
+}
+
+func tooltipPosition(mouse, viewport, tooltip vec.Vec2i) vec.Vec2i {
+	x := mouse.X - tooltip.X/2
+	y := mouse.Y - tooltip.Y - 10
+	if y < 0 {
+		y = mouse.Y + 10
+	}
+
+	maxX := max(int32(0), viewport.X-tooltip.X)
+	maxY := max(int32(0), viewport.Y-tooltip.Y)
+	return vec.Vec2i{
+		X: max(int32(0), min(x, maxX)),
+		Y: max(int32(0), min(y, maxY)),
+	}
 }
 
 func ensureTransitionSource(w, h int32) bool {
@@ -250,18 +311,6 @@ func Shutdown() {
 	gameWorld.Renderer.Unload()
 }
 
-func moveTowards(current, target, amount float32) float32 {
-	if current < target {
-		return min(current+amount, target)
-	}
-	return max(current-amount, target)
-}
-
-func smoothstep(value float32) float32 {
-	value = max(float32(0), min(value, float32(1)))
-	return value * value * (3 - 2*value)
-}
-
 func HandleEscape() {
 	if pendingScreen != nil {
 		if gameLeaveTransition {
@@ -285,6 +334,10 @@ func ToggleEscScreen() {
 	}
 	if escScreen.Visible() {
 		if escShowingSettings {
+			if escShowingCountdownSettings {
+				escShowingCountdownSettings = false
+				return
+			}
 			escShowingSettings = false
 			return
 		}

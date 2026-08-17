@@ -7,41 +7,71 @@ import (
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-// Pos and Size do not account for the outline, which is rendered outside this
+// Pos and Size do not account for the outline or shadow, which are rendered
+// outside the element's layout box.
+
+type ButtonStyle struct {
+	TextSize         int32
+	Padding          int32
+	OutlineWidth     int32
+	ForegroundColors ColorSet
+	BackgroundColors ColorSet
+	OutlineColors    ColorSet
+}
+
+var DefaultButtonStyle = ButtonStyle{
+	TextSize:     48,
+	Padding:      8,
+	OutlineWidth: 4,
+	ForegroundColors: ColorSet{
+		Default:  ptrColor(PaletteText),
+		Disabled: ptrColor(PaletteTextMuted),
+	},
+	BackgroundColors: ColorSet{
+		Default:  ptrColor(PaletteIndigo),
+		Hover:    ptrColor(PaletteIndigoHover),
+		Click:    ptrColor(PaletteIndigoPress),
+		Disabled: ptrColor(PaletteIndigoDim),
+	},
+	OutlineColors: ColorSet{
+		Default:  ptrColor(PaletteBorder),
+		Disabled: ptrColor(PaletteSurface),
+	},
+}
 
 func Button() *ButtonElement {
 	el := &ButtonElement{
-		Text:         "Button",
-		TextSize:     48,
-		Padding:      8,
-		OutlineWidth: 4,
-		ForegroundColors: ColorSet{
-			Default:  ptrColor(PaletteText),
-			Disabled: ptrColor(PaletteTextMuted),
-		},
-		BackgroundColors: ColorSet{
-			Default:  ptrColor(PaletteIndigo),
-			Hover:    ptrColor(PaletteIndigoHover),
-			Click:    ptrColor(PaletteIndigoPress),
-			Disabled: ptrColor(PaletteIndigoDim),
-		},
-		OutlineColors: ColorSet{
-			Default:  ptrColor(PaletteBorder),
-			Disabled: ptrColor(PaletteSurface),
-		},
+		Text: "Button",
 	}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
+	el.WithStyle(DefaultButtonStyle)
 
 	return el.WithSizeDynamic(func(el *ButtonElement) vec.Vec2i {
 		return vec.Vec2i{
-			X: rl.MeasureText(el.Text, el.TextSize) + el.Padding*2,
+			X: rl.MeasureText(el.text(), el.TextSize) + el.Padding*2,
 			Y: el.TextSize + el.Padding*2,
 		}
 	})
 }
 
+func (el *ButtonElement) WithStyle(style ButtonStyle) *ButtonElement {
+	el.TextSize = style.TextSize
+	el.Padding = style.Padding
+	el.OutlineWidth = style.OutlineWidth
+	el.ForegroundColors = style.ForegroundColors
+	el.BackgroundColors = style.BackgroundColors
+	el.OutlineColors = style.OutlineColors
+	return el
+}
+
 func (el *ButtonElement) WithText(text string) *ButtonElement {
 	el.Text = text
+	el.TextProvider = nil
+	return el
+}
+
+func (el *ButtonElement) WithTextDynamic(textProvider func() string) *ButtonElement {
+	el.TextProvider = textProvider
 	return el
 }
 
@@ -80,6 +110,11 @@ func (el *ButtonElement) WithClick(click func()) *ButtonElement {
 	return el
 }
 
+func (el *ButtonElement) WithTooltip(text string) *ButtonElement {
+	el.TooltipText = text
+	return el
+}
+
 func DebugQuickActionModifierHeld() bool {
 	return global.DebugAvailable && (rl.IsKeyDown(rl.KeyLeftShift) ||
 		rl.IsKeyDown(rl.KeyRightShift) ||
@@ -90,23 +125,34 @@ func DebugQuickActionModifierHeld() bool {
 }
 
 type ButtonElement struct {
-	BaseElement[*ButtonElement]
+	DropShadowElement[*ButtonElement]
 	Text                  string
+	TextProvider          func() string
 	TextSize              int32
 	Padding, OutlineWidth int32
 	ForegroundColors      ColorSet
 	BackgroundColors      ColorSet
 	OutlineColors         ColorSet
 	Click                 func()
+	TooltipText           string
 
 	x, y, cx, cy, w, h, textWidth int32
+	renderText                    string
 
 	hovered, hoveredPrevious bool
 	clicked, clickedPrevious bool
 }
 
+func (el *ButtonElement) text() string {
+	if el.TextProvider != nil {
+		return el.TextProvider()
+	}
+	return el.Text
+}
+
 func (el *ButtonElement) prepare() {
-	el.textWidth = rl.MeasureText(el.Text, el.TextSize)
+	el.renderText = el.text()
+	el.textWidth = rl.MeasureText(el.renderText, el.TextSize)
 
 	el.w, el.h = max(el.textWidth+el.Padding*2, el.Size().X), max(el.TextSize+el.Padding*2, el.Size().Y)
 
@@ -120,18 +166,21 @@ func (el *ButtonElement) update(deltaNano int64) {
 		el.clicked = false
 		el.hoveredPrevious = false
 		el.clickedPrevious = false
+		if (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).
+			containsStrict(mousePosition()) && el.TooltipText != "" {
+			global.TooltipText = el.TooltipText
+		}
 		return
 	}
 
-	mouseX, mouseY := int32(global.MousePosition.X), int32(global.MousePosition.Y)
-	el.hovered = mouseX > el.x &&
-		mouseX < el.x+el.w &&
-		mouseY > el.y &&
-		mouseY < el.y+el.h
+	el.hovered = (elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h}).
+		containsStrict(mousePosition())
 
 	if el.hovered {
-		global.MouseCursorState = rl.MouseCursorPointingHand
-		global.UIBlocksWorldInput = true
+		claimPointer(rl.MouseCursorPointingHand)
+		if el.TooltipText != "" {
+			global.TooltipText = el.TooltipText
+		}
 	}
 
 	// Click state machine: track clicked across frames (clickedPrevious -> clicked)
@@ -169,18 +218,7 @@ func (el *ButtonElement) update(deltaNano int64) {
 }
 
 func (el *ButtonElement) draw() {
-	btnWidthOuter, btnHeightOuter := el.w+el.OutlineWidth*2, el.h+el.OutlineWidth*2
-	btnStartXOuter, btnStartYOuter := el.x-el.OutlineWidth, el.y-el.OutlineWidth
-
-	state := StateDefault
-	switch {
-	case !el.Enabled():
-		state = StateDisabled
-	case el.clicked:
-		state = StateClick
-	case el.hovered:
-		state = StateHover
-	}
+	state := controlState(el.Enabled(), el.hovered, el.clicked)
 
 	oCol := el.OutlineColors.Color(state)
 	bgCol := el.BackgroundColors.Color(state)
@@ -189,9 +227,23 @@ func (el *ButtonElement) draw() {
 	opacity := el.Opacity()
 	outlineColor := util.ColorOpacity(*oCol, opacity)
 	backgroundColor := util.ColorOpacity(*bgCol, opacity)
-	foregroundColor := util.ColorOpacity(*fgCol, opacity)
 
-	rl.DrawRectangle(btnStartXOuter, btnStartYOuter, btnWidthOuter, btnHeightOuter, outlineColor)
-	rl.DrawRectangle(el.x, el.y, el.w, el.h, backgroundColor)
-	rl.DrawText(el.Text, el.cx-el.textWidth/2, el.cy-el.TextSize/2, el.TextSize, foregroundColor)
+	el.drawShadowedOutlinedRectangle(
+		elementRect{X: el.x, Y: el.y, Width: el.w, Height: el.h},
+		el.OutlineWidth,
+		outlineColor,
+		backgroundColor,
+		opacity,
+	)
+	drawTextWithShadow(
+		el.renderText,
+		el.cx-el.textWidth/2,
+		el.cy-el.TextSize/2,
+		el.TextSize,
+		*fgCol,
+		el.ShadowColor,
+		fontScaledShadowOffset(el.TextSize),
+		opacity,
+	)
+
 }

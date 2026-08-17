@@ -21,14 +21,11 @@ const (
 )
 
 var (
-	creationMode        = gameCreationSolo
-	creationMaxPlayers  = uint8(4)
-	creationPublic      = true
-	creationSubmitting  bool
-	creationError       string
-	creationSubmit      *ui.ButtonElement
-	creationVisibility  *ui.ButtonElement
-	creationPlayerCount [3]*ui.ButtonElement
+	creationMode       = gameCreationSolo
+	creationMaxPlayers = uint8(4)
+	creationPublic     = true
+	creationSubmitting bool
+	creationError      string
 )
 
 func OpenSoloGameCreation(previousScreen *ui.ScreenElement) {
@@ -43,6 +40,7 @@ func RejectGameCreation(message string) {
 	if gameNet.LocalGameActive() {
 		gameNet.StopLocalGame()
 	}
+	message = capitalizeSentence(message)
 	creationSubmitting = false
 	creationError = message
 	SetPlayError(message)
@@ -75,42 +73,22 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	}
 
 	controller := ui.Group().WithUpdate(func(deltaNano int64) {
-		if creationSubmit != nil {
-			switch {
-			case creationSubmitting:
-				creationSubmit.Text = "Creating..."
-			case hostMode():
-				creationSubmit.Text = "Create Game"
-			default:
-				creationSubmit.Text = "Start Solo Game"
-			}
-		}
-		if creationVisibility != nil {
-			if creationPublic {
-				creationVisibility.Text = "Visibility: Public"
-			} else {
-				creationVisibility.Text = "Visibility: Code Only"
-			}
-		}
-		for i, button := range creationPlayerCount {
-			count := uint8(i + 2)
-			if count == creationMaxPlayers {
-				button.Text = fmt.Sprintf("[%d]", count)
-			} else {
-				button.Text = strconv.Itoa(int(count))
-			}
-		}
-
 		if creationSubmitting && hostMode() && !hostConnected() {
 			creationSubmitting = false
 			creationError = "Connection lost before the game was created"
 		}
 	})
 
-	for i := range creationPlayerCount {
+	playerCountButtons := make([]ui.Element, 0, 3)
+	for i := range 3 {
 		count := uint8(i + 2)
-		creationPlayerCount[i] = ui.Button().
-			WithText(strconv.Itoa(int(count))).
+		playerCountButtons = append(playerCountButtons, ui.Button().
+			WithTextDynamic(func() string {
+				if count == creationMaxPlayers {
+					return fmt.Sprintf("[%d]", count)
+				}
+				return strconv.Itoa(int(count))
+			}).
 			WithTextSize(30).
 			WithPadding(8).
 			WithSize(vec.Vec2i{X: 100, Y: 52}).
@@ -125,11 +103,16 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			WithClick(func() {
 				creationMaxPlayers = count
 				creationError = ""
-			})
+			}))
 	}
 
-	creationVisibility = ui.Button().
-		WithText("Visibility: Public").
+	creationVisibility := ui.Button().
+		WithTextDynamic(func() string {
+			if creationPublic {
+				return "Visibility: Public"
+			}
+			return "Visibility: Code Only"
+		}).
 		WithTextSize(28).
 		WithPadding(8).
 		WithSize(vec.Vec2i{X: 360, Y: 52}).
@@ -146,8 +129,17 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			creationError = ""
 		})
 
-	creationSubmit = ui.Button().
-		WithText("Start Solo Game").
+	creationSubmit := ui.Button().
+		WithTextDynamic(func() string {
+			switch {
+			case creationSubmitting:
+				return "Creating..."
+			case hostMode():
+				return "Create Game"
+			default:
+				return "Start Solo Game"
+			}
+		}).
 		WithTextSize(34).
 		WithPadding(10).
 		WithOutlineWidth(4).
@@ -164,9 +156,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		}).
 		WithClick(submitGameCreation)
 
-	screen := ui.Screen().
-		WithBackgroundColor(uiutil.MenuScreenBackground).
-		AddChild(uiutil.MenuBackdrop()).
+	screen := uiutil.MenuScreen().
 		AddChild(controller).
 		AddChild(
 			ui.Text().
@@ -217,9 +207,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}),
 		)
 
-	for _, button := range creationPlayerCount {
-		screen.AddChild(button)
-	}
+	screen.AddChildren(playerCountButtons...)
 
 	goBack := func() {
 		if creationSubmitting {
@@ -243,11 +231,11 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				}),
 		).
 		AddChild(
-			backButton(goBack).WithEnabledDynamic(func(el *ui.ButtonElement) bool {
+			uiutil.BackButton(goBack).WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 				return !creationSubmitting
 			}),
 		).
-		AddChild(ui.Vignette()).
+		AddChild(uiutil.MenuVignette()).
 		WithBack(goBack)
 }
 
@@ -256,7 +244,7 @@ func submitGameCreation() {
 
 	if creationMode == gameCreationSolo {
 		if err := startSoloGame(); err != nil {
-			creationError = err.Error()
+			creationError = capitalizeSentence(err.Error())
 			return
 		}
 		creationSubmitting = true
@@ -264,7 +252,7 @@ func submitGameCreation() {
 	}
 
 	if err := sendHostGame(creationPublic, creationMaxPlayers); err != nil {
-		creationError = err.Error()
+		creationError = capitalizeSentence(err.Error())
 		return
 	}
 	creationSubmitting = true

@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
@@ -14,9 +15,11 @@ import (
 
 var escBlur *ui.BlurBackdropElement
 var escShowingSettings bool
+var escShowingCountdownSettings bool
 
 func HideEscScreen() {
 	escShowingSettings = false
+	escShowingCountdownSettings = false
 	if escScreen != nil {
 		escScreen.WithVisible(false)
 	}
@@ -27,6 +30,7 @@ func HideEscScreen() {
 
 func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	escShowingSettings = false
+	escShowingCountdownSettings = false
 
 	escBlur = ui.BlurBackdrop().
 		WithTint(color.RGBA{R: 100, G: 100, B: 100, A: 100}).
@@ -44,21 +48,33 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithVisibleDynamic(func(_ *ui.GroupElement) bool {
 			return !escShowingSettings
 		}).
-		AddChild(uiutil.MenuButton("Resume", menuStartY, HideEscScreen)).
-		AddChild(uiutil.MenuButton("Settings", menuStartY+btnStride, func() {
-			escShowingSettings = true
-		})).
-		AddChild(uiutil.MenuButton("Leave Game", menuStartY+btnStride*2, func() {
-			LeaveCurrentGame()
-			GoToPreviousScreen(previousScreen)
-		}))
+		AddChild(
+			ui.VStack(
+				btnStride-62,
+				uiutil.MenuAction("Resume", HideEscScreen),
+				uiutil.MenuAction("Settings", func() {
+					escShowingSettings = true
+					escShowingCountdownSettings = false
+				}),
+				uiutil.MenuAction("Leave Game", func() {
+					LeaveCurrentGame()
+					GoToPreviousScreen(previousScreen)
+				}),
+			).
+				WithAlignment(ui.StackCenter).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePos(vec.Vec2i{Y: menuStartY + btnStride}),
+		)
 
 	textShadow := color.RGBA{R: 0, G: 0, B: 0, A: 210}
+	menuPanel.
+		AddChild(newControlsSideColumn(0, textShadow)).
+		AddChild(newControlsSideColumn(1, textShadow))
 
 	settingsPanel := ui.Screen().
 		WithBackgroundColor(color.RGBA{}).
 		WithVisibleDynamic(func(_ *ui.ScreenElement) bool {
-			return escShowingSettings
+			return escShowingSettings && !escShowingCountdownSettings
 		}).
 		AddChild(
 			ui.Text().
@@ -67,13 +83,13 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithTextColor(uiutil.MenuHeaderColor).
 				WithTextShadow(textShadow, vec.Vec2i{X: 3, Y: 3}).
 				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{Y: -180}),
+				WithRelativePos(vec.Vec2i{Y: -230}),
 		)
 
 	const (
 		sliderWidth = 160
-		rowStartY   = -40
-		rowStrideY  = 68
+		rowStartY   = -130
+		rowStrideY  = 60
 	)
 
 	saveSettings := func() {
@@ -81,32 +97,92 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			fmt.Printf("failed to save settings: %v\n", err)
 		}
 	}
+	countdownPreview, preview := newCountdownSettingsPreview(func() bool {
+		return escShowingSettings && escShowingCountdownSettings
+	})
 
 	addVolumeRowStyled(settingsPanel, "Music", rowStartY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.MusicVolume },
 		func(v float32) { settings.Current.MusicVolume = v },
 		saveSettings,
 	)
-	addVolumeRowStyled(settingsPanel, "SFX", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
-		func() float32 { return settings.Current.SFXVolume },
-		func(v float32) { settings.Current.SFXVolume = v },
-		saveSettings,
-	)
-	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY*2, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addVolumeRowStyled(settingsPanel, "Ambience", rowStartY+rowStrideY, sliderWidth, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() float32 { return settings.Current.AmbienceVolume },
 		func(v float32) { settings.Current.AmbienceVolume = v },
 		saveSettings,
 	)
-	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*3, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+	addToggleRowStyled(settingsPanel, "Reduced Motion", rowStartY+rowStrideY*2, uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
 		func() bool { return settings.Current.ReducedMotion },
 		func(v bool) { settings.Current.ReducedMotion = v },
 		saveSettings,
 	)
-
+	addButtonRowStyled(
+		settingsPanel,
+		"Countdown Overlay",
+		"Configure",
+		rowStartY+rowStrideY*3,
+		uiutil.MenuHeaderColor,
+		&textShadow,
+		func() {
+			escShowingCountdownSettings = true
+		},
+	)
 	settingsPanel.AddChild(
-		uiutil.MenuButton("Back", 250, func() {
+		uiutil.MenuAction("Back", func() {
 			escShowingSettings = false
-		}),
+		}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{Y: 250}),
+	)
+
+	countdownPanel := ui.Screen().
+		WithBackgroundColor(color.RGBA{}).
+		WithVisibleDynamic(func(_ *ui.ScreenElement) bool {
+			return escShowingSettings && escShowingCountdownSettings
+		}).
+		AddChild(
+			ui.Text().
+				WithText("Countdown Overlay").
+				WithTextSize(64).
+				WithTextColor(uiutil.MenuHeaderColor).
+				WithTextShadow(textShadow, vec.Vec2i{X: 3, Y: 3}).
+				WithAnchors(anchor.Center, anchor.Center).
+				WithRelativePos(vec.Vec2i{Y: -230}),
+		)
+
+	addSliderRowStyled(countdownPanel, "Size", -100, sliderWidth,
+		uiutil.MenuHeaderColor, uiutil.MenuMutedColor, &textShadow,
+		func() float32 { return settings.Current.CountdownScale },
+		func(v float32) {
+			settings.Current.CountdownScale = v
+			preview.Play()
+		},
+		func() {
+			saveSettings()
+			preview.Restart()
+		},
+		settings.MinCountdownScale,
+		settings.MaxCountdownScale,
+		settings.DefaultCountdownScale,
+		func(v float32) string {
+			return fmt.Sprintf("%d%%", int(v*100+0.5))
+		},
+	)
+	addCountdownAnchorRowStyled(countdownPanel, "Position", 50,
+		uiutil.MenuHeaderColor, &textShadow,
+		func() settings.CountdownAnchor { return settings.Current.CountdownAnchor },
+		func(v settings.CountdownAnchor) {
+			settings.Current.CountdownAnchor = v
+			preview.Restart()
+		},
+		saveSettings,
+	)
+	countdownPanel.AddChild(
+		uiutil.MenuAction("Back", func() {
+			escShowingCountdownSettings = false
+		}).
+			WithAnchors(anchor.Center, anchor.Center).
+			WithRelativePos(vec.Vec2i{Y: 250}),
 	)
 
 	return ui.Screen().
@@ -114,5 +190,108 @@ func NewEscScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithVisible(false).
 		AddChild(escBlur).
 		AddChild(menuPanel).
-		AddChild(settingsPanel)
+		AddChild(settingsPanel).
+		AddChild(countdownPanel).
+		AddChild(countdownPreview)
+}
+
+func newControlsSideColumn(columnIndex int, textShadow color.RGBA) *ui.GroupElement {
+	column := ui.Group().
+		WithSizeDynamic(func(*ui.GroupElement) vec.Vec2i {
+			inline := escControlsInline(columnIndex, int32(rl.GetRenderWidth()))
+			rowStride := int32(46)
+			if inline {
+				rowStride = 38
+			}
+			return vec.Vec2i{
+				X: escControlsSideWidth(int32(rl.GetRenderWidth())),
+				Y: int32(len(gameControlHintColumns[columnIndex])) * rowStride,
+			}
+		})
+	if columnIndex == 0 {
+		column.
+			WithAnchors(anchor.Left, anchor.Left).
+			WithRelativePos(vec.Vec2i{X: 20})
+	} else {
+		column.
+			WithAnchors(anchor.Right, anchor.Right).
+			WithRelativePos(vec.Vec2i{X: -20})
+	}
+
+	for rowIndex, hint := range gameControlHintColumns[columnIndex] {
+		row := int32(rowIndex)
+		visible := func(*ui.TextElement) bool {
+			return hint.control != "F3" || global.DebugAvailable
+		}
+		inline := func() bool {
+			return escControlsInline(columnIndex, int32(rl.GetRenderWidth()))
+		}
+		contentOffset := func() int32 {
+			sideWidth := escControlsSideWidth(int32(rl.GetRenderWidth()))
+			contentWidth := controlsColumnWidth(
+				gameControlHintColumns[columnIndex],
+				17,
+				14,
+				20,
+				inline(),
+			)
+			return max((sideWidth-contentWidth)/2, int32(0))
+		}
+
+		column.
+			AddChild(
+				ui.Text().
+					WithText(hint.control).
+					WithTextSize(17).
+					WithTextColor(uiutil.MenuMutedColor).
+					WithTextShadow(textShadow, vec.Vec2i{X: 2, Y: 2}).
+					WithRelativePosDynamic(func(*ui.TextElement) vec.Vec2i {
+						rowStride := int32(46)
+						if inline() {
+							rowStride = 38
+						}
+						return vec.Vec2i{
+							X: contentOffset(),
+							Y: row * rowStride,
+						}
+					}).
+					WithVisibleDynamic(visible),
+			).
+			AddChild(
+				ui.Text().
+					WithText(hint.action).
+					WithTextSize(14).
+					WithTextColor(uiutil.MenuHeaderColor).
+					WithTextShadow(textShadow, vec.Vec2i{X: 2, Y: 2}).
+					WithRelativePosDynamic(func(*ui.TextElement) vec.Vec2i {
+						if inline() {
+							return vec.Vec2i{
+								X: contentOffset() + ui.MeasureText(hint.control, 17).X + 20,
+								Y: row * 38,
+							}
+						}
+						return vec.Vec2i{
+							X: contentOffset(),
+							Y: row*46 + 21,
+						}
+					}).
+					WithVisibleDynamic(visible),
+			)
+	}
+
+	return column
+}
+
+func escControlsSideWidth(renderWidth int32) int32 {
+	return max((renderWidth-340)/2-44, int32(150))
+}
+
+func escControlsInline(columnIndex int, renderWidth int32) bool {
+	return escControlsSideWidth(renderWidth) >= controlsColumnWidth(
+		gameControlHintColumns[columnIndex],
+		17,
+		14,
+		20,
+		true,
+	)
 }

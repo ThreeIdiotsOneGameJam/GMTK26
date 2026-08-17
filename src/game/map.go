@@ -8,11 +8,44 @@ type Map struct {
 	GridSize vec.Vec2i `json:"grid_size"`
 }
 
+type BuildingData struct {
+	Type BuildingType `json:"type"`
+	HP   int8         `json:"hp"`
+}
+
+type UnitData struct {
+	Type  UnitType `json:"type"`
+	Owner int8     `json:"owner"`
+	HP    int8     `json:"hp"`
+}
+
 type Cell struct {
-	Tile     TileType     `json:"tile"`
-	Owner    int8         `json:"owner,omitempty"` // -1 = unowned, 0-3 = faction index
-	Building BuildingType `json:"building,omitempty"`
-	Troop    TroopType    `json:"troop,omitempty"`
+	Tile     TileType      `json:"tile"`
+	Owner    int8          `json:"owner,omitempty"` // territory, based ONLY on building (-1 = unowned)
+	Building *BuildingData `json:"building,omitempty"`
+	Units    []UnitData    `json:"units,omitempty"`
+}
+
+func (c *Cell) HasBuilding() bool {
+	return c != nil && c.Building != nil
+}
+
+func (c *Cell) BuildingType() BuildingType {
+	if c == nil || c.Building == nil {
+		return BuildingUnknown
+	}
+	return c.Building.Type
+}
+
+func (c *Cell) HasUnits() bool {
+	return c != nil && len(c.Units) > 0
+}
+
+func (c *Cell) FirstUnit() *UnitData {
+	if c == nil || len(c.Units) == 0 {
+		return nil
+	}
+	return &c.Units[0]
 }
 
 type Neighbors struct {
@@ -26,7 +59,7 @@ type Neighbors struct {
 
 func (m *Map) Generate() {
 	if m.GridSize == (vec.Vec2i{}) {
-		m.GridSize = vec.Vec2i{X: 96, Y: 96}
+		m.GridSize = vec.Vec2i{X: DefaultMapWidth, Y: DefaultMapHeight}
 	}
 
 	m.Grid = generateMap(m.GridSize, m.Seed)
@@ -64,13 +97,13 @@ func (m *Map) GetCell(pos Hex) *Cell {
 }
 
 func (m *Map) HexInsideBounds(hex Hex) bool {
+	if m == nil {
+		return false
+	}
 	if hex.X < 0 || hex.X >= m.GridSize.X || hex.Y < 0 || hex.Y >= m.GridSize.Y {
 		return false
 	}
 
-	if m.GetCell(hex).Tile == TileVoid {
-		return false
-	}
-
-	return true
+	cell := m.GetCell(hex)
+	return cell != nil && cell.Tile != TileVoid
 }

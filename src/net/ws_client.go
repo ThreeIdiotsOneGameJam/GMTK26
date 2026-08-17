@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/threeidiotsonegamejam/gmtk26/src/constants"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
@@ -41,18 +42,18 @@ func newWSClient() *WSClient {
 	}
 }
 
-func Connect(addr string) {
-	client.run(addr)
+func Connect(addrs ...constants.ServerAddr) {
+	client.run(addrs)
 }
 
-func (c *WSClient) run(addr string) {
+func (c *WSClient) run(addrs []constants.ServerAddr) {
 	c.connectOnce.Do(func() {
 		if !c.beginRun() {
 			return
 		}
 		defer c.endRun()
 
-		c.connect(addr)
+		c.connect(addrs)
 	})
 }
 
@@ -132,7 +133,7 @@ func (c *WSClient) endRun() {
 	c.lifecycleMu.Unlock()
 }
 
-func (c *WSClient) connect(addr string) {
+func (c *WSClient) connect(addrs []constants.ServerAddr) {
 	retryDelay := initialReconnectDelay
 
 	for {
@@ -147,35 +148,53 @@ func (c *WSClient) connect(addr string) {
 		c.clearRetryRequest()
 		c.setState(ConnectionConnecting)
 
-		// coder/websocket dials through the browser WebSocket API on
-		// js/wasm; canceling c.ctx aborts an in-flight dial.
-		conn, _, err := websocket.Dial(c.ctx, "ws://"+addr, nil)
-		if err != nil {
-			c.setState(ConnectionDisconnected)
-			if !c.waitForRetry(retryDelay) {
+		var lastErr error
+		var connection *Connection
+		for _, addr := range addrs {
+			if c.ctx.Err() != nil {
+				c.setState(ConnectionDisconnected)
 				return
 			}
-			retryDelay = nextReconnectDelay(retryDelay)
-			continue
+
+			// Per-address timeout so unreachable hosts don't block
+			// fallback addresses for the default TCP timeout (20-30s).
+			dialCtx, dialCancel := context.WithTimeout(c.ctx, 5*time.Second)
+
+			conn, _, err := websocket.Dial(dialCtx, addr.URL(), nil)
+			dialCancel()
+			if err != nil {
+				lastErr = err
+				continue
+			}
+
+			connection = NewConnection(conn)
+			connection.Start(func(packet packets.Packet) error {
+				return c.handlePacket(connection, packet)
+			})
+			if !c.setConnection(connection) {
+				connection.Close()
+				connection.wait()
+				c.setState(ConnectionDisconnected)
+				return
+			}
+			if err := connection.SendPacket(&packets.C2SConnectPacket{
+				Player: *game.PlayerData,
+			}); err != nil {
+				c.clearConnection(connection)
+				connection.Close()
+				connection.wait()
+				connection = nil
+				lastErr = err
+				continue
+			}
+			break
 		}
 
-		connection := NewConnection(conn)
-		connection.Start(func(packet packets.Packet) error {
-			return c.handlePacket(connection, packet)
-		})
-		if !c.setConnection(connection) {
-			connection.Close()
-			connection.wait()
+		if connection == nil {
 			c.setState(ConnectionDisconnected)
-			return
-		}
-		if err := connection.SendPacket(&packets.C2SConnectPacket{
-			Player: *game.PlayerData,
-		}); err != nil {
-			c.clearConnection(connection)
-			connection.Close()
-			connection.wait()
-			c.setState(ConnectionDisconnected)
+			if lastErr != nil && c.ctx.Err() == nil {
+				fmt.Printf("connection failed on all addresses: %v\n", lastErr)
+			}
 			if !c.waitForRetry(retryDelay) {
 				return
 			}

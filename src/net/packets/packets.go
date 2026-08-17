@@ -30,6 +30,9 @@ const (
 	S2CGameEndPacketType
 	C2SStartGamePacketType
 	S2CMatchmakingWaitingPacketType
+	C2SCancelMovementOrderPacketType
+	C2SCancelBuildActionPacketType
+	C2SUpdatePlayerNamePacketType
 )
 
 type Packet interface {

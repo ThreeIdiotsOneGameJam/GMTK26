@@ -3,7 +3,6 @@ package ui
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/settings"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlutil"
 )
 
 // frozenShaderTime holds the last animated time so reduced motion freezes
@@ -51,27 +50,5 @@ func (el *ShaderElement) draw() {
 	sizeLoc := rl.GetShaderLocation(shader, "size")
 	rl.SetShaderValue(shader, sizeLoc, []float32{s.X, s.Y}, rl.ShaderUniformVec2)
 
-	rl.BeginShaderMode(shader)
-	rl.Begin(rl.Triangles)
-
-	rl.TexCoord2f(0.0, 0.0)
-	rlutil.Vertex2f(p.X, p.Y)
-
-	rl.TexCoord2f(1.0, 1.0)
-	rlutil.Vertex2f(p.X+s.X, p.Y+s.Y)
-
-	rl.TexCoord2f(1.0, 0.0)
-	rlutil.Vertex2f(p.X+s.X, p.Y)
-
-	rl.TexCoord2f(0.0, 1.0)
-	rlutil.Vertex2f(p.X, p.Y+s.Y)
-
-	rl.TexCoord2f(1.0, 1.0)
-	rlutil.Vertex2f(p.X+s.X, p.Y+s.Y)
-
-	rl.TexCoord2f(0.0, 0.0)
-	rlutil.Vertex2f(p.X, p.Y)
-
-	rl.End()
-	rl.EndShaderMode()
+	drawShaderQuad(shader, p, s, nil)
 }

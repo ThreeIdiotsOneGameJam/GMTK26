@@ -1,0 +1,432 @@
+package render
+
+import (
+	"image/color"
+	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/threeidiotsonegamejam/gmtk26/src/game"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/rlvec"
+	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
+)
+
+const (
+	unitAnimationStep                   = 140 * time.Millisecond
+	unitTrailFade                       = 250 * time.Millisecond
+	routeCancelHitRadiusPixels  float32 = 8
+	movementStopMinRadiusPixels         = 1.25
+)
+
+type unitAnimation struct {
+	event   game.MovementEvent
+	elapsed time.Duration
+}
+
+const attackAnimationDuration = 300 * time.Millisecond
+
+type attackAnimation struct {
+	event   game.AttackEvent
+	elapsed time.Duration
+}
+
+func (r *WorldRenderer) StartMovementAnimations(events []game.MovementEvent) {
+	for _, event := range events {
+		if len(event.Path) < 2 {
+			continue
+		}
+		r.unitAnimations = append(r.unitAnimations, unitAnimation{
+			event: game.MovementEvent{
+				Unit:  event.Unit,
+				Owner: event.Owner,
+				Path:  append([]game.Hex(nil), event.Path...),
+			},
+		})
+	}
+}
+
+func (r *WorldRenderer) StartAttackAnimations(events []game.AttackEvent) {
+	for _, event := range events {
+		r.attackAnimations = append(r.attackAnimations, attackAnimation{
+			event: event,
+		})
+	}
+}
+
+func (r *WorldRenderer) updateUnitAnimations(delta time.Duration) {
+	filtered := r.unitAnimations[:0]
+	for i := range r.unitAnimations {
+		r.unitAnimations[i].elapsed += delta
+		duration := time.Duration(len(r.unitAnimations[i].event.Path)-1)*unitAnimationStep + unitTrailFade
+		if r.unitAnimations[i].elapsed < duration {
+			filtered = append(filtered, r.unitAnimations[i])
+		}
+	}
+	r.unitAnimations = filtered
+}
+
+func (r *WorldRenderer) MovementAnimating() bool {
+	for _, animation := range r.unitAnimations {
+		moveDuration := time.Duration(len(animation.event.Path)-1) * unitAnimationStep
+		if animation.elapsed <= moveDuration {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *WorldRenderer) drawMovementRoutes(m *game.Map) {
+	r.drawActionTargets(m)
+	for _, order := range r.Orders {
+		path, stops, ok := movementOrderRoute(m, r.LocalFaction, order)
+		if !ok {
+			continue
+		}
+		col := color.RGBA{R: 245, G: 245, B: 245, A: 100}
+		width := float32(3)
+		if r.SelectedKind == SelectionUnit &&
+			r.SelectedHex != nil &&
+			*r.SelectedHex == order.Current {
+			col.A = 190
+			width = 5
+		}
+		r.drawPathLine(path, col, width)
+		stopColor := rl.Gold
+		stopColor.A = 170
+		if r.SelectedKind == SelectionUnit &&
+			r.SelectedHex != nil &&
+			*r.SelectedHex == order.Current {
+			stopColor.A = 230
+		}
+		for _, stop := range stops {
+			r.drawMovementStop(stop, stopColor, false)
+		}
+	}
+	if len(r.PreviewPath) > 1 {
+		r.drawPathLine(r.PreviewPath, color.RGBA{R: 255, G: 255, B: 255, A: 230}, 6)
+		for _, stop := range r.PreviewStops {
+			r.drawMovementStop(stop, rl.Gold, true)
+		}
+	}
+	if r.PreviewTarget != nil {
+		pos := r.HexToPixel(r.PreviewTarget.Vec2i)
+		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, color.RGBA{R: 255, G: 80, B: 80, A: 200})
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -14, Y: -14})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 14, Y: 14})),
+			2, color.RGBA{R: 255, G: 80, B: 80, A: 200},
+		)
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 14, Y: -14})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -14, Y: 14})),
+			2, color.RGBA{R: 255, G: 80, B: 80, A: 200},
+		)
+	}
+
+	for _, order := range r.AttackOrders {
+		// Always draw crosshair on target tile
+		pos := r.HexToPixel(order.TargetTile.Vec2i)
+		rl.DrawRing(rlvec.ToRL(pos), 16, 18, 0, 360, 24, color.RGBA{R: 220, G: 50, B: 50, A: 180})
+		rl.DrawCircleLines(int32(pos.X), int32(pos.Y), 14, color.RGBA{R: 220, G: 50, B: 50, A: 180})
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -12, Y: -12})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 12, Y: 12})),
+			2, color.RGBA{R: 220, G: 50, B: 50, A: 180},
+		)
+		rl.DrawLineEx(
+			rlvec.ToRL(pos.Add(vec.Vec2{X: 12, Y: -12})),
+			rlvec.ToRL(pos.Add(vec.Vec2{X: -12, Y: 12})),
+			2, color.RGBA{R: 220, G: 50, B: 50, A: 180},
+		)
+
+		// Draw approach path + stops if reachable
+		source := m.GetCell(order.From)
+		if source == nil || !source.HasUnits() {
+			continue
+		}
+		path, _, ok := m.FindAdjacentApproachPath(r.LocalFaction, order.From, order.TargetTile)
+		if !ok || len(path) < 2 {
+			continue
+		}
+		col := color.RGBA{R: 220, G: 80, B: 80, A: 100}
+		r.drawPathLine(path, col, 3)
+		budget := game.UnitMovementBudget(source.Units[0].Type)
+		stops := m.MovementTurnStops(path, budget)
+		stopColor := color.RGBA{R: 220, G: 80, B: 80, A: 170}
+		for _, stop := range stops {
+			r.drawMovementStop(stop, stopColor, false)
+		}
+	}
+}
+
+func movementOrderRoute(
+	m *game.Map,
+	faction int8,
+	order game.MovementOrder,
+) ([]game.Hex, []game.Hex, bool) {
+	path, ok := m.FindUnitPath(faction, order.Current, order.Destination)
+	if !ok {
+		return nil, nil, false
+	}
+	source := m.GetCell(order.Current)
+	if source == nil {
+		return path, nil, true
+	}
+	stops := m.MovementTurnStops(path, game.UnitMovementBudget(source.Units[0].Type))
+	return path, stops, true
+}
+
+func (r *WorldRenderer) cancelQueuedMovementAt(
+	m *game.Map,
+	point vec.Vec2,
+	click bool,
+) bool {
+	if !click {
+		return false
+	}
+	order, ok := r.movementOrderNear(m, point)
+	if !ok {
+		return false
+	}
+	if r.OnCancelMovement != nil && !r.OnCancelMovement(order.Current) {
+		return false
+	}
+	r.RemoveMovementOrder(order.Current)
+	return true
+}
+
+func (r *WorldRenderer) movementOrderNear(
+	m *game.Map,
+	point vec.Vec2,
+) (game.MovementOrder, bool) {
+	hitRadius := r.zoomSafeSize(0, routeCancelHitRadiusPixels)
+	maxDistanceSquared := hitRadius * hitRadius
+	bestDistanceSquared := maxDistanceSquared
+	var best game.MovementOrder
+	found := false
+
+	for _, order := range r.Orders {
+		path, _, ok := movementOrderRoute(m, r.LocalFaction, order)
+		if !ok {
+			continue
+		}
+		for i := 1; i < len(path); i++ {
+			from := r.HexToPixel(path[i-1].Vec2i)
+			to := r.HexToPixel(path[i].Vec2i)
+			distanceSquared := pointSegmentDistanceSquared(point, from, to)
+			if distanceSquared <= bestDistanceSquared {
+				bestDistanceSquared = distanceSquared
+				best = order
+				found = true
+			}
+		}
+	}
+	return best, found
+}
+
+func pointSegmentDistanceSquared(point, from, to vec.Vec2) float32 {
+	segment := to.Sub(from)
+	lengthSquared := segment.MagnitudeSqr()
+	if lengthSquared == 0 {
+		return point.Sub(from).MagnitudeSqr()
+	}
+	offset := point.Sub(from)
+	projection := (offset.X*segment.X + offset.Y*segment.Y) / lengthSquared
+	projection = max(float32(0), min(float32(1), projection))
+	nearest := from.Add(segment.Mul(vec.Vec2{X: projection, Y: projection}))
+	return point.Sub(nearest).MagnitudeSqr()
+}
+
+func (r *WorldRenderer) drawMovementStop(hex game.Hex, col color.RGBA, emphasized bool) {
+	position := r.HexToPixel(hex.Vec2i)
+	radius := float32(5)
+	if emphasized {
+		radius = 7
+	}
+	radius = r.zoomSafeSize(radius, movementStopMinRadiusPixels)
+	rl.DrawCircleV(rlvec.ToRL(position), radius, col)
+	inner := color.RGBA{R: 28, G: 31, B: 36, A: col.A}
+	rl.DrawCircleV(rlvec.ToRL(position), radius*0.45, inner)
+}
+
+func (r *WorldRenderer) drawActionTargets(m *game.Map) {
+	if r.SelectedHex == nil {
+		return
+	}
+	from := *r.SelectedHex
+	source := m.GetCell(from)
+	if source == nil {
+		return
+	}
+
+	selectedPos := r.HexToPixel(from.Vec2i)
+	rl.DrawCircleLines(int32(selectedPos.X), int32(selectedPos.Y), 17, rl.White)
+
+	for x := range m.Grid {
+		for y := range m.Grid[x] {
+			to := game.NewHex(int32(x), int32(y))
+			if from != to && !game.HexAdjacent(from, to) {
+				continue
+			}
+			valid := false
+			col := rl.Green
+			switch {
+			case r.SelectedKind == SelectionUnit &&
+				r.BuildingToPlace != game.BuildingUnknown:
+				valid = r.canBuildAt(m, from, to, r.BuildingToPlace)
+			case r.SelectedKind == SelectionBuilding &&
+				r.RecruitToPlace != game.UnitUnknown:
+				valid = r.canRecruitAt(m, from, to, r.RecruitToPlace)
+			case r.SelectedKind == SelectionUnit &&
+				source.HasUnits() &&
+				source.Units[0].Type != game.UnitScout &&
+				source.Units[0].Owner == r.LocalFaction:
+				target := m.GetCell(to)
+				valid = target != nil && (hasEnemyUnit(target, r.LocalFaction) || hasEnemyBuilding(target, r.LocalFaction))
+				col = rl.Red
+			}
+			if !valid {
+				continue
+			}
+			position := r.HexToPixel(to.Vec2i)
+			rl.DrawCircleLines(int32(position.X), int32(position.Y), 19, col)
+		}
+	}
+}
+
+func (r *WorldRenderer) drawPathLine(path []game.Hex, col color.RGBA, width float32) {
+	for i := 1; i < len(path); i++ {
+		from := r.HexToPixel(path[i-1].Vec2i)
+		to := r.HexToPixel(path[i].Vec2i)
+		rl.DrawLineEx(rlvec.ToRL(from), rlvec.ToRL(to), r.zoomSafeSize(width, 0.9), col)
+	}
+}
+
+func (r *WorldRenderer) zoomSafeSize(worldSize, minimumScreenPixels float32) float32 {
+	if r.Camera.Zoom <= 0 {
+		return worldSize
+	}
+	return max(worldSize, minimumScreenPixels/r.Camera.Zoom)
+}
+
+func (r *WorldRenderer) updateAttackAnimations(delta time.Duration) {
+	filtered := r.attackAnimations[:0]
+	for i := range r.attackAnimations {
+		r.attackAnimations[i].elapsed += delta
+		if r.attackAnimations[i].elapsed < attackAnimationDuration {
+			filtered = append(filtered, r.attackAnimations[i])
+		}
+	}
+	r.attackAnimations = filtered
+}
+
+func (r *WorldRenderer) drawAttackAnimations() {
+	for _, anim := range r.attackAnimations {
+		progress := float32(anim.elapsed) / float32(attackAnimationDuration)
+		from := r.HexToPixel(anim.event.From.Vec2i)
+		to := r.HexToPixel(anim.event.Target.Vec2i)
+
+		var lungePos vec.Vec2
+		if progress < 0.5 {
+			t := progress * 2
+			lungePos = from.Lerp(to, t)
+		} else {
+			t := (progress - 0.5) * 2
+			lungePos = to.Lerp(from, t)
+		}
+		markerColor := factionColor(anim.event.Owner)
+		markerColor.A = uint8(max(0, min(255, int(255*(1-progress*0.3)))))
+		r.drawUnit(lungePos, anim.event.Unit, markerColor)
+
+		if progress >= 0.45 && progress < 0.55 {
+			impact := color.RGBA{R: 255, G: 220, B: 100, A: uint8(max(0, min(255, int(200*(1-(progress-0.45)*10)))))}
+			rl.DrawRing(rlvec.ToRL(to), 8, 16, 0, 360, 16, impact)
+		}
+	}
+}
+
+func (r *WorldRenderer) drawUnitAnimations() {
+	for _, animation := range r.unitAnimations {
+		event := animation.event
+		moveDuration := time.Duration(len(event.Path)-1) * unitAnimationStep
+		alpha := float32(1)
+		if animation.elapsed > moveDuration {
+			alpha = 1 - float32(animation.elapsed-moveDuration)/float32(unitTrailFade)
+		}
+		alpha = max(float32(0), min(float32(1), alpha))
+
+		position, reached := r.animationPosition(animation)
+		trail := append([]game.Hex(nil), event.Path[:reached+1]...)
+		trailColor := factionColor(event.Owner)
+		trailColor.A = uint8(float32(180) * alpha)
+		r.drawPartialTrail(trail, position, trailColor)
+		if animation.elapsed <= moveDuration {
+			r.drawUnit(position, event.Unit, factionColor(event.Owner))
+		}
+	}
+}
+
+func (r *WorldRenderer) animationPosition(animation unitAnimation) (vec.Vec2, int) {
+	path := animation.event.Path
+	moveDuration := time.Duration(len(path)-1) * unitAnimationStep
+	elapsed := min(animation.elapsed, moveDuration)
+	segment := int(elapsed / unitAnimationStep)
+	if segment >= len(path)-1 {
+		return r.HexToPixel(path[len(path)-1].Vec2i), len(path) - 1
+	}
+	progress := float32(elapsed%unitAnimationStep) / float32(unitAnimationStep)
+	from := r.HexToPixel(path[segment].Vec2i)
+	to := r.HexToPixel(path[segment+1].Vec2i)
+	return from.Lerp(to, progress), segment
+}
+
+func (r *WorldRenderer) drawPartialTrail(path []game.Hex, current vec.Vec2, col color.RGBA) {
+	if len(path) == 0 {
+		return
+	}
+	for i := 1; i < len(path); i++ {
+		from := r.HexToPixel(path[i-1].Vec2i)
+		to := r.HexToPixel(path[i].Vec2i)
+		rl.DrawLineEx(rlvec.ToRL(from), rlvec.ToRL(to), r.zoomSafeSize(5, 0.9), col)
+	}
+	last := r.HexToPixel(path[len(path)-1].Vec2i)
+	if last != current {
+		rl.DrawLineEx(rlvec.ToRL(last), rlvec.ToRL(current), r.zoomSafeSize(5, 0.9), col)
+	}
+}
+
+func factionColor(owner int8) color.RGBA {
+	if owner < 0 || int(owner) >= len(factionColors) {
+		return rl.White
+	}
+	return factionColors[owner]
+}
+
+func hasEnemyUnit(cell *game.Cell, faction int8) bool {
+	if !cell.HasUnits() {
+		return false
+	}
+	for _, u := range cell.Units {
+		if u.Owner != faction {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEnemyBuilding(cell *game.Cell, faction int8) bool {
+	return cell.HasBuilding() && cell.Owner >= 0 && cell.Owner != faction
+}
+
+func (r *WorldRenderer) unitEndpointAnimating(hex game.Hex, owner int8, unit game.UnitType) bool {
+	for _, animation := range r.unitAnimations {
+		path := animation.event.Path
+		moveDuration := time.Duration(len(path)-1) * unitAnimationStep
+		if animation.elapsed <= moveDuration &&
+			animation.event.Owner == owner &&
+			animation.event.Unit == unit &&
+			path[len(path)-1] == hex {
+			return true
+		}
+	}
+	return false
+}

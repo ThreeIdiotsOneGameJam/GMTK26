@@ -1,0 +1,12 @@
+.git
+.github
+Raylib-Go-Wasm
+assets
+bin
+
+*.md
+main.go
+main_desktop.go
+main_web.go
+server
+server.exe

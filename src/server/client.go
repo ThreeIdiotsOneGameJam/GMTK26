@@ -57,7 +57,7 @@ func (c *Client) LeaveGame() {
 	c.mu.Unlock()
 
 	if gi != nil {
-		gi.clientLeft()
+		gi.clientLeft(c)
 	}
 }
 
@@ -140,12 +140,40 @@ func (c *Client) HandlePacket(packet packets.C2SPacket) (packets.S2CPacket, erro
 		if gi == nil {
 			return nil, fatalPacketErrorf("handle action packet: not in a game")
 		}
-		if err := gi.SubmitAction(c, packet.Round, packet.Type, packet.Build, packet.Dispatch); err != nil {
+		if err := gi.SubmitAction(
+			c,
+			packet.Round,
+			packet.Type,
+			packet.Build,
+			packet.Move,
+			packet.Recruit,
+			packet.Attack,
+		); err != nil {
 			// Late or invalid actions are dropped; the next state broadcast
 			// resynchronizes the client.
 			return nil, fmt.Errorf("handle action packet: %w", err)
 		}
 		return nil, nil
+	case *packets.C2SCancelMovementOrderPacket:
+		gi := c.GameInstance()
+		if gi == nil {
+			return nil, fatalPacketErrorf("handle cancel movement packet: not in a game")
+		}
+		if err := gi.CancelMovementOrder(c, packet.Round, packet.From); err != nil {
+			return nil, fmt.Errorf("handle cancel movement packet: %w", err)
+		}
+		return nil, nil
+	case *packets.C2SCancelBuildActionPacket:
+		gi := c.GameInstance()
+		if gi == nil {
+			return nil, fatalPacketErrorf("handle cancel build packet: not in a game")
+		}
+		if err := gi.CancelBuildAction(c, packet.Round, packet.To); err != nil {
+			return nil, fmt.Errorf("handle cancel build packet: %w", err)
+		}
+		return nil, nil
+	case *packets.C2SUpdatePlayerNamePacket:
+		return c.handleUpdatePlayerNamePacket(packet)
 	default:
 		return nil, fatalPacketErrorf(
 			"handle client packet: unsupported packet %T",
@@ -238,6 +266,13 @@ func (c *Client) handleConnectPacket(packet *packets.C2SConnectPacket) (packets.
 		ClientID:   game.ClientID(clientID.String()),
 		Persistent: persistent,
 	}, nil
+}
+
+func (c *Client) handleUpdatePlayerNamePacket(packet *packets.C2SUpdatePlayerNamePacket) (packets.S2CPacket, error) {
+	c.mu.Lock()
+	c.player.PlayerName = packet.PlayerName
+	c.mu.Unlock()
+	return nil, nil
 }
 
 func newTemporaryClientID() uuid.UUID {

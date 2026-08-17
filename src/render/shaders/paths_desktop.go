@@ -2,8 +2,10 @@
 
 package shaders
 
-const vertexShaderPath = "assets/shaders/base.vert"
+import "github.com/threeidiotsonegamejam/gmtk26/src/global"
+
+var vertexShaderPath = global.AssetDir + "/shaders/base.vert"
 
 func fragmentShaderPath(name string) string {
-	return "assets/shaders/" + name + ".frag"
+	return global.AssetDir + "/shaders/" + name + ".frag"
 }

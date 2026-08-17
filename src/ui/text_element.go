@@ -2,23 +2,31 @@ package ui
 
 import (
 	"image/color"
+	"strings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/threeidiotsonegamejam/gmtk26/src/util"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
 func Text() *TextElement {
 	el := &TextElement{}
-	el.BaseElement = NewBaseElement(el)
+	el.DropShadowElement = NewDropShadowElement(el)
+	el.shadowOffsetProvider = func(el *TextElement) vec.Vec2i {
+		return fontScaledShadowOffset(el.TextSize)
+	}
 
 	return el.WithSizeDynamic(func(el *TextElement) vec.Vec2i {
-		// FIXME: not measured properly for multiline text
-		return vec.Vec2i{
-			X: rl.MeasureText(el.Text(), el.TextSize),
-			Y: el.TextSize,
-		}
+		return MeasureText(el.Text(), el.TextSize)
 	})
+}
+
+func MeasureText(text string, textSize int32) vec.Vec2i {
+	lines := strings.Split(text, "\n")
+	size := vec.Vec2i{Y: int32(len(lines)) * textSize}
+	for _, line := range lines {
+		size.X = max(size.X, rl.MeasureText(line, textSize))
+	}
+	return size
 }
 
 func (el *TextElement) WithText(text string) *TextElement {
@@ -44,18 +52,14 @@ func (el *TextElement) WithTextColor(textColor color.RGBA) *TextElement {
 }
 
 func (el *TextElement) WithTextShadow(shadowColor color.RGBA, offset vec.Vec2i) *TextElement {
-	el.ShadowColor = &shadowColor
-	el.ShadowOffset = offset
-	return el
+	return el.WithShadow(shadowColor, offset)
 }
 
 type TextElement struct {
-	BaseElement[*TextElement]
-	Text         func() string
-	TextSize     int32
-	TextColor    color.RGBA
-	ShadowColor  *color.RGBA
-	ShadowOffset vec.Vec2i
+	DropShadowElement[*TextElement]
+	Text      func() string
+	TextSize  int32
+	TextColor color.RGBA
 }
 
 func (el *TextElement) update(deltaNano int64) {
@@ -66,14 +70,14 @@ func (el *TextElement) draw() {
 	text := el.Text()
 	opacity := el.Opacity()
 
-	if el.ShadowColor != nil {
-		rl.DrawText(
-			text,
-			pos.X+el.ShadowOffset.X,
-			pos.Y+el.ShadowOffset.Y,
-			el.TextSize,
-			util.ColorOpacity(*el.ShadowColor, opacity),
-		)
-	}
-	rl.DrawText(text, pos.X, pos.Y, el.TextSize, util.ColorOpacity(el.TextColor, opacity))
+	drawTextWithShadow(
+		text,
+		pos.X,
+		pos.Y,
+		el.TextSize,
+		el.TextColor,
+		el.ShadowColor,
+		el.resolvedShadowOffset(),
+		opacity,
+	)
 }
