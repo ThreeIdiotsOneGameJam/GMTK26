@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -66,7 +67,7 @@ func NewLobbyManager() *LobbyManager {
 	}
 }
 
-func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8, seed int64) (game.Game, error) {
+func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8) (game.Game, error) {
 	if maxPlayers < 1 || maxPlayers > 4 {
 		return game.Game{}, fmt.Errorf("max players must be 1, 2, 3, or 4")
 	}
@@ -104,9 +105,6 @@ func (m *LobbyManager) CreateGame(client *Client, public bool, maxPlayers uint8,
 		Multiplayer: maxPlayers > 1,
 		MaxPlayers:  maxPlayers,
 		Round:       1,
-		Map: game.Map{
-			Seed: seed,
-		},
 	}
 	state.Factions[0].Player = playerPointer(player)
 	for i := int(maxPlayers); i < len(state.Factions); i++ {
@@ -214,6 +212,13 @@ func (m *LobbyManager) StartGame(client *Client) error {
 		m.mu.Unlock()
 		return ErrNotEnoughPlayers
 	}
+
+	seed, err := newGameSeed()
+	if err != nil {
+		m.mu.Unlock()
+		return err
+	}
+	active.state.Map.Seed = seed
 
 	delete(m.lobbies, gameID)
 	delete(m.gameCodes, active.state.GameCode)
@@ -457,6 +462,14 @@ func (m *LobbyManager) newGameCodeLocked() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("generate game code: no unique code available")
+}
+
+func newGameSeed() (int64, error) {
+	var bytes [8]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return 0, fmt.Errorf("generate game seed: %w", err)
+	}
+	return int64(binary.LittleEndian.Uint64(bytes[:])), nil
 }
 
 func availableFaction(state game.Game) int {
