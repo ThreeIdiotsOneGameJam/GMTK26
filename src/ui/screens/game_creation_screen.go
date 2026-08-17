@@ -2,8 +2,6 @@ package screens
 
 import (
 	"fmt"
-	"hash/fnv"
-	"math/rand"
 	"strconv"
 
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
@@ -28,7 +26,6 @@ var (
 	creationPublic      = true
 	creationSubmitting  bool
 	creationError       string
-	creationSeedInput   *ui.InputElement
 	creationSubmit      *ui.ButtonElement
 	creationVisibility  *ui.ButtonElement
 	creationPlayerCount [3]*ui.ButtonElement
@@ -52,11 +49,11 @@ func RejectGameCreation(message string) {
 }
 
 func StartSoloWithDefaults() error {
-	return startSoloGame(rand.Int63())
+	return startSoloGame()
 }
 
 func HostGameWithDefaults() error {
-	return sendHostGame(true, 4, rand.Int63())
+	return sendHostGame(true, 4)
 }
 
 func openGameCreation(mode gameCreationMode, previousScreen *ui.ScreenElement) {
@@ -66,7 +63,6 @@ func openGameCreation(mode gameCreationMode, previousScreen *ui.ScreenElement) {
 	creationSubmitting = false
 	creationError = ""
 	screen := NewGameCreationScreen(previousScreen)
-	creationSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
 	SetActiveScreen(screen)
 }
 
@@ -111,37 +107,6 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		}
 	})
 
-	creationSeedInput = ui.Input().
-		WithPlaceholderText("Seed or phrase").
-		WithMaxTextLength(48).
-		WithDefaultText("").
-		WithTextSize(30).
-		WithPadding(10).
-		WithSize(vec.Vec2i{X: 360, Y: 54}).
-		WithAnchors(anchor.Center, anchor.Center).
-		WithRelativePos(vec.Vec2i{X: -82, Y: -72}).
-		WithEnabledDynamic(func(el *ui.InputElement) bool {
-			return !creationSubmitting
-		}).
-		WithCallback(func(text string) {
-			creationError = ""
-		})
-
-	randomSeedButton := ui.Button().
-		WithText("Random").
-		WithTextSize(28).
-		WithPadding(8).
-		WithSize(vec.Vec2i{X: 150, Y: 54}).
-		WithAnchors(anchor.Center, anchor.Center).
-		WithRelativePos(vec.Vec2i{X: 205, Y: -72}).
-		WithEnabledDynamic(func(el *ui.ButtonElement) bool {
-			return !creationSubmitting
-		}).
-		WithClick(func() {
-			creationSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
-			creationError = ""
-		})
-
 	for i := range creationPlayerCount {
 		count := uint8(i + 2)
 		creationPlayerCount[i] = ui.Button().
@@ -150,7 +115,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			WithPadding(8).
 			WithSize(vec.Vec2i{X: 100, Y: 52}).
 			WithAnchors(anchor.Center, anchor.Center).
-			WithRelativePos(vec.Vec2i{X: int32(i-1) * 120, Y: 34}).
+			WithRelativePos(vec.Vec2i{X: int32(i-1) * 120, Y: -22}).
 			WithVisibleDynamic(func(el *ui.ButtonElement) bool {
 				return hostMode()
 			}).
@@ -169,7 +134,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithPadding(8).
 		WithSize(vec.Vec2i{X: 360, Y: 52}).
 		WithAnchors(anchor.Center, anchor.Center).
-		WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
+		WithRelativePos(vec.Vec2i{X: 0, Y: 48}).
 		WithVisibleDynamic(func(el *ui.ButtonElement) bool {
 			return hostMode()
 		}).
@@ -190,9 +155,9 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		WithAnchors(anchor.Center, anchor.Center).
 		WithRelativePosDynamic(func(el *ui.ButtonElement) vec.Vec2i {
 			if hostMode() {
-				return vec.Vec2i{X: 0, Y: 170}
+				return vec.Vec2i{X: 0, Y: 114}
 			}
-			return vec.Vec2i{X: 0, Y: 82}
+			return vec.Vec2i{X: 0, Y: 48}
 		}).
 		WithEnabledDynamic(func(el *ui.ButtonElement) bool {
 			return !creationSubmitting && (!hostMode() || hostConnected())
@@ -222,7 +187,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					if hostMode() {
 						return "Choose the rules"
 					}
-					return "Choose a world seed before starting"
+					return "The world is generated when the game starts"
 				}).
 				WithTextSize(26).
 				WithTextColor(uiutil.MenuMutedColor).
@@ -231,21 +196,11 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.Text().
-				WithText("World Seed").
-				WithTextSize(25).
-				WithTextColor(uiutil.MenuMutedColor).
-				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{X: 0, Y: -116}),
-		).
-		AddChild(creationSeedInput).
-		AddChild(randomSeedButton).
-		AddChild(
-			ui.Text().
 				WithText("Maximum Players").
 				WithTextSize(25).
 				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{X: 0, Y: -12}).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -68}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
 					return hostMode()
 				}),
@@ -256,7 +211,7 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 				WithTextSize(26).
 				WithTextColor(uiutil.MenuMutedColor).
 				WithAnchors(anchor.Center, anchor.Center).
-				WithRelativePos(vec.Vec2i{X: 0, Y: 10}).
+				WithRelativePos(vec.Vec2i{X: 0, Y: -18}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
 					return !hostMode()
 				}),
@@ -293,18 +248,14 @@ func NewGameCreationScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			}),
 		).
 		AddChild(ui.Vignette()).
-		WithBack(goBack).
-		WithExit(func() {
-			creationSeedInput.Blur()
-		})
+		WithBack(goBack)
 }
 
 func submitGameCreation() {
-	seed := gameSeedFromText(creationSeedInput.Text)
 	creationError = ""
 
 	if creationMode == gameCreationSolo {
-		if err := startSoloGame(seed); err != nil {
+		if err := startSoloGame(); err != nil {
 			creationError = err.Error()
 			return
 		}
@@ -312,25 +263,24 @@ func submitGameCreation() {
 		return
 	}
 
-	if err := sendHostGame(creationPublic, creationMaxPlayers, seed); err != nil {
+	if err := sendHostGame(creationPublic, creationMaxPlayers); err != nil {
 		creationError = err.Error()
 		return
 	}
 	creationSubmitting = true
 }
 
-func startSoloGame(seed int64) error {
-	return gameNet.StartLocalGame(seed)
+func startSoloGame() error {
+	return gameNet.StartLocalGame()
 }
 
-func sendHostGame(public bool, maxPlayers uint8, seed int64) error {
+func sendHostGame(public bool, maxPlayers uint8) error {
 	if settings.Current.Offline || gameNet.State() != gameNet.ConnectionConnected {
 		return fmt.Errorf("Connect to the multiplayer server before creating a game")
 	}
 	if err := gameNet.Send(&packets.C2SCreateGamePacket{
 		Public:     public,
 		MaxPlayers: maxPlayers,
-		Seed:       seed,
 	}); err != nil {
 		return err
 	}
@@ -345,17 +295,4 @@ func gameCreationStatus() string {
 		return "Multiplayer connection required"
 	}
 	return ""
-}
-
-func gameSeedFromText(text string) int64 {
-	if text == "" || text == "0" {
-		return 0
-	}
-	if seed, err := strconv.ParseInt(text, 10, 64); err == nil {
-		return seed
-	}
-
-	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(text))
-	return int64(hash.Sum64())
 }

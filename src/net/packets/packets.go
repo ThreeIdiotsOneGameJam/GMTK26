@@ -11,7 +11,7 @@ import (
 
 type PacketType int
 
-const protocolVersion uint16 = 1
+const protocolVersion uint16 = 2
 
 const (
 	UnknownPacketType PacketType = iota

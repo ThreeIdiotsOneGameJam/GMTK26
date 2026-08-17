@@ -20,7 +20,7 @@ var localGame = struct {
 
 // StartLocalGame starts a private one-player server in this process. The
 // multiplayer socket is suspended until StopLocalGame is called.
-func StartLocalGame(seed int64) error {
+func StartLocalGame() error {
 	if game.PlayerData == nil {
 		return fmt.Errorf("start local game: player data is not loaded")
 	}
@@ -46,7 +46,6 @@ func StartLocalGame(seed int64) error {
 	if err := transport.send(&packets.C2SCreateGamePacket{
 		Public:     false,
 		MaxPlayers: 1,
-		Seed:       seed,
 	}); err != nil {
 		stopLocalGame(true)
 		return fmt.Errorf("create local game: %w", err)

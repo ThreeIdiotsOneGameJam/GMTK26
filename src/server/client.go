@@ -159,7 +159,7 @@ func (c *Client) handleCreateGamePacket(packet *packets.C2SCreateGamePacket) (pa
 		return nil, fatalPacketErrorf("handle create game packet: client is not ready")
 	}
 
-	state, err := Lobbies.CreateGame(c, packet.Public, packet.MaxPlayers, packet.Seed)
+	state, err := Lobbies.CreateGame(c, packet.Public, packet.MaxPlayers)
 	if err != nil {
 		return &packets.S2CGameRejectedPacket{
 			Operation: "create",

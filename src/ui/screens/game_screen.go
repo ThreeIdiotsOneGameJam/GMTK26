@@ -3,8 +3,6 @@ package screens
 import (
 	"fmt"
 	"image/color"
-	"math/rand"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -13,17 +11,15 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/threeidiotsonegamejam/gmtk26/src/audio"
 	"github.com/threeidiotsonegamejam/gmtk26/src/game"
-	"github.com/threeidiotsonegamejam/gmtk26/src/global"
 	gameNet "github.com/threeidiotsonegamejam/gmtk26/src/net"
 	"github.com/threeidiotsonegamejam/gmtk26/src/net/packets"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui"
 	"github.com/threeidiotsonegamejam/gmtk26/src/ui/anchor"
+	"github.com/threeidiotsonegamejam/gmtk26/src/ui/uiutil"
 	"github.com/threeidiotsonegamejam/gmtk26/src/util/vec"
 )
 
-var gameSeedInput = ui.Input()
 var gameWorld = ui.GameWorld()
-var gameRegenerateButton = ui.Button()
 var currentGame *game.Game
 var gamePreviousScreen *ui.ScreenElement
 var gameLeaveTransition bool
@@ -35,6 +31,7 @@ var localClientID game.ClientID
 // serverGameActive is true between S2CGameStartPacket and S2CGameEndPacket
 // for both remote multiplayer and the in-process solo server.
 var serverGameActive bool
+var serverGameStarted bool
 var serverRound int32
 var serverCoins int32
 var serverPoints int32
@@ -79,6 +76,7 @@ func ApplyServerGameStart(p *packets.S2CGameStartPacket) {
 		return
 	}
 	serverGameActive = true
+	serverGameStarted = true
 	gameOverMessage = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
 	applyServerRound(p.Round, p.Deadline, p.Map, p.Coins, p.Points, p.Resources)
@@ -119,7 +117,6 @@ func applyServerRound(round int32, deadline int64, m game.Map, coins, points int
 	currentGame.Round = round
 	currentGame.Map = m
 	gameWorld.Map = m
-	gameSeedInput.Text = strconv.FormatInt(m.Seed, 10)
 }
 
 func multiplayerStatusText() string {
@@ -162,6 +159,7 @@ func multiplayerStatusText() string {
 func EnterGame(state game.Game) {
 	clearMatchmaking()
 	serverGameActive = false
+	serverGameStarted = false
 	gameOverMessage = ""
 	gameActionError = ""
 	gameWorld.Renderer.ClearQueuedBuilding()
@@ -250,21 +248,12 @@ func LeaveCurrentGame() {
 }
 
 func applyGameState(state game.Game) {
-	nextMap := state.Map
-	if currentGame != nil &&
-		currentGame.GameID == state.GameID &&
-		gameWorld.Map.Seed == nextMap.Seed &&
-		nextMap.Grid == nil {
-		nextMap = gameWorld.Map
-	}
-	if nextMap.Grid == nil {
-		nextMap.Generate()
-	}
-
-	state.Map = nextMap
-	gameWorld.Map = nextMap
-	gameSeedInput.Text = strconv.FormatInt(nextMap.Seed, 10)
 	currentGame = &state
+	if !serverGameStarted {
+		// Lobby updates intentionally contain no world data. Keep the renderer
+		// empty until the authoritative start packet arrives.
+		gameWorld.Map = game.Map{}
+	}
 }
 
 func clearCurrentGame() {
@@ -273,6 +262,7 @@ func clearCurrentGame() {
 	gameWorld.Renderer.ClearQueuedBuilding()
 	gameLeaveTransition = false
 	serverGameActive = false
+	serverGameStarted = false
 	serverGameEndTime = 0
 	gameOverMessage = ""
 	gameActionError = ""
@@ -291,7 +281,7 @@ func focusOnTownhall() {
 		for y := range gameWorld.Map.Grid[x] {
 			cell := &gameWorld.Map.Grid[x][y]
 			if cell.Owner == int8(gameNet.LocalGameState.FactionIdx) && cell.Building == game.BuildingTownhall {
-				gameWorld.Renderer.FocusOnHex(game.NewHex(int32(x), int32(y)))
+				gameWorld.FocusOnHex(game.NewHex(int32(x), int32(y)))
 				return
 			}
 		}
@@ -304,9 +294,12 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 	escScreen = NewEscScreen(nil)
 
 	screen := ui.Screen().
+		WithBackgroundColor(uiutil.MenuScreenBackground).
 		WithEnter(func() {
 			HideEscScreen()
-			gameWorld.Renderer.ResetCamera(&gameWorld.Map)
+			if serverGameStarted {
+				gameWorld.Renderer.ResetCamera(&gameWorld.Map)
+			}
 
 			audio.StartMusic()
 			audio.StartAmbience()
@@ -318,8 +311,11 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			audio.StopAmbience()
 			clearCurrentGame()
 		}).
+		AddChild(uiutil.MenuBackdrop()).
 		AddChild(
-			gameWorld,
+			gameWorld.WithVisibleDynamic(func(el *ui.GameWorldElement) bool {
+				return serverGameStarted
+			}),
 		).
 		AddChild(
 			ui.Text().
@@ -330,7 +326,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 					return "Game code: " + currentGame.GameCode
 				}).
 				WithTextSize(28).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
+				WithTextShadow(color.RGBA{R: 0, G: 0, B: 0, A: 180}, vec.Vec2i{X: 2, Y: 2}).
 				WithAnchors(anchor.TopRight, anchor.TopRight).
 				WithRelativePos(vec.Vec2i{X: -20, Y: 20}),
 		).
@@ -338,7 +335,8 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Text().
 				WithTextDynamic(multiplayerStatusText).
 				WithTextSize(26).
-				WithTextColor(rl.Black).
+				WithTextColor(uiutil.MenuHeaderColor).
+				WithTextShadow(color.RGBA{R: 0, G: 0, B: 0, A: 180}, vec.Vec2i{X: 2, Y: 2}).
 				WithAnchors(anchor.Top, anchor.Top).
 				WithRelativePos(vec.Vec2i{X: 0, Y: 20}).
 				WithVisibleDynamic(func(el *ui.TextElement) bool {
@@ -381,6 +379,9 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 			ui.Group().
 				WithAnchors(anchor.BottomLeft, anchor.BottomLeft).
 				WithRelativePos(vec.Vec2i{X: 8, Y: -48}).
+				WithVisibleDynamic(func(el *ui.GroupElement) bool {
+					return serverGameActive
+				}).
 				AddChild(
 					ui.Text().
 						WithTextSize(24).
@@ -426,44 +427,6 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 						WithText("Forester").
 						WithRelativePos(vec.Vec2i{X: 384, Y: 0}).
 						WithClick(setBuildingClick(game.BuildingForester)),
-				),
-		).
-		AddChild(
-			ui.Group().
-				WithAnchors(anchor.TopLeft, anchor.TopLeft).
-				WithRelativePos(vec.Vec2i{X: 8, Y: 8}).
-				WithVisibleDynamic(func(el *ui.GroupElement) bool {
-					return !serverGameActive && global.DebugEnabled
-				}).
-				AddChild(
-					gameSeedInput.
-						WithPadding(8).
-						WithTextSize(24).
-						WithSize(vec.Vec2i{X: 320, Y: 0}).
-						WithPlaceholderText("Seed").
-						WithDefaultText(""),
-				).
-				AddChild(
-					gameRegenerateButton.
-						WithPadding(8).
-						WithTextSize(24).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 52}).
-						WithText("Regenerate").
-						WithClick(func() {
-							gameWorld.Map.Seed = gameSeedFromText(gameSeedInput.Text)
-							gameWorld.Map.Generate()
-						}),
-				).
-				AddChild(
-					ui.Button().
-						WithPadding(8).
-						WithTextSize(24).
-						WithRelativePos(vec.Vec2i{X: 0, Y: 104}).
-						WithText("Random").
-						WithClick(func() {
-							gameSeedInput.Text = strconv.FormatInt(rand.Int63(), 10)
-							gameRegenerateButton.Click()
-						}),
 				),
 		).
 		AddChild(
@@ -561,7 +524,10 @@ func NewGameScreen(previousScreen *ui.ScreenElement) *ui.ScreenElement {
 		).
 		AddChild(
 			ui.GameBuildingDetailsPanel().
-				WithWorld(gameWorld),
+				WithWorld(gameWorld).
+				WithVisibleDynamic(func(el *ui.GameBuildingDetailsPanelElement) bool {
+					return serverGameActive
+				}),
 		).
 		AddChild(
 			ui.Vignette().WithAlpha(120),

@@ -5,7 +5,6 @@ import "github.com/threeidiotsonegamejam/gmtk26/src/game"
 type C2SCreateGamePacket struct {
 	Public     bool  `json:"public"`
 	MaxPlayers uint8 `json:"max_players"`
-	Seed       int64 `json:"seed"`
 }
 
 type C2SJoinGamePacket struct {

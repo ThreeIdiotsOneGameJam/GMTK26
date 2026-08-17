@@ -17,15 +17,17 @@ func GameWorld() *GameWorldElement {
 
 type GameWorldElement struct {
 	BaseElement[*GameWorldElement]
-	Map      game.Map
-	Renderer render.WorldRenderer
+	Map          game.Map
+	Renderer     render.WorldRenderer
+	pendingFocus *game.Hex
 }
 
 func (el *GameWorldElement) prepare() {
-	if el.Map.Grid == nil {
-		el.Map.Generate()
-	}
 	el.Renderer.Init(&el.Map)
+	if el.pendingFocus != nil {
+		el.Renderer.FocusOnHex(*el.pendingFocus)
+		el.pendingFocus = nil
+	}
 }
 
 func (el *GameWorldElement) update(deltaNano int64) {
@@ -35,4 +37,10 @@ func (el *GameWorldElement) update(deltaNano int64) {
 
 func (el *GameWorldElement) draw() {
 	el.Renderer.Draw(&el.Map)
+}
+
+// FocusOnHex defers camera focus until prepare has initialized the renderer.
+// This matters when the world stays hidden throughout the lobby.
+func (el *GameWorldElement) FocusOnHex(hex game.Hex) {
+	el.pendingFocus = &hex
 }
